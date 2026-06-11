@@ -1,6 +1,6 @@
 // ======================== DATA ========================
-const THEME_KEY = 'exampro_theme';
-const DATA_REF = typeof db !== 'undefined' && db ? db.ref('/exampro/data') : null;
+const THEME_KEY = 'studyhub_theme';
+const DATA_REF = typeof db !== 'undefined' && db ? db.ref('/studyhub/data') : null;
 
 let data = { categories: {} };
 let mockTests = [];
@@ -19,9 +19,9 @@ async function loadData() {
     }
   } catch {
     try {
-      const r = localStorage.getItem('exampro_data');
+      const r = localStorage.getItem('studyhub_data');
       if (r) { const d = JSON.parse(r); data = { categories: d.categories || {} }; mockTests = d.mockTests || []; }
-    } catch { }
+    } catch {}
   }
   if (!data.categories) data.categories = {};
   if (!Array.isArray(mockTests)) mockTests = [];
@@ -30,7 +30,7 @@ async function loadData() {
 
 async function saveData() {
   try {
-    localStorage.setItem('exampro_data', JSON.stringify(data));
+    localStorage.setItem('studyhub_data', JSON.stringify(data));
   } catch { }
   try {
     await DATA_REF.update({ categories: data.categories, mockTests });

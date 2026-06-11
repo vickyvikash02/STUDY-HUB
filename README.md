@@ -56,7 +56,7 @@ Images are stored as **data URLs** (base64 encoded) directly inside question dat
 ### Admin Access (Secret)
 
 The Admin panel is **hidden** from regular users. To access:
-1. **Click the "ExamPro" logo 5 times quickly** → a password prompt appears
+1. **Click the "Study Hub" logo 5 times quickly** → a password prompt appears
 2. Enter the admin password (default: `1234` — change in `script.js` line `const ADMIN_PASS = '1234'`)
 3. Admin nav item appears after login
 4. Click **Logout** in sidebar to lock admin again
