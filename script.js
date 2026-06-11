@@ -1071,6 +1071,7 @@ async function init() {
 
   // Admin lock
   updateAdminUI();
+  document.getElementById('logoSecret').addEventListener('contextmenu', e => e.preventDefault());
   document.getElementById('logoSecret').addEventListener('click', () => {
     _tapCount++;
     if (_tapCount === 1) _tapTimer = setTimeout(() => { _tapCount = 0; }, 3000);
