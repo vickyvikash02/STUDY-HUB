@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ExamPro - Study Material & Mock Tests</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="style.css?v=2">
+</head>
+<body>
+
+<div class="app">
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="logo" id="logoSecret"><i class="fas fa-graduation-cap"></i> ExamPro</div>
+    <nav>
+      <a class="nav-item active" data-page="dashboard"><i class="fas fa-th-large"></i> Dashboard</a>
+      <a class="nav-item" data-page="questions"><i class="fas fa-question-circle"></i> Question Bank</a>
+      <a class="nav-item" data-page="mocks"><i class="fas fa-tasks"></i> Mock Tests</a>
+      <a class="nav-item" data-page="builder"><i class="fas fa-plus-circle"></i> Test Builder</a>
+      <a class="nav-item hidden" id="adminNav" data-page="admin"><i class="fas fa-cog"></i> Admin</a>
+      <a class="nav-item" id="logoutBtn" style="display:none"><i class="fas fa-sign-out-alt"></i> Logout</a>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="theme-toggle" id="themeToggle"><i class="fas fa-moon"></i></button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <header class="topbar">
+      <button class="hamburger" id="hamburger"><i class="fas fa-bars"></i></button>
+      <h2 id="pageTitle">Dashboard</h2>
+      <div class="topbar-right">
+        <span id="statsBadge" class="stats-badge">0 questions</span>
+      </div>
+    </header>
+
+    <div class="content" id="content">
+
+      <!-- ===================== DASHBOARD ===================== -->
+      <section id="page-dashboard" class="page active">
+        <div class="hero">
+          <h1>📚 Your Study Hub</h1>
+          <p>Explore categories, practice questions, and test your knowledge.</p>
+        </div>
+        <div id="dashboardGrid" class="dash-grid"></div>
+      </section>
+
+      <!-- ===================== QUESTION BANK ===================== -->
+      <section id="page-questions" class="page">
+        <div class="breadcrumb" id="qbBreadcrumb"><span>Select a topic from Dashboard</span></div>
+        <div id="qbContent">
+          <div class="empty-state"><i class="fas fa-hand-pointer"></i><p>Click a topic on the Dashboard to view questions.</p></div>
+        </div>
+      </section>
+
+      <!-- ===================== MOCK TESTS ===================== -->
+      <section id="page-mocks" class="page">
+        <div id="mockListContainer">
+          <div class="hero">
+            <h1>🎯 Mock Tests</h1>
+            <p>Take timed tests and track your performance.</p>
+          </div>
+          <div id="mockList" class="mock-grid"></div>
+        </div>
+        <div id="mockTestContainer" class="hidden">
+          <div class="mock-header">
+            <button class="back-btn" id="mockQuitBtn"><i class="fas fa-arrow-left"></i> Quit</button>
+            <h3 id="mockTestTitle">Test</h3>
+            <div class="mock-header-info">
+              <span id="mockTimerDisplay"><i class="far fa-clock"></i> 00:00</span>
+              <span id="mockProgressDisplay">0/0</span>
+            </div>
+          </div>
+          <div class="mock-body">
+            <div class="mock-main">
+              <div class="q-number" id="mockQNumber">Q1</div>
+              <img class="q-img hidden" id="mockQImg" alt="Question image">
+              <div class="q-text" id="mockQText"></div>
+              <div class="q-opts" id="mockQOpts"></div>
+              <div class="q-explanation hidden" id="mockQExp">
+                <strong>Explanation:</strong> <span id="mockQExpText"></span>
+              </div>
+              <div class="mock-nav">
+                <button class="btn-secondary" id="mockPrevBtn"><i class="fas fa-chevron-left"></i> Previous</button>
+                <button class="btn-primary" id="mockNextBtn">Next <i class="fas fa-chevron-right"></i></button>
+                <button class="btn-success hidden" id="mockSubmitBtn"><i class="fas fa-check"></i> Submit</button>
+              </div>
+            </div>
+            <div class="mock-palette" id="mockPalette">
+              <h4>Question Palette</h4>
+              <div id="mockPaletteGrid"></div>
+              <button class="btn-success" id="mockSubmitPaletteBtn" style="margin-top:12px;width:100%;">Submit Test</button>
+            </div>
+          </div>
+          <div class="mock-result hidden" id="mockResultContainer">
+            <h2>Test Complete!</h2>
+            <div class="result-circle" id="mockResultCircle"><span id="mockResultPct">0%</span></div>
+            <p id="mockResultSummary"></p>
+            <div id="mockResultDetails"></div>
+            <button class="btn-primary" id="mockResultBackBtn">Back to Tests</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== TEST BUILDER ===================== -->
+      <section id="page-builder" class="page">
+        <div class="hero">
+          <h1>🛠️ Test Builder</h1>
+          <p>Create custom mock tests by selecting questions.</p>
+        </div>
+        <div class="builder-form">
+          <div class="form-row">
+            <input type="text" id="builderName" placeholder="Test name (e.g. Maths Practice #1)">
+            <input type="number" id="builderDuration" placeholder="Duration (minutes)" value="20" min="1">
+            <input type="number" id="builderMarks" placeholder="Total marks" value="25" min="1">
+          </div>
+          <div class="builder-browse">
+            <h3>Select Questions</h3>
+            <div class="builder-filters">
+              <select id="builderCatFilter"><option value="">All Categories</option></select>
+              <select id="builderSubFilter"><option value="">All Subcategories</option></select>
+              <select id="builderTopicFilter"><option value="">All Topics</option></select>
+            </div>
+            <div id="builderQList" class="builder-qlist"></div>
+          </div>
+          <button class="btn-success" id="builderSaveBtn"><i class="fas fa-save"></i> Save Mock Test</button>
+        </div>
+        <div id="builderExisting" class="builder-existing">
+          <h3>Existing Tests</h3>
+          <div id="builderTestList"></div>
+        </div>
+      </section>
+
+      <!-- ===================== ADMIN ===================== -->
+      <section id="page-admin" class="page">
+        <div class="hero">
+          <h1>⚙️ Admin Panel</h1>
+          <p>Manage categories, subcategories, topics & questions.</p>
+        </div>
+        <div class="admin-tabs">
+          <button class="admin-tab active" data-admin="categories">Categories</button>
+          <button class="admin-tab" data-admin="subcategories">Subcategories</button>
+          <button class="admin-tab" data-admin="topics">Topics</button>
+          <button class="admin-tab" data-admin="questions">Questions</button>
+        </div>
+        <div id="adminContent"></div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<div class="modal-overlay hidden" id="loginModal">
+  <div class="modal">
+    <h2><i class="fas fa-lock"></i> Admin Access</h2>
+    <input type="password" id="loginPass" placeholder="Enter password" class="modal-input">
+    <p id="loginError" class="login-error hidden"></p>
+    <button class="btn-primary" id="loginBtn" style="width:100%;">Login</button>
+    <button class="btn-secondary" id="loginCancelBtn" style="width:100%;margin-top:8px;">Cancel</button>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+<script src="firebase-config.js"></script>
+<script src="script.js?v=2"></script>
+</body>
+</html>
