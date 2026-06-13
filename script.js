@@ -205,55 +205,8 @@ async function seedData() {
   await saveData();
 }
 
-// ======================== ADMIN LOCK ========================
-const ADMIN_PASS = '1996';
-let isAdmin = false;
-let _tapCount = 0;
-let _tapTimer = null;
-
-function updateAdminUI() {
-  const adminNav = document.getElementById('adminNav');
-  const logoutBtn = document.getElementById('logoutBtn');
-  if (adminNav) adminNav.classList.toggle('hidden', !isAdmin);
-  if (logoutBtn) logoutBtn.style.display = isAdmin ? '' : 'none';
-  if (!isAdmin) {
-    const adminPage = document.getElementById('page-admin');
-    if (adminPage && adminPage.classList.contains('active')) switchPage('dashboard');
-  }
-}
-
-function showLogin() {
-  document.getElementById('loginModal').classList.remove('hidden');
-  document.getElementById('loginPass').value = '';
-  document.getElementById('loginError').classList.add('hidden');
-  document.getElementById('loginPass').focus();
-}
-
-function hideLogin() {
-  document.getElementById('loginModal').classList.add('hidden');
-}
-
-function login() {
-  const pass = document.getElementById('loginPass').value;
-  const errEl = document.getElementById('loginError');
-  if (pass === ADMIN_PASS) {
-    isAdmin = true;
-    updateAdminUI();
-    hideLogin();
-  } else {
-    errEl.textContent = 'Wrong password.';
-    errEl.classList.remove('hidden');
-  }
-}
-
-function logout() {
-  isAdmin = false;
-  updateAdminUI();
-}
-
 // ======================== NAVIGATION ========================
 function switchPage(page) {
-  if (page === 'admin' && !isAdmin) return;
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.page === page));
@@ -508,6 +461,7 @@ function addSub() {
   const catId = document.getElementById('adminSubCat').value;
   const name = document.getElementById('adminSubName').value.trim();
   if (!catId || !name) { alert('Select category and enter name.'); return; }
+  if (!data.categories[catId].subcategories) data.categories[catId].subcategories = {};
   const id = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
   if (data.categories[catId].subcategories[id]) { alert('Subcategory already exists.'); return; }
   data.categories[catId].subcategories[id] = { id, name, topics: {} };
@@ -582,10 +536,17 @@ function delTopic(catId, subId, topicId) {
 
 function renderAdminQuestions(container) {
   let html = '<div class="admin-section"><h3>Add Question</h3>';
-  html += '<div class="admin-row"><select id="adminQCat"><option value="">Category</option>';
-  Object.keys(data.categories).forEach(catId => { html += '<option value="' + catId + '">' + data.categories[catId].name + '</option>'; });
-  html += '</select><select id="adminQSub"><option value="">Subcategory</option></select>';
-  html += '<select id="adminQTopic"><option value="">Topic</option></select></div>';
+  html += '<div class="admin-row"><select id="adminQTopicAll"><option value="">Select Topic</option>';
+  Object.keys(data.categories).forEach(catId => {
+    const cat = data.categories[catId];
+    Object.keys(cat.subcategories || {}).forEach(subId => {
+      const sub = cat.subcategories[subId];
+      Object.keys(sub.topics || {}).forEach(topicId => {
+        html += '<option value="' + catId + '|' + subId + '|' + topicId + '">' + esc(cat.name) + ' › ' + esc(sub.name) + ' › ' + esc(sub.topics[topicId].name) + '</option>';
+      });
+    });
+  });
+  html += '</select></div>';
   html += '<div class="admin-row"><input type="text" id="adminQQ" placeholder="Question text"></div>';
   html += '<div class="admin-row"><input type="file" id="adminQImg" accept="image/*" style="flex:1;"><span id="adminQImgName" style="font-size:12px;color:var(--text2);"></span></div>';
   html += '<div class="admin-row"><input type="text" id="adminQO0" placeholder="Option A"><input type="text" id="adminQO1" placeholder="Option B"></div>';
@@ -637,12 +598,6 @@ function renderAdminQuestions(container) {
   container.innerHTML = html;
 
   document.getElementById('adminAddQBtn').addEventListener('click', addAdminQ);
-  document.getElementById('adminQCat').addEventListener('change', function () {
-    populateAdminQSub(this.value);
-  });
-  document.getElementById('adminQSub').addEventListener('change', function () {
-    populateAdminQTopic(document.getElementById('adminQCat').value, this.value);
-  });
 
   document.getElementById('aqFilterCat').addEventListener('change', applyAQFilters);
   document.getElementById('aqFilterSub').addEventListener('change', applyAQFilters);
@@ -708,9 +663,8 @@ function applyAQFilters() {
 }
 
 async function addAdminQ() {
-  const catId = document.getElementById('adminQCat').value;
-  const subId = document.getElementById('adminQSub').value;
-  const topicId = document.getElementById('adminQTopic').value;
+  const topicVal = document.getElementById('adminQTopicAll').value;
+  const [catId, subId, topicId] = topicVal ? topicVal.split('|') : [];
   const qText = document.getElementById('adminQQ').value.trim();
   const opts = [0, 1, 2, 3].map(i => document.getElementById('adminQO' + i).value.trim());
   const ans = parseInt(document.getElementById('adminQAns').value);
@@ -757,11 +711,7 @@ function clearAdminQForm() {
 function editAdminQ(catId, subId, topicId, qId) {
   forEachQ((q, i, cid, sid, tid) => {
     if (q.id === qId) {
-      document.getElementById('adminQCat').value = cid;
-      populateAdminQSub(cid);
-      document.getElementById('adminQSub').value = sid;
-      populateAdminQTopic(cid, sid);
-      document.getElementById('adminQTopic').value = tid;
+      document.getElementById('adminQTopicAll').value = cid + '|' + sid + '|' + tid;
       document.getElementById('adminQQ').value = q.question;
       q.options.forEach((o, oi) => document.getElementById('adminQO' + oi).value = o);
       document.getElementById('adminQAns').value = q.answer;
@@ -1068,19 +1018,6 @@ async function init() {
   document.getElementById('mockSubmitPaletteBtn').addEventListener('click', () => { if (confirm('Submit test?')) submitMockTest(); });
   document.getElementById('mockQuitBtn').addEventListener('click', () => { if (confirm('Quit test?')) quitMockTest(); });
   document.getElementById('mockResultBackBtn').addEventListener('click', quitMockTest);
-
-  // Admin lock
-  updateAdminUI();
-  document.getElementById('logoSecret').addEventListener('contextmenu', e => e.preventDefault());
-  document.getElementById('logoSecret').addEventListener('click', () => {
-    _tapCount++;
-    if (_tapCount === 1) _tapTimer = setTimeout(() => { _tapCount = 0; }, 3000);
-    if (_tapCount >= 5) { _tapCount = 0; clearTimeout(_tapTimer); showLogin(); }
-  });
-  document.getElementById('loginBtn').addEventListener('click', login);
-  document.getElementById('loginCancelBtn').addEventListener('click', hideLogin);
-  document.getElementById('loginPass').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
-  document.getElementById('logoutBtn').addEventListener('click', logout);
 
   // Admin tabs
   document.querySelectorAll('.admin-tab').forEach(t => t.addEventListener('click', function () {
