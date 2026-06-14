@@ -61,12 +61,28 @@ function syncIds() {
 
 function genId() { return ++qidCounter; }
 
+function sortedKeys(obj) {
+  return Object.keys(obj).sort((a, b) => (obj[a].order || 0) - (obj[b].order || 0));
+}
+
+function swapOrder(a, b) {
+  const t = a.order; a.order = b.order; b.order = t;
+}
+
+function moveItem(list, id, dir) {
+  const keys = Object.keys(list);
+  const idx = keys.indexOf(id);
+  const target = dir === 'up' ? idx - 1 : idx + 1;
+  if (target < 0 || target >= keys.length) return;
+  swapOrder(list[keys[idx]], list[keys[target]]);
+}
+
 function forEachQ(fn) {
-  Object.keys(data.categories).forEach(catId => {
+  sortedKeys(data.categories).forEach(catId => {
     const cat = data.categories[catId];
-    Object.keys(cat.subcategories || {}).forEach(subId => {
+    sortedKeys(cat.subcategories || {}).forEach(subId => {
       const sub = cat.subcategories[subId];
-      Object.keys(sub.topics || {}).forEach(topicId => {
+      sortedKeys(sub.topics || {}).forEach(topicId => {
         const topic = sub.topics[topicId];
         (topic.questions || []).forEach((q, i) => fn(q, i, catId, subId, topicId, cat, sub, topic));
       });
@@ -85,20 +101,20 @@ async function seedData() {
   if (Object.keys(data.categories).length > 0) return;
   data.categories = {
     'general-awareness': {
-      id: 'general-awareness', name: 'General Awareness', icon: '🌍', color: '#6c5ce7',
+      id: 'general-awareness', name: 'General Awareness', icon: '🌍', color: '#6c5ce7', order: 1,
       subcategories: {
         'geography': {
-          id: 'geography', name: 'Geography',
+          id: 'geography', name: 'Geography', order: 1,
           topics: {
             'rivers': {
-              id: 'rivers', name: 'Rivers',
+              id: 'rivers', name: 'Rivers', order: 1,
               questions: [
                 { id: genId(), question: 'Which is the longest river in the world?', options: ['Amazon', 'Nile', 'Yangtze', 'Mississippi'], answer: 1, explanation: 'The Nile River is approximately 6,650 km long, making it the longest river in the world.', image: '' },
                 { id: genId(), question: 'Which river is known as the "Ganga of the South"?', options: ['Kaveri', 'Godavari', 'Krishna', 'Mahanadi'], answer: 0, explanation: 'Kaveri River is often called the "Ganga of the South" due to its religious significance.', image: '' }
               ]
             },
             'mountains': {
-              id: 'mountains', name: 'Mountains',
+              id: 'mountains', name: 'Mountains', order: 2,
               questions: [
                 { id: genId(), question: 'Which is the highest mountain peak in the world?', options: ['K2', 'Mount Everest', 'Kangchenjunga', 'Lhotse'], answer: 1, explanation: 'Mount Everest is the highest mountain peak in the world at 8,848 meters.', image: '' }
               ]
@@ -106,10 +122,10 @@ async function seedData() {
           }
         },
         'history': {
-          id: 'history', name: 'History',
+          id: 'history', name: 'History', order: 2,
           topics: {
             'indian-freedom': {
-              id: 'indian-freedom', name: 'Indian Freedom Struggle',
+              id: 'indian-freedom', name: 'Indian Freedom Struggle', order: 1,
               questions: [
                 { id: genId(), question: 'Who gave the "Quit India" speech in 1942?', options: ['Subhas Chandra Bose', 'Jawaharlal Nehru', 'Mahatma Gandhi', 'Bhagat Singh'], answer: 2, explanation: 'Mahatma Gandhi gave the "Quit India" speech on August 8, 1942.', image: '' }
               ]
@@ -119,20 +135,20 @@ async function seedData() {
       }
     },
     'quantitative-aptitude': {
-      id: 'quantitative-aptitude', name: 'Quantitative Aptitude', icon: '📐', color: '#00b894',
+      id: 'quantitative-aptitude', name: 'Quantitative Aptitude', icon: '📐', color: '#00b894', order: 2,
       subcategories: {
         'arithmetic': {
-          id: 'arithmetic', name: 'Arithmetic',
+          id: 'arithmetic', name: 'Arithmetic', order: 1,
           topics: {
             'percentage': {
-              id: 'percentage', name: 'Percentage',
+              id: 'percentage', name: 'Percentage', order: 1,
               questions: [
                 { id: genId(), question: 'What is 20% of 450?', options: ['70', '80', '90', '100'], answer: 2, explanation: '20% of 450 = (20/100) × 450 = 90.', image: '' },
                 { id: genId(), question: 'If 30% of a number is 150, what is the number?', options: ['400', '450', '500', '550'], answer: 2, explanation: 'Let the number be x. 30% of x = 150 => x = 150 × 100/30 = 500.', image: '' }
               ]
             },
             'ratio': {
-              id: 'ratio', name: 'Ratio & Proportion',
+              id: 'ratio', name: 'Ratio & Proportion', order: 2,
               questions: [
                 { id: genId(), question: 'If A:B = 2:3 and B:C = 4:5, find A:C.', options: ['8:15', '2:5', '8:12', '15:8'], answer: 0, explanation: 'A:B = 2:3, B:C = 4:5. Multiply: A:B:C = 8:12:15, so A:C = 8:15.', image: '' }
               ]
@@ -140,10 +156,10 @@ async function seedData() {
           }
         },
         'algebra': {
-          id: 'algebra', name: 'Algebra',
+          id: 'algebra', name: 'Algebra', order: 2,
           topics: {
             'linear-equations': {
-              id: 'linear-equations', name: 'Linear Equations',
+              id: 'linear-equations', name: 'Linear Equations', order: 1,
               questions: [
                 { id: genId(), question: 'Solve for x: 2x + 5 = 13', options: ['3', '4', '5', '6'], answer: 1, explanation: '2x + 5 = 13 => 2x = 8 => x = 4.', image: '' }
               ]
@@ -153,19 +169,19 @@ async function seedData() {
       }
     },
     'reasoning': {
-      id: 'reasoning', name: 'Logical Reasoning', icon: '🧠', color: '#fdcb6e',
+      id: 'reasoning', name: 'Logical Reasoning', icon: '🧠', color: '#fdcb6e', order: 3,
       subcategories: {
         'verbal': {
-          id: 'verbal', name: 'Verbal Reasoning',
+          id: 'verbal', name: 'Verbal Reasoning', order: 1,
           topics: {
             'analogy': {
-              id: 'analogy', name: 'Analogy',
+              id: 'analogy', name: 'Analogy', order: 1,
               questions: [
                 { id: genId(), question: 'Doctor : Hospital :: Teacher : ?', options: ['School', 'Office', 'Hospital', 'Court'], answer: 0, explanation: 'Doctor works in Hospital, similarly Teacher works in School.', image: '' }
               ]
             },
             'coding-decoding': {
-              id: 'coding-decoding', name: 'Coding-Decoding',
+              id: 'coding-decoding', name: 'Coding-Decoding', order: 2,
               questions: [
                 { id: genId(), question: 'If CAT is coded as 3120, how is DOG coded?', options: ['4157', '4158', '5147', '5148'], answer: 0, explanation: 'C=3, A=1, T=20 => 3120. D=4, O=15, G=7 => 4157.', image: '' }
               ]
@@ -175,13 +191,13 @@ async function seedData() {
       }
     },
     'general-science': {
-      id: 'general-science', name: 'General Science', icon: '🔬', color: '#e17055',
+      id: 'general-science', name: 'General Science', icon: '🔬', color: '#e17055', order: 4,
       subcategories: {
         'physics': {
-          id: 'physics', name: 'Physics',
+          id: 'physics', name: 'Physics', order: 1,
           topics: {
             'motion': {
-              id: 'motion', name: 'Motion',
+              id: 'motion', name: 'Motion', order: 1,
               questions: [
                 { id: genId(), question: 'What is the SI unit of force?', options: ['Newton', 'Joule', 'Watt', 'Pascal'], answer: 0, explanation: 'The SI unit of force is Newton (N), named after Sir Isaac Newton.', image: '' }
               ]
@@ -189,10 +205,10 @@ async function seedData() {
           }
         },
         'chemistry': {
-          id: 'chemistry', name: 'Chemistry',
+          id: 'chemistry', name: 'Chemistry', order: 2,
           topics: {
             'elements': {
-              id: 'elements', name: 'Elements & Compounds',
+              id: 'elements', name: 'Elements & Compounds', order: 1,
               questions: [
                 { id: genId(), question: 'What is the chemical symbol for Gold?', options: ['Go', 'Gd', 'Au', 'Ag'], answer: 2, explanation: 'Gold\'s chemical symbol is Au, from the Latin word "Aurum".', image: '' }
               ]
@@ -227,7 +243,7 @@ function renderDashboard() {
   grid.innerHTML = '';
   const catGrads = ['var(--grad1)', 'var(--grad2)', 'var(--grad3)', 'var(--grad4)', 'var(--grad5)', 'var(--grad6)'];
   let ci = 0;
-  Object.keys(data.categories).forEach(catId => {
+  sortedKeys(data.categories).forEach(catId => {
     const cat = data.categories[catId];
     const card = document.createElement('div'); card.className = 'cat-card';
     const totalQ = countQInCat(catId);
@@ -240,7 +256,7 @@ function renderDashboard() {
     grid.appendChild(card);
 
     const body = card.querySelector('.cat-body');
-    Object.keys(cat.subcategories || {}).forEach(subId => {
+    sortedKeys(cat.subcategories || {}).forEach(subId => {
       const sub = cat.subcategories[subId];
       const subDiv = document.createElement('div'); subDiv.className = 'subcat-item';
       subDiv.innerHTML = `
@@ -251,7 +267,7 @@ function renderDashboard() {
       body.appendChild(subDiv);
 
       const tl = document.getElementById('topics-' + catId + '-' + subId);
-      Object.keys(sub.topics || {}).forEach(topicId => {
+      sortedKeys(sub.topics || {}).forEach(topicId => {
         const topic = sub.topics[topicId];
         const qc = (topic.questions || []).length;
         const pill = document.createElement('span'); pill.className = 'topic-pill';
@@ -277,7 +293,7 @@ function countQInCat(catId) {
 
 function renderQBTopics(catId, subId) {
   let html = '<div class="qb-subject-tabs">';
-  const catIds = Object.keys(data.categories);
+  const catIds = sortedKeys(data.categories);
   catIds.forEach(cId => {
     const cat = data.categories[cId];
     html += '<button class="qb-subject-btn' + (catId === cId ? ' active' : '') + '" onclick="renderQBTopics(\'' + cId + '\')">' + esc(cat.name) + '</button>';
@@ -291,13 +307,13 @@ function renderQBTopics(catId, subId) {
       if (cId !== catId) return;
       const cat = data.categories[cId];
       html += '<div class="qb-category active">';
-      Object.keys(cat.subcategories || {}).forEach(sId => {
+      sortedKeys(cat.subcategories || {}).forEach(sId => {
         if (subId && sId !== subId) return;
         const sub = cat.subcategories[sId];
         const hasTopics = Object.keys(sub.topics || {}).length > 0;
         if (!hasTopics) return;
         html += '<div class="qb-subsection"><div class="qb-subsection-title">' + esc(sub.name) + '</div><div class="qb-topics-row">';
-        Object.keys(sub.topics).forEach(tId => {
+        sortedKeys(sub.topics).forEach(tId => {
           const topic = sub.topics[tId];
           const qc = (topic.questions || []).length;
           html += '<div class="qb-topic-card" onclick="openQuestionBank(\'' + cId + '\',\'' + sId + '\',\'' + tId + '\')">';
@@ -403,15 +419,21 @@ function renderAdmin() {
 function renderAdminCategories(container) {
   let html = '<div class="admin-section"><h3>Add Category</h3><div class="admin-row"><input type="text" id="adminCatName" placeholder="Category name"><input type="file" id="adminCatIconImg" accept="image/*" style="max-width:150px;"><input type="text" id="adminCatIcon" placeholder="Emoji (e.g. 🌍)" style="max-width:70px;"><button class="btn-primary" id="adminAddCatBtn">Add</button></div></div>';
   html += '<div class="admin-section"><h3>Existing Categories</h3>';
-  Object.keys(data.categories).forEach(catId => {
+  const catKeys = sortedKeys(data.categories);
+  catKeys.forEach((catId, idx) => {
     const c = data.categories[catId];
     const iconHtml = c.iconImage ? '<img src="' + imgUrl(c.iconImage) + '" style="width:20px;height:20px;vertical-align:middle;border-radius:4px;">' : (c.icon || '📂');
-    html += `<div class="admin-item"><span>${iconHtml} ${c.name}</span><button class="edit-btn" onclick="editCat('${catId}')">Edit</button><button class="del-btn" onclick="delCat('${catId}')">Del</button></div>`;
+    const upBtn = idx > 0 ? '<button class="edit-btn" onclick="moveCatUp(\'' + catId + '\')">&#9650;</button>' : '';
+    const downBtn = idx < catKeys.length - 1 ? '<button class="edit-btn" onclick="moveCatDown(\'' + catId + '\')">&#9660;</button>' : '';
+    html += `<div class="admin-item"><span>${c.order || (idx+1)}. ${iconHtml} ${c.name}</span><span>${upBtn}${downBtn}<button class="edit-btn" onclick="editCat('${catId}')">Edit</button><button class="del-btn" onclick="delCat('${catId}')">Del</button></span></div>`;
   });
   html += '</div>';
   container.innerHTML = html;
   document.getElementById('adminAddCatBtn').addEventListener('click', addCat);
 }
+
+function moveCatUp(catId) { moveItem(data.categories, catId, 'up'); saveData(); renderDashboard(); renderAdmin(); }
+function moveCatDown(catId) { moveItem(data.categories, catId, 'down'); saveData(); renderDashboard(); renderAdmin(); }
 
 async function addCat() {
   const name = document.getElementById('adminCatName').value.trim();
@@ -421,7 +443,8 @@ async function addCat() {
   const id = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
   if (data.categories[id]) { alert('Category already exists.'); return; }
   const iconImage = iconImgFile ? await uploadFile(iconImgFile) : '';
-  data.categories[id] = { id, name, icon, iconImage, color: null, subcategories: {} };
+  const nextOrder = Object.keys(data.categories).reduce((m, k) => Math.max(m, data.categories[k].order || 0), 0) + 1;
+  data.categories[id] = { id, name, icon, iconImage, color: null, subcategories: {}, order: nextOrder };
   await saveData(); renderDashboard(); renderAdmin();
 }
 
@@ -442,20 +465,28 @@ async function delCat(catId) {
 
 function renderAdminSubcategories(container) {
   let html = '<div class="admin-section"><h3>Add Subcategory</h3><div class="admin-row"><select id="adminSubCat"><option value="">Select category</option>';
-  Object.keys(data.categories).forEach(catId => { html += '<option value="' + catId + '">' + data.categories[catId].name + '</option>'; });
+  sortedKeys(data.categories).forEach(catId => { html += '<option value="' + catId + '">' + data.categories[catId].name + '</option>'; });
   html += '</select><input type="text" id="adminSubName" placeholder="Subcategory name"><button class="btn-primary" id="adminAddSubBtn">Add</button></div></div>';
   html += '<div class="admin-section"><h3>Existing Subcategories</h3>';
-  Object.keys(data.categories).forEach(catId => {
+  let subNum = 0;
+  sortedKeys(data.categories).forEach(catId => {
     const c = data.categories[catId];
-    Object.keys(c.subcategories || {}).forEach(subId => {
+    const subKeys = sortedKeys(c.subcategories || {});
+    subKeys.forEach((subId, idx) => {
       const s = c.subcategories[subId];
-      html += '<div class="admin-item"><span>' + c.icon + ' ' + c.name + ' → ' + s.name + '</span><button class="edit-btn" onclick="editSub(\'' + catId + '\',\'' + subId + '\')">Edit</button><button class="del-btn" onclick="delSub(\'' + catId + '\',\'' + subId + '\')">Del</button></div>';
+      subNum++;
+      const upBtn = idx > 0 ? '<button class="edit-btn" onclick="moveSubUp(\'' + catId + '\',\'' + subId + '\')">&#9650;</button>' : '';
+      const downBtn = idx < subKeys.length - 1 ? '<button class="edit-btn" onclick="moveSubDown(\'' + catId + '\',\'' + subId + '\')">&#9660;</button>' : '';
+      html += '<div class="admin-item"><span>' + subNum + '. ' + c.icon + ' ' + c.name + ' → ' + s.name + '</span><span>' + upBtn + downBtn + '<button class="edit-btn" onclick="editSub(\'' + catId + '\',\'' + subId + '\')">Edit</button><button class="del-btn" onclick="delSub(\'' + catId + '\',\'' + subId + '\')">Del</button></span></div>';
     });
   });
   html += '</div>';
   container.innerHTML = html;
   document.getElementById('adminAddSubBtn').addEventListener('click', addSub);
 }
+
+function moveSubUp(catId, subId) { moveItem(data.categories[catId].subcategories, subId, 'up'); saveData(); renderDashboard(); renderAdmin(); }
+function moveSubDown(catId, subId) { moveItem(data.categories[catId].subcategories, subId, 'down'); saveData(); renderDashboard(); renderAdmin(); }
 
 function addSub() {
   const catId = document.getElementById('adminSubCat').value;
@@ -464,7 +495,8 @@ function addSub() {
   if (!data.categories[catId].subcategories) data.categories[catId].subcategories = {};
   const id = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
   if (data.categories[catId].subcategories[id]) { alert('Subcategory already exists.'); return; }
-  data.categories[catId].subcategories[id] = { id, name, topics: {} };
+  const nextOrder = Object.keys(data.categories[catId].subcategories || {}).reduce((m, k) => Math.max(m, data.categories[catId].subcategories[k].order || 0), 0) + 1;
+  data.categories[catId].subcategories[id] = { id, name, topics: {}, order: nextOrder };
   saveData(); renderDashboard(); renderAdmin();
 }
 
@@ -484,30 +516,39 @@ function delSub(catId, subId) {
 
 function renderAdminTopics(container) {
   let html = '<div class="admin-section"><h3>Add Topic</h3><div class="admin-row"><select id="adminTopicCat"><option value="">Category</option>';
-  Object.keys(data.categories).forEach(catId => { html += '<option value="' + catId + '">' + data.categories[catId].name + '</option>'; });
+  sortedKeys(data.categories).forEach(catId => { html += '<option value="' + catId + '">' + data.categories[catId].name + '</option>'; });
   html += '</select><select id="adminTopicSub"><option value="">Subcategory</option></select>';
   html += '<input type="text" id="adminTopicName" placeholder="Topic name"><button class="btn-primary" id="adminAddTopicBtn">Add</button></div></div>';
   html += '<div class="admin-section"><h3>Existing Topics</h3>';
-  Object.keys(data.categories).forEach(catId => {
+  let topicNum = 0;
+  sortedKeys(data.categories).forEach(catId => {
     const c = data.categories[catId];
-    Object.keys(c.subcategories || {}).forEach(subId => {
+    sortedKeys(c.subcategories || {}).forEach(subId => {
       const s = c.subcategories[subId];
-      Object.keys(s.topics || {}).forEach(topicId => {
+      const topicKeys = sortedKeys(s.topics || {});
+      topicKeys.forEach((topicId, idx) => {
         const t = s.topics[topicId];
-        html += '<div class="admin-item"><span>' + c.icon + ' ' + c.name + ' → ' + s.name + ' → ' + t.name + ' (' + (t.questions || []).length + ' Q)</span><button class="edit-btn" onclick="editTopic(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')">Edit</button><button class="del-btn" onclick="delTopic(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')">Del</button></div>';
+        topicNum++;
+        const upBtn = idx > 0 ? '<button class="edit-btn" onclick="moveTopicUp(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')">&#9650;</button>' : '';
+        const downBtn = idx < topicKeys.length - 1 ? '<button class="edit-btn" onclick="moveTopicDown(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')">&#9660;</button>' : '';
+        html += '<div class="admin-item"><span>' + topicNum + '. ' + c.icon + ' ' + c.name + ' → ' + s.name + ' → ' + t.name + ' (' + (t.questions || []).length + ' Q)</span><span>' + upBtn + downBtn + '<button class="edit-btn" onclick="editTopic(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')">Edit</button><button class="del-btn" onclick="delTopic(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')">Del</button></span></div>';
       });
     });
   });
   html += '</div>';
   container.innerHTML = html;
+
   document.getElementById('adminAddTopicBtn').addEventListener('click', addTopic);
   document.getElementById('adminTopicCat').addEventListener('change', function () {
     const sel = document.getElementById('adminTopicSub');
     sel.innerHTML = '<option value="">Subcategory</option>';
     const cat = data.categories[this.value];
-    if (cat) Object.keys(cat.subcategories || {}).forEach(sid => { sel.innerHTML += '<option value="' + sid + '">' + cat.subcategories[sid].name + '</option>'; });
+    if (cat) sortedKeys(cat.subcategories || {}).forEach(sid => { sel.innerHTML += '<option value="' + sid + '">' + cat.subcategories[sid].name + '</option>'; });
   });
 }
+
+function moveTopicUp(catId, subId, topicId) { moveItem(data.categories[catId].subcategories[subId].topics, topicId, 'up'); saveData(); renderDashboard(); renderAdmin(); }
+function moveTopicDown(catId, subId, topicId) { moveItem(data.categories[catId].subcategories[subId].topics, topicId, 'down'); saveData(); renderDashboard(); renderAdmin(); }
 
 function addTopic() {
   const catId = document.getElementById('adminTopicCat').value;
@@ -516,7 +557,8 @@ function addTopic() {
   if (!catId || !subId || !name) { alert('Fill all fields.'); return; }
   const id = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
   if (data.categories[catId].subcategories[subId].topics[id]) { alert('Topic already exists.'); return; }
-  data.categories[catId].subcategories[subId].topics[id] = { id, name, questions: [] };
+  const nextOrder = Object.keys(data.categories[catId].subcategories[subId].topics || {}).reduce((m, k) => Math.max(m, data.categories[catId].subcategories[subId].topics[k].order || 0), 0) + 1;
+  data.categories[catId].subcategories[subId].topics[id] = { id, name, questions: [], order: nextOrder };
   saveData(); renderDashboard(); renderAdmin();
 }
 
@@ -537,11 +579,11 @@ function delTopic(catId, subId, topicId) {
 function renderAdminQuestions(container) {
   let html = '<div class="admin-section"><h3>Add Question</h3>';
   html += '<div class="admin-row"><select id="adminQTopicAll"><option value="">Select Topic</option>';
-  Object.keys(data.categories).forEach(catId => {
+  sortedKeys(data.categories).forEach(catId => {
     const cat = data.categories[catId];
-    Object.keys(cat.subcategories || {}).forEach(subId => {
+    sortedKeys(cat.subcategories || {}).forEach(subId => {
       const sub = cat.subcategories[subId];
-      Object.keys(sub.topics || {}).forEach(topicId => {
+      sortedKeys(sub.topics || {}).forEach(topicId => {
         html += '<option value="' + catId + '|' + subId + '|' + topicId + '">' + esc(cat.name) + ' › ' + esc(sub.name) + ' › ' + esc(sub.topics[topicId].name) + '</option>';
       });
     });
@@ -560,7 +602,7 @@ function renderAdminQuestions(container) {
   html += '<div class="admin-section"><h3>All Questions</h3>';
   html += '<div class="admin-row" style="flex-wrap:wrap;gap:6px;margin-bottom:10px;">';
   html += '<select id="aqFilterCat" style="flex:1;min-width:120px;"><option value="">All Categories</option>';
-  Object.keys(data.categories).forEach(catId => { html += '<option value="' + catId + '">' + data.categories[catId].name + '</option>'; });
+  sortedKeys(data.categories).forEach(catId => { html += '<option value="' + catId + '">' + data.categories[catId].name + '</option>'; });
   html += '</select>';
   html += '<select id="aqFilterSub" style="flex:1;min-width:120px;"><option value="">All Subcategories</option></select>';
   html += '<select id="aqFilterTopic" style="flex:1;min-width:120px;"><option value="">All Topics</option></select>';
@@ -746,19 +788,19 @@ function populateBuilderFilters() {
   const catSel = document.getElementById('builderCatFilter');
   const subSel = document.getElementById('builderSubFilter');
   catSel.innerHTML = '<option value="">All Categories</option>';
-  Object.keys(data.categories).forEach(catId => { catSel.innerHTML += '<option value="' + catId + '">' + data.categories[catId].name + '</option>'; });
+  sortedKeys(data.categories).forEach(catId => { catSel.innerHTML += '<option value="' + catId + '">' + data.categories[catId].name + '</option>'; });
   catSel.onchange = function () {
     subSel.innerHTML = '<option value="">All Subcategories</option>';
     const cat = data.categories[this.value];
-    if (cat) Object.keys(cat.subcategories || {}).forEach(sid => { subSel.innerHTML += '<option value="' + sid + '">' + cat.subcategories[sid].name + '</option>'; });
+    if (cat) sortedKeys(cat.subcategories || {}).forEach(sid => { subSel.innerHTML += '<option value="' + sid + '">' + cat.subcategories[sid].name + '</option>'; });
     renderBuilderQList();
   };
   subSel.onchange = renderBuilderQList;
   document.getElementById('builderTopicFilter').onchange = renderBuilderQList;
   document.getElementById('builderTopicFilter').innerHTML = '<option value="">All Topics</option>';
-  Object.keys(data.categories).forEach(catId => {
-    Object.keys(data.categories[catId].subcategories || {}).forEach(subId => {
-      Object.keys(data.categories[catId].subcategories[subId].topics || {}).forEach(tid => {
+  sortedKeys(data.categories).forEach(catId => {
+    sortedKeys(data.categories[catId].subcategories || {}).forEach(subId => {
+      sortedKeys(data.categories[catId].subcategories[subId].topics || {}).forEach(tid => {
         document.getElementById('builderTopicFilter').innerHTML += '<option value="' + tid + '">' + data.categories[catId].subcategories[subId].topics[tid].name + '</option>';
       });
     });
