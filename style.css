@@ -367,20 +367,32 @@ body {
   border: 1px solid var(--border); margin-bottom: 20px; box-shadow: var(--shadow-sm);
 }
 .admin-section h3 { font-size: 15px; margin-bottom: 16px; color: var(--text); }
-.admin-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
-.admin-row input, .admin-row select {
+.admin-row {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
+}
+.admin-row input, .admin-row select, .admin-row .btn-primary, .admin-row .btn-secondary, .admin-row .btn-danger {
   padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-xs);
-  font-size: 13px; flex: 1; min-width: 120px; background: var(--surface);
+  font-size: 13px; flex: 1; min-width: 0; background: var(--surface);
   color: var(--text); transition: all var(--transition); font-family: inherit;
+  height: 42px; box-sizing: border-box;
 }
 .admin-row input:focus, .admin-row select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-light); }
+.admin-row .btn-primary, .admin-row .btn-secondary, .admin-row .btn-danger {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  gap: 6px; white-space: nowrap; min-width: 80px;
+}
 .admin-item {
-  display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+  display: flex; align-items: center; gap: 12px; padding: 10px 16px;
   border-radius: var(--radius-xs); background: var(--surface2);
   margin-bottom: 6px; font-size: 13px; transition: background var(--transition);
+  min-height: 44px; box-sizing: border-box;
 }
 .admin-item:hover { background: var(--border); }
-.admin-item span { flex: 1; }
+.admin-item span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-item span:last-child {
+  flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px;
+  margin-left: auto;
+}
 
 /* Admin action buttons — outline style, compact, elegant */
 .admin-item .act-btn {
