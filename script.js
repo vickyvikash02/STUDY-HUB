@@ -609,35 +609,7 @@ function renderAdminQuestions(container) {
   html += '<select id="aqFilterTopic" style="flex:1;min-width:120px;"><option value="">All Topics</option></select>';
   html += '<input type="text" id="aqFilterSearch" placeholder="Search questions..." style="flex:2;min-width:180px;"></div>';
 
-  html += '<div id="aqList">';
-  const filterCat = '';
-  const filterSub = '';
-  const filterTopic = '';
-  const filterSearch = '';
-  let prevTopicKey = null;
-  let topicCount = 0;
-  forEachQ((q, i, catId, subId, topicId, cat, sub, topic) => {
-    const topicKey = catId + '/' + subId + '/' + topicId;
-    if (topicKey !== prevTopicKey) {
-      if (prevTopicKey !== null) html += '</div></div>';
-      html += '<div class="aq-topic-group" data-topic="' + topicKey + '">';
-      html += '<div class="aq-topic-head" onclick="this.nextElementSibling.classList.toggle(\'aq-hidden\');this.querySelector(\'.aq-toggle\').classList.toggle(\'aq-open\');">';
-      html += '<span class="aq-toggle">▶</span> <strong>' + esc(cat.name) + ' › ' + esc(sub.name) + ' › ' + esc(topic.name) + '</strong> <span class="aq-count">(' + (topic.questions || []).length + ' Q)</span>';
-      html += '</div><div class="aq-topic-body">';
-      prevTopicKey = topicKey;
-      topicCount = 0;
-    }
-    topicCount++;
-    html += '<div class="admin-question-item" data-cat="' + catId + '" data-sub="' + subId + '" data-topic="' + topicId + '">';
-    html += '<div class="aq-text">' + topicCount + '. ' + esc(q.question || '') + '</div>' + (q.image ? '<img class="aq-img" src="' + imgUrl(q.image) + '" alt="Question image">' : '');
-    html += '<div class="aq-opts">' + (q.options || []).map((o, oi) => (oi === q.answer ? '✅ ' : '') + String.fromCharCode(65 + oi) + '. ' + esc(o)).join(' | ') + '</div>';
-    html += '<div class="aq-ans">Answer: ' + String.fromCharCode(65 + q.answer) + ' | ' + esc(q.explanation || '') + '</div>' + (q.expImage ? '<img class="aq-img" src="' + imgUrl(q.expImage) + '" alt="Explanation image">' : '');
-    html += '<div class="aq-actions"><button class="btn-secondary" onclick="event.stopPropagation();editAdminQ(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\',' + q.id + ')">Edit</button>';
-    html += '<button class="btn-secondary" style="color:var(--danger)" onclick="event.stopPropagation();delAdminQ(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\',' + q.id + ')">Delete</button></div></div>';
-  });
-  if (prevTopicKey !== null) html += '</div></div>';
-  if (!prevTopicKey) html += '<p class="empty-state" style="padding:20px;">No questions yet.</p>';
-  html += '</div></div>';
+  html += '<div id="aqList"><p class="empty-state" style="padding:20px;">Use filters above to find questions.</p></div></div>';
   container.innerHTML = html;
 
   document.getElementById('adminAddQBtn').addEventListener('click', addAdminQ);
@@ -708,20 +680,38 @@ function applyAQFilters() {
   const topic = document.getElementById('aqFilterTopic').value;
   const search = document.getElementById('aqFilterSearch').value.toLowerCase().trim();
 
-  document.querySelectorAll('.aq-topic-group').forEach(group => {
-    let groupVisible = false;
-    group.querySelectorAll('.admin-question-item').forEach(item => {
-      const matchCat = !cat || item.dataset.cat === cat;
-      const matchSub = !sub || item.dataset.sub === sub;
-      const matchTopic = !topic || item.dataset.topic === topic;
-      const matchSearch = !search || item.querySelector('.aq-text').textContent.toLowerCase().includes(search);
-      const visible = matchCat && matchSub && matchTopic && matchSearch;
-      item.style.display = visible ? '' : 'none';
-      if (visible) groupVisible = true;
-    });
-    group.style.display = groupVisible ? '' : 'none';
-    group.querySelector('.aq-topic-body').classList.remove('aq-hidden');
+  const container = document.getElementById('aqList');
+  let html = '';
+  let prevTopicKey = null;
+  let topicCount = 0;
+  forEachQ((q, i, catId, subId, topicId, catObj, subObj, topicObj) => {
+    const matchCat = !cat || catId === cat;
+    const matchSub = !sub || subId === sub;
+    const matchTopic = !topic || topicId === topic;
+    const matchSearch = !search || (q.question || '').toLowerCase().includes(search);
+    if (!matchCat || !matchSub || !matchTopic || !matchSearch) return;
+
+    const topicKey = catId + '/' + subId + '/' + topicId;
+    if (topicKey !== prevTopicKey) {
+      if (prevTopicKey !== null) html += '</div></div>';
+      html += '<div class="aq-topic-group" data-topic="' + topicKey + '">';
+      html += '<div class="aq-topic-head" onclick="this.nextElementSibling.classList.toggle(\'aq-hidden\');this.querySelector(\'.aq-toggle\').classList.toggle(\'aq-open\');">';
+      html += '<span class="aq-toggle">▶</span> <strong>' + esc(catObj.name) + ' › ' + esc(subObj.name) + ' › ' + esc(topicObj.name) + '</strong> <span class="aq-count">(' + (topicObj.questions || []).length + ' Q)</span>';
+      html += '</div><div class="aq-topic-body">';
+      prevTopicKey = topicKey;
+      topicCount = 0;
+    }
+    topicCount++;
+    html += '<div class="admin-question-item" data-cat="' + catId + '" data-sub="' + subId + '" data-topic="' + topicId + '">';
+    html += '<div class="aq-text">' + topicCount + '. ' + esc(q.question || '') + '</div>' + (q.image ? '<img class="aq-img" src="' + imgUrl(q.image) + '" alt="Question image">' : '');
+    html += '<div class="aq-opts">' + (q.options || []).map((o, oi) => (oi === q.answer ? '✅ ' : '') + String.fromCharCode(65 + oi) + '. ' + esc(o)).join(' | ') + '</div>';
+    html += '<div class="aq-ans">Answer: ' + String.fromCharCode(65 + q.answer) + ' | ' + esc(q.explanation || '') + '</div>' + (q.expImage ? '<img class="aq-img" src="' + imgUrl(q.expImage) + '" alt="Explanation image">' : '');
+    html += '<div class="aq-actions"><button class="btn-secondary" onclick="event.stopPropagation();editAdminQ(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\',' + q.id + ')">Edit</button>';
+    html += '<button class="btn-secondary" style="color:var(--danger)" onclick="event.stopPropagation();delAdminQ(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\',' + q.id + ')">Delete</button></div></div>';
   });
+  if (prevTopicKey !== null) html += '</div></div>';
+  if (!prevTopicKey) html = '<p class="empty-state" style="padding:20px;">No questions match your filters.</p>';
+  container.innerHTML = html;
 }
 
 async function addAdminQ() {
