@@ -582,17 +582,13 @@ function delTopic(catId, subId, topicId) {
 
 function renderAdminQuestions(container) {
   let html = '<div class="admin-section"><h3>Add Question</h3>';
-  html += '<div class="admin-row"><select id="adminQTopicAll"><option value="">Select Topic</option>';
+  html += '<div class="admin-row"><select id="adminQCat"><option value="">Select Category</option>';
   sortedKeys(data.categories).forEach(catId => {
-    const cat = data.categories[catId];
-    sortedKeys(cat.subcategories || {}).forEach(subId => {
-      const sub = cat.subcategories[subId];
-      sortedKeys(sub.topics || {}).forEach(topicId => {
-        html += '<option value="' + catId + '|' + subId + '|' + topicId + '">' + esc(cat.name) + ' › ' + esc(sub.name) + ' › ' + esc(sub.topics[topicId].name) + '</option>';
-      });
-    });
+    html += '<option value="' + catId + '">' + data.categories[catId].name + '</option>';
   });
-  html += '</select></div>';
+  html += '</select>';
+  html += '<select id="adminQSub"><option value="">Select Subcategory</option></select>';
+  html += '<select id="adminQTopic"><option value="">Select Topic</option></select></div>';
   html += '<div class="admin-row"><input type="text" id="adminQQ" placeholder="Question text"></div>';
   html += '<div class="admin-row"><input type="file" id="adminQImg" accept="image/*" style="flex:1;"><span id="adminQImgName" style="font-size:12px;color:var(--text2);"></span></div>';
   html += '<div class="admin-row"><input type="text" id="adminQO0" placeholder="Option A"><input type="text" id="adminQO1" placeholder="Option B"></div>';
@@ -646,6 +642,25 @@ function renderAdminQuestions(container) {
 
   document.getElementById('adminAddQBtn').addEventListener('click', addAdminQ);
 
+  document.getElementById('adminQCat').addEventListener('change', function () {
+    const subSel = document.getElementById('adminQSub');
+    const topicSel = document.getElementById('adminQTopic');
+    subSel.innerHTML = '<option value="">Select Subcategory</option>';
+    topicSel.innerHTML = '<option value="">Select Topic</option>';
+    const cat = data.categories[this.value];
+    if (cat) sortedKeys(cat.subcategories || {}).forEach(sid => { subSel.innerHTML += '<option value="' + sid + '">' + cat.subcategories[sid].name + '</option>'; });
+  });
+  document.getElementById('adminQSub').addEventListener('change', function () {
+    const sel = document.getElementById('adminQTopic');
+    sel.innerHTML = '<option value="">Select Topic</option>';
+    const catId = document.getElementById('adminQCat').value;
+    if (catId && this.value && data.categories[catId] && data.categories[catId].subcategories[this.value]) {
+      sortedKeys(data.categories[catId].subcategories[this.value].topics || {}).forEach(tid => {
+        sel.innerHTML += '<option value="' + tid + '">' + data.categories[catId].subcategories[this.value].topics[tid].name + '</option>';
+      });
+    }
+  });
+
   document.getElementById('aqFilterCat').addEventListener('change', function () {
     const subSel = document.getElementById('aqFilterSub');
     const topicSel = document.getElementById('aqFilterTopic');
@@ -674,7 +689,7 @@ function populateAdminQSub(catId) {
   const sel = document.getElementById('adminQSub');
   sel.innerHTML = '<option value="">Subcategory</option>';
   const cat = data.categories[catId];
-  if (cat) Object.keys(cat.subcategories || {}).forEach(sid => { sel.innerHTML += '<option value="' + sid + '">' + cat.subcategories[sid].name + '</option>'; });
+  if (cat) sortedKeys(cat.subcategories || {}).forEach(sid => { sel.innerHTML += '<option value="' + sid + '">' + cat.subcategories[sid].name + '</option>'; });
 }
 
 function populateAdminQTopic(catId, subId) {
@@ -710,8 +725,9 @@ function applyAQFilters() {
 }
 
 async function addAdminQ() {
-  const topicVal = document.getElementById('adminQTopicAll').value;
-  const [catId, subId, topicId] = topicVal ? topicVal.split('|') : [];
+  const catId = document.getElementById('adminQCat').value;
+  const subId = document.getElementById('adminQSub').value;
+  const topicId = document.getElementById('adminQTopic').value;
   const qText = document.getElementById('adminQQ').value.trim();
   const opts = [0, 1, 2, 3].map(i => document.getElementById('adminQO' + i).value.trim());
   const ans = parseInt(document.getElementById('adminQAns').value);
@@ -754,6 +770,9 @@ async function addAdminQ() {
 }
 
 function clearAdminQForm() {
+  document.getElementById('adminQCat').value = '';
+  document.getElementById('adminQSub').innerHTML = '<option value="">Select Subcategory</option>';
+  document.getElementById('adminQTopic').innerHTML = '<option value="">Select Topic</option>';
   document.getElementById('adminQQ').value = '';
   [0, 1, 2, 3].forEach(i => document.getElementById('adminQO' + i).value = '');
   document.getElementById('adminQExp').value = '';
@@ -767,7 +786,14 @@ function clearAdminQForm() {
 function editAdminQ(catId, subId, topicId, qId) {
   forEachQ((q, i, cid, sid, tid) => {
     if (q.id === qId) {
-      document.getElementById('adminQTopicAll').value = cid + '|' + sid + '|' + tid;
+      document.getElementById('adminQCat').value = cid;
+      const subSel = document.getElementById('adminQSub');
+      subSel.innerHTML = '<option value="">Select Subcategory</option>';
+      const cat = data.categories[cid];
+      if (cat) sortedKeys(cat.subcategories || {}).forEach(s => { subSel.innerHTML += '<option value="' + s + '"' + (s === sid ? ' selected' : '') + '>' + cat.subcategories[s].name + '</option>'; });
+      const topicSel = document.getElementById('adminQTopic');
+      topicSel.innerHTML = '<option value="">Select Topic</option>';
+      if (cat && cat.subcategories[sid]) sortedKeys(cat.subcategories[sid].topics || {}).forEach(t => { topicSel.innerHTML += '<option value="' + t + '"' + (t === tid ? ' selected' : '') + '>' + cat.subcategories[sid].topics[t].name + '</option>'; });
       document.getElementById('adminQQ').value = q.question;
       (q.options || []).forEach((o, oi) => document.getElementById('adminQO' + oi).value = o);
       document.getElementById('adminQAns').value = q.answer;
