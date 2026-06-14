@@ -428,7 +428,7 @@ function renderAdminCategories(container) {
     const c = data.categories[catId];
     const iconHtml = c.iconImage ? '<img src="' + imgUrl(c.iconImage) + '" style="width:20px;height:20px;vertical-align:middle;border-radius:4px;">' : (c.icon || '📂');
     const upBtn = idx > 0 ? '<button class="act-btn move-up" onclick="moveCatUp(\'' + catId + '\')"><i class="fas fa-chevron-up"></i></button>' : '';
-    const downBtn = idx < catKeys.length - 1 ? '<button class="act-btn move-down" onclick="moveCatDown(\'' + catId + '\')"><i class="fas fa-chevron-down"></i></button>' : '';
+    const downBtn = idx === 0 && catKeys.length > 1 ? '<button class="act-btn move-down" onclick="moveCatDown(\'' + catId + '\')"><i class="fas fa-chevron-down"></i></button>' : '';
     html += `<div class="admin-item"><span>${c.order || (idx+1)}. ${iconHtml} ${c.name}</span><span>${upBtn}${downBtn}<button class="act-btn edit" onclick="editCat('${catId}')"><i class="fas fa-pen"></i> Edit</button><button class="act-btn del" onclick="delCat('${catId}')"><i class="fas fa-trash"></i> Del</button></span></div>`;
   });
   html += '</div>';
@@ -480,7 +480,7 @@ function renderAdminSubcategories(container) {
       const s = c.subcategories[subId];
       subNum++;
       const upBtn = idx > 0 ? '<button class="act-btn move-up" onclick="moveSubUp(\'' + catId + '\',\'' + subId + '\')"><i class="fas fa-chevron-up"></i></button>' : '';
-      const downBtn = idx < subKeys.length - 1 ? '<button class="act-btn move-down" onclick="moveSubDown(\'' + catId + '\',\'' + subId + '\')"><i class="fas fa-chevron-down"></i></button>' : '';
+      const downBtn = idx === 0 && subKeys.length > 1 ? '<button class="act-btn move-down" onclick="moveSubDown(\'' + catId + '\',\'' + subId + '\')"><i class="fas fa-chevron-down"></i></button>' : '';
       html += '<div class="admin-item"><span>' + subNum + '. ' + c.icon + ' ' + c.name + ' → ' + s.name + '</span><span>' + upBtn + downBtn + '<button class="act-btn edit" onclick="editSub(\'' + catId + '\',\'' + subId + '\')"><i class="fas fa-pen"></i> Edit</button><button class="act-btn del" onclick="delSub(\'' + catId + '\',\'' + subId + '\')"><i class="fas fa-trash"></i> Del</button></span></div>';
     });
   });
@@ -534,7 +534,7 @@ function renderAdminTopics(container) {
         const t = s.topics[topicId];
         topicNum++;
         const upBtn = idx > 0 ? '<button class="act-btn move-up" onclick="moveTopicUp(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-chevron-up"></i></button>' : '';
-        const downBtn = idx < topicKeys.length - 1 ? '<button class="act-btn move-down" onclick="moveTopicDown(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-chevron-down"></i></button>' : '';
+        const downBtn = idx === 0 && topicKeys.length > 1 ? '<button class="act-btn move-down" onclick="moveTopicDown(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-chevron-down"></i></button>' : '';
         html += '<div class="admin-item"><span>' + topicNum + '. ' + c.icon + ' ' + c.name + ' → ' + s.name + ' → ' + t.name + ' (' + (t.questions || []).length + ' Q)</span><span>' + upBtn + downBtn + '<button class="act-btn edit" onclick="editTopic(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-pen"></i> Edit</button><button class="act-btn del" onclick="delTopic(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-trash"></i> Del</button></span></div>';
       });
     });
