@@ -381,15 +381,27 @@ body {
 }
 .admin-item:hover { background: var(--border); }
 .admin-item span { flex: 1; }
-.admin-item button {
-  padding: 5px 12px; border-radius: var(--radius-xs); border: none;
+
+/* Admin action buttons — outline style, compact, elegant */
+.admin-item .act-btn {
+  padding: 6px 12px; border-radius: var(--radius-xs); border: 1px solid var(--border);
   font-size: 11px; font-weight: 600; cursor: pointer;
   transition: all var(--transition); font-family: inherit;
+  display: inline-flex; align-items: center; gap: 4px;
+  background: transparent; color: var(--text2);
 }
-.admin-item .edit-btn { background: var(--primary); color: #fff; }
-.admin-item .edit-btn:hover { background: var(--primary-hover); box-shadow: 0 2px 8px rgba(124,58,237,0.3); }
-.admin-item .del-btn { background: var(--danger); color: #fff; }
-.admin-item .del-btn:hover { background: #dc2626; box-shadow: 0 2px 8px rgba(239,68,68,0.3); }
+.admin-item .act-btn:hover { background: var(--surface); border-color: var(--text2); color: var(--text); }
+.admin-item .act-btn.move-up,
+.admin-item .act-btn.move-down {
+  padding: 6px 8px; border: 1px solid var(--border);
+  color: var(--text2); font-size: 10px;
+}
+.admin-item .act-btn.move-up:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-light); }
+.admin-item .act-btn.move-down:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-light); }
+.admin-item .act-btn.edit { border-color: var(--primary); color: var(--primary); }
+.admin-item .act-btn.edit:hover { background: var(--primary); color: #fff; box-shadow: 0 2px 8px rgba(124,58,237,0.25); }
+.admin-item .act-btn.del { border-color: var(--danger); color: var(--danger); }
+.admin-item .act-btn.del:hover { background: var(--danger); color: #fff; box-shadow: 0 2px 8px rgba(239,68,68,0.25); }
 
 .admin-question-item {
   padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-sm);
@@ -434,13 +446,22 @@ body {
 
 .btn-secondary {
   background: var(--surface); color: var(--text);
-  border: 1px solid var(--border); padding: 11px 22px;
-  border-radius: var(--radius-sm); font-weight: 600; font-size: 13px; cursor: pointer;
+  border: 1px solid var(--border); padding: 9px 18px;
+  border-radius: var(--radius-sm); font-weight: 600; font-size: 12px; cursor: pointer;
   transition: all var(--transition); font-family: inherit; display: inline-flex;
-  align-items: center; gap: 8px;
+  align-items: center; gap: 6px;
 }
-.btn-secondary:hover { background: var(--surface2); border-color: var(--text2); }
+.btn-secondary:hover { background: var(--surface2); border-color: var(--text2); color: var(--text); }
 .btn-secondary:active { transform: translateY(0); }
+
+.btn-danger {
+  background: transparent; color: var(--danger);
+  border: 1px solid rgba(239,68,68,0.3); padding: 9px 18px;
+  border-radius: var(--radius-sm); font-weight: 600; font-size: 12px; cursor: pointer;
+  transition: all var(--transition); font-family: inherit; display: inline-flex;
+  align-items: center; gap: 6px;
+}
+.btn-danger:hover { background: var(--danger); color: #fff; border-color: var(--danger); box-shadow: 0 3px 10px rgba(239,68,68,0.25); }
 
 .btn-success {
   background: var(--success); color: #fff; border: none; padding: 11px 22px;

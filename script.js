@@ -427,9 +427,9 @@ function renderAdminCategories(container) {
   catKeys.forEach((catId, idx) => {
     const c = data.categories[catId];
     const iconHtml = c.iconImage ? '<img src="' + imgUrl(c.iconImage) + '" style="width:20px;height:20px;vertical-align:middle;border-radius:4px;">' : (c.icon || '📂');
-    const upBtn = idx > 0 ? '<button class="edit-btn" onclick="moveCatUp(\'' + catId + '\')">&#9650;</button>' : '';
-    const downBtn = idx < catKeys.length - 1 ? '<button class="edit-btn" onclick="moveCatDown(\'' + catId + '\')">&#9660;</button>' : '';
-    html += `<div class="admin-item"><span>${c.order || (idx+1)}. ${iconHtml} ${c.name}</span><span>${upBtn}${downBtn}<button class="edit-btn" onclick="editCat('${catId}')">Edit</button><button class="del-btn" onclick="delCat('${catId}')">Del</button></span></div>`;
+    const upBtn = idx > 0 ? '<button class="act-btn move-up" onclick="moveCatUp(\'' + catId + '\')"><i class="fas fa-chevron-up"></i></button>' : '';
+    const downBtn = idx < catKeys.length - 1 ? '<button class="act-btn move-down" onclick="moveCatDown(\'' + catId + '\')"><i class="fas fa-chevron-down"></i></button>' : '';
+    html += `<div class="admin-item"><span>${c.order || (idx+1)}. ${iconHtml} ${c.name}</span><span>${upBtn}${downBtn}<button class="act-btn edit" onclick="editCat('${catId}')"><i class="fas fa-pen"></i> Edit</button><button class="act-btn del" onclick="delCat('${catId}')"><i class="fas fa-trash"></i> Del</button></span></div>`;
   });
   html += '</div>';
   container.innerHTML = html;
@@ -479,9 +479,9 @@ function renderAdminSubcategories(container) {
     subKeys.forEach((subId, idx) => {
       const s = c.subcategories[subId];
       subNum++;
-      const upBtn = idx > 0 ? '<button class="edit-btn" onclick="moveSubUp(\'' + catId + '\',\'' + subId + '\')">&#9650;</button>' : '';
-      const downBtn = idx < subKeys.length - 1 ? '<button class="edit-btn" onclick="moveSubDown(\'' + catId + '\',\'' + subId + '\')">&#9660;</button>' : '';
-      html += '<div class="admin-item"><span>' + subNum + '. ' + c.icon + ' ' + c.name + ' → ' + s.name + '</span><span>' + upBtn + downBtn + '<button class="edit-btn" onclick="editSub(\'' + catId + '\',\'' + subId + '\')">Edit</button><button class="del-btn" onclick="delSub(\'' + catId + '\',\'' + subId + '\')">Del</button></span></div>';
+      const upBtn = idx > 0 ? '<button class="act-btn move-up" onclick="moveSubUp(\'' + catId + '\',\'' + subId + '\')"><i class="fas fa-chevron-up"></i></button>' : '';
+      const downBtn = idx < subKeys.length - 1 ? '<button class="act-btn move-down" onclick="moveSubDown(\'' + catId + '\',\'' + subId + '\')"><i class="fas fa-chevron-down"></i></button>' : '';
+      html += '<div class="admin-item"><span>' + subNum + '. ' + c.icon + ' ' + c.name + ' → ' + s.name + '</span><span>' + upBtn + downBtn + '<button class="act-btn edit" onclick="editSub(\'' + catId + '\',\'' + subId + '\')"><i class="fas fa-pen"></i> Edit</button><button class="act-btn del" onclick="delSub(\'' + catId + '\',\'' + subId + '\')"><i class="fas fa-trash"></i> Del</button></span></div>';
     });
   });
   html += '</div>';
@@ -533,9 +533,9 @@ function renderAdminTopics(container) {
       topicKeys.forEach((topicId, idx) => {
         const t = s.topics[topicId];
         topicNum++;
-        const upBtn = idx > 0 ? '<button class="edit-btn" onclick="moveTopicUp(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')">&#9650;</button>' : '';
-        const downBtn = idx < topicKeys.length - 1 ? '<button class="edit-btn" onclick="moveTopicDown(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')">&#9660;</button>' : '';
-        html += '<div class="admin-item"><span>' + topicNum + '. ' + c.icon + ' ' + c.name + ' → ' + s.name + ' → ' + t.name + ' (' + (t.questions || []).length + ' Q)</span><span>' + upBtn + downBtn + '<button class="edit-btn" onclick="editTopic(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')">Edit</button><button class="del-btn" onclick="delTopic(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')">Del</button></span></div>';
+        const upBtn = idx > 0 ? '<button class="act-btn move-up" onclick="moveTopicUp(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-chevron-up"></i></button>' : '';
+        const downBtn = idx < topicKeys.length - 1 ? '<button class="act-btn move-down" onclick="moveTopicDown(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-chevron-down"></i></button>' : '';
+        html += '<div class="admin-item"><span>' + topicNum + '. ' + c.icon + ' ' + c.name + ' → ' + s.name + ' → ' + t.name + ' (' + (t.questions || []).length + ' Q)</span><span>' + upBtn + downBtn + '<button class="act-btn edit" onclick="editTopic(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-pen"></i> Edit</button><button class="act-btn del" onclick="delTopic(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-trash"></i> Del</button></span></div>';
       });
     });
   });
@@ -706,8 +706,8 @@ function applyAQFilters() {
     html += '<div class="aq-text">' + topicCount + '. ' + esc(q.question || '') + '</div>' + (q.image ? '<img class="aq-img" src="' + imgUrl(q.image) + '" alt="Question image">' : '');
     html += '<div class="aq-opts">' + (q.options || []).map((o, oi) => (oi === q.answer ? '✅ ' : '') + String.fromCharCode(65 + oi) + '. ' + esc(o)).join(' | ') + '</div>';
     html += '<div class="aq-ans">Answer: ' + String.fromCharCode(65 + q.answer) + ' | ' + esc(q.explanation || '') + '</div>' + (q.expImage ? '<img class="aq-img" src="' + imgUrl(q.expImage) + '" alt="Explanation image">' : '');
-    html += '<div class="aq-actions"><button class="btn-secondary" onclick="event.stopPropagation();editAdminQ(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\',' + q.id + ')">Edit</button>';
-    html += '<button class="btn-secondary" style="color:var(--danger)" onclick="event.stopPropagation();delAdminQ(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\',' + q.id + ')">Delete</button></div></div>';
+    html += '<div class="aq-actions"><button class="btn-secondary" onclick="event.stopPropagation();editAdminQ(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\',' + q.id + ')"><i class="fas fa-pen"></i> Edit</button>';
+    html += '<button class="btn-danger" onclick="event.stopPropagation();delAdminQ(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\',' + q.id + ')"><i class="fas fa-trash"></i> Delete</button></div></div>';
   });
   if (prevTopicKey !== null) html += '</div></div>';
   if (!prevTopicKey) html = '<p class="empty-state" style="padding:20px;">No questions match your filters.</p>';
