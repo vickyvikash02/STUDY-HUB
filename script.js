@@ -70,7 +70,7 @@ function swapOrder(a, b) {
 }
 
 function moveItem(list, id, dir) {
-  const keys = Object.keys(list);
+  const keys = Object.keys(list).sort((a, b) => (list[a].order || 0) - (list[b].order || 0));
   const idx = keys.indexOf(id);
   const target = dir === 'up' ? idx - 1 : idx + 1;
   if (target < 0 || target >= keys.length) return;
