@@ -70,11 +70,13 @@ function swapOrder(a, b) {
 }
 
 function moveItem(list, id, dir) {
-  const keys = Object.keys(list).sort((a, b) => (list[a].order || 0) - (list[b].order || 0));
-  const idx = keys.indexOf(id);
+  const keys = Object.keys(list);
+  keys.forEach((k, i) => { if (list[k].order == null) list[k].order = i + 1; });
+  const sorted = keys.sort((a, b) => (list[a].order || 0) - (list[b].order || 0));
+  const idx = sorted.indexOf(id);
   const target = dir === 'up' ? idx - 1 : idx + 1;
-  if (target < 0 || target >= keys.length) return;
-  swapOrder(list[keys[idx]], list[keys[target]]);
+  if (target < 0 || target >= sorted.length) return;
+  swapOrder(list[sorted[idx]], list[sorted[target]]);
 }
 
 function forEachQ(fn) {
@@ -374,7 +376,7 @@ function openQuestionBank(catId, subId, topicId) {
       text.textContent = q.question;
       item.appendChild(text);
       const ans = document.createElement('div'); ans.className = 'q-answer';
-      ans.innerHTML = '<strong>Answer:</strong> ' + esc(q.options[q.answer]);
+      ans.innerHTML = '<strong>Answer:</strong> ' + esc(q.options ? q.options[q.answer] : '');
       item.appendChild(ans);
       if (q.explanation) {
         const exp = document.createElement('div'); exp.className = 'q-exp';
@@ -628,8 +630,8 @@ function renderAdminQuestions(container) {
     }
     topicCount++;
     html += '<div class="admin-question-item" data-cat="' + catId + '" data-sub="' + subId + '" data-topic="' + topicId + '">';
-    html += '<div class="aq-text">' + topicCount + '. ' + esc(q.question) + '</div>' + (q.image ? '<img class="aq-img" src="' + imgUrl(q.image) + '" alt="Question image">' : '');
-    html += '<div class="aq-opts">' + q.options.map((o, oi) => (oi === q.answer ? '✅ ' : '') + String.fromCharCode(65 + oi) + '. ' + esc(o)).join(' | ') + '</div>';
+    html += '<div class="aq-text">' + topicCount + '. ' + esc(q.question || '') + '</div>' + (q.image ? '<img class="aq-img" src="' + imgUrl(q.image) + '" alt="Question image">' : '');
+    html += '<div class="aq-opts">' + (q.options || []).map((o, oi) => (oi === q.answer ? '✅ ' : '') + String.fromCharCode(65 + oi) + '. ' + esc(o)).join(' | ') + '</div>';
     html += '<div class="aq-ans">Answer: ' + String.fromCharCode(65 + q.answer) + ' | ' + esc(q.explanation || '') + '</div>';
     html += '<div class="aq-actions"><button class="btn-secondary" onclick="event.stopPropagation();editAdminQ(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\',' + q.id + ')">Edit</button>';
     html += '<button class="btn-secondary" style="color:var(--danger)" onclick="event.stopPropagation();delAdminQ(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\',' + q.id + ')">Delete</button></div></div>';
@@ -641,28 +643,28 @@ function renderAdminQuestions(container) {
 
   document.getElementById('adminAddQBtn').addEventListener('click', addAdminQ);
 
-  document.getElementById('aqFilterCat').addEventListener('change', applyAQFilters);
-  document.getElementById('aqFilterSub').addEventListener('change', applyAQFilters);
-  document.getElementById('aqFilterTopic').addEventListener('change', applyAQFilters);
-  document.getElementById('aqFilterSearch').addEventListener('input', applyAQFilters);
-
   document.getElementById('aqFilterCat').addEventListener('change', function () {
-    const sel = document.getElementById('aqFilterSub');
-    sel.innerHTML = '<option value="">All Subcategories</option>';
+    const subSel = document.getElementById('aqFilterSub');
+    const topicSel = document.getElementById('aqFilterTopic');
+    subSel.innerHTML = '<option value="">All Subcategories</option>';
+    topicSel.innerHTML = '<option value="">All Topics</option>';
     const cat = data.categories[this.value];
-    if (cat) Object.keys(cat.subcategories || {}).forEach(sid => { sel.innerHTML += '<option value="' + sid + '">' + cat.subcategories[sid].name + '</option>'; });
-    document.getElementById('aqFilterTopic').innerHTML = '<option value="">All Topics</option>';
+    if (cat) sortedKeys(cat.subcategories || {}).forEach(sid => { subSel.innerHTML += '<option value="' + sid + '">' + cat.subcategories[sid].name + '</option>'; });
+    applyAQFilters();
   });
   document.getElementById('aqFilterSub').addEventListener('change', function () {
     const sel = document.getElementById('aqFilterTopic');
     sel.innerHTML = '<option value="">All Topics</option>';
     const catId = document.getElementById('aqFilterCat').value;
     if (catId && this.value && data.categories[catId] && data.categories[catId].subcategories[this.value]) {
-      Object.keys(data.categories[catId].subcategories[this.value].topics || {}).forEach(tid => {
+      sortedKeys(data.categories[catId].subcategories[this.value].topics || {}).forEach(tid => {
         sel.innerHTML += '<option value="' + tid + '">' + data.categories[catId].subcategories[this.value].topics[tid].name + '</option>';
       });
     }
+    applyAQFilters();
   });
+  document.getElementById('aqFilterTopic').addEventListener('change', applyAQFilters);
+  document.getElementById('aqFilterSearch').addEventListener('input', applyAQFilters);
 }
 
 function populateAdminQSub(catId) {
@@ -755,7 +757,7 @@ function editAdminQ(catId, subId, topicId, qId) {
     if (q.id === qId) {
       document.getElementById('adminQTopicAll').value = cid + '|' + sid + '|' + tid;
       document.getElementById('adminQQ').value = q.question;
-      q.options.forEach((o, oi) => document.getElementById('adminQO' + oi).value = o);
+      (q.options || []).forEach((o, oi) => document.getElementById('adminQO' + oi).value = o);
       document.getElementById('adminQAns').value = q.answer;
       document.getElementById('adminQExp').value = q.explanation || '';
       document.getElementById('adminQEditId').value = q.id;
@@ -910,7 +912,7 @@ function renderMockQuestion() {
   const answered = s.answers[q.id] !== undefined;
   const opts = document.getElementById('mockQOpts');
   opts.innerHTML = '';
-  q.options.forEach((o, i) => {
+  (q.options || []).forEach((o, i) => {
     const d = document.createElement('div'); d.className = 'opt-item';
     d.textContent = String.fromCharCode(65 + i) + '. ' + o;
     if (answered) {
@@ -997,7 +999,7 @@ function submitMockTest() {
     detailHtml += '<div class="q-item" style="text-align:left;"><div class="q-num">Q' + (i + 1) + ' <span style="float:right;">' + (d.isCorrect ? '✅' : '❌') + '</span></div>';
     detailHtml += q.image ? '<img class="q-img" src="' + imgUrl(q.image) + '" alt="Question image">' : '';
     detailHtml += '<div class="q-text" style="font-size:14px;">' + esc(q.question) + '</div>';
-    detailHtml += '<div class="q-opts">' + q.options.map((o, oi) => {
+    detailHtml += '<div class="q-opts">' + (q.options || []).map((o, oi) => {
       let cls = 'q-opt';
       if (oi === q.answer) cls += ' correct';
       if (oi === d.userAns && oi !== q.answer) cls += ' wrong';
