@@ -378,9 +378,11 @@ function openQuestionBank(catId, subId, topicId) {
       const ans = document.createElement('div'); ans.className = 'q-answer';
       ans.innerHTML = '<strong>Answer:</strong> ' + esc(q.options ? q.options[q.answer] : '');
       item.appendChild(ans);
-      if (q.explanation) {
+      if (q.explanation || q.expImage) {
         const exp = document.createElement('div'); exp.className = 'q-exp';
-        exp.innerHTML = '<strong>Explanation:</strong> ' + esc(q.explanation);
+        let expHtml = '<strong>Explanation:</strong> ' + esc(q.explanation || '');
+        if (q.expImage) expHtml += '<br><img src="' + imgUrl(q.expImage) + '" class="q-img" style="max-width:200px;margin-top:6px;">';
+        exp.innerHTML = expHtml;
         item.appendChild(exp);
       }
       list.appendChild(item);
@@ -597,6 +599,7 @@ function renderAdminQuestions(container) {
   html += '<div class="admin-row"><input type="text" id="adminQO2" placeholder="Option C"><input type="text" id="adminQO3" placeholder="Option D"></div>';
   html += '<div class="admin-row"><select id="adminQAns"><option value="0">Answer: A</option><option value="1">B</option><option value="2">C</option><option value="3">D</option></select>';
   html += '<input type="text" id="adminQExp" placeholder="Explanation" style="flex:2;"></div>';
+  html += '<div class="admin-row"><input type="file" id="adminQExpImg" accept="image/*" style="flex:1;"><span id="adminQExpImgName" style="font-size:12px;color:var(--text2);"></span></div>';
   html += '<input type="hidden" id="adminQEditId"><button class="btn-primary" id="adminAddQBtn">Add Question</button></div>';
 
   html += '</div>';
@@ -632,7 +635,7 @@ function renderAdminQuestions(container) {
     html += '<div class="admin-question-item" data-cat="' + catId + '" data-sub="' + subId + '" data-topic="' + topicId + '">';
     html += '<div class="aq-text">' + topicCount + '. ' + esc(q.question || '') + '</div>' + (q.image ? '<img class="aq-img" src="' + imgUrl(q.image) + '" alt="Question image">' : '');
     html += '<div class="aq-opts">' + (q.options || []).map((o, oi) => (oi === q.answer ? '✅ ' : '') + String.fromCharCode(65 + oi) + '. ' + esc(o)).join(' | ') + '</div>';
-    html += '<div class="aq-ans">Answer: ' + String.fromCharCode(65 + q.answer) + ' | ' + esc(q.explanation || '') + '</div>';
+    html += '<div class="aq-ans">Answer: ' + String.fromCharCode(65 + q.answer) + ' | ' + esc(q.explanation || '') + '</div>' + (q.expImage ? '<img class="aq-img" src="' + imgUrl(q.expImage) + '" alt="Explanation image">' : '');
     html += '<div class="aq-actions"><button class="btn-secondary" onclick="event.stopPropagation();editAdminQ(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\',' + q.id + ')">Edit</button>';
     html += '<button class="btn-secondary" style="color:var(--danger)" onclick="event.stopPropagation();delAdminQ(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\',' + q.id + ')">Delete</button></div></div>';
   });
@@ -715,9 +718,10 @@ async function addAdminQ() {
   const exp = document.getElementById('adminQExp').value.trim();
   const editId = document.getElementById('adminQEditId').value;
   const imgFile = document.getElementById('adminQImg').files[0];
+  const expImgFile = document.getElementById('adminQExpImg').files[0];
   if (!catId || !subId || !topicId || !qText || opts.some(o => !o)) { alert('Fill all fields.'); return; }
 
-  if (imgFile && imgFile.size > 2 * 1024 * 1024) { alert('Image too large! Max 2 MB.'); return; }
+  if ((imgFile && imgFile.size > 2 * 1024 * 1024) || (expImgFile && expImgFile.size > 2 * 1024 * 1024)) { alert('Image too large! Max 2 MB.'); return; }
 
   const btn = document.getElementById('adminAddQBtn');
   btn.disabled = true; btn.textContent = 'Saving...';
@@ -729,12 +733,16 @@ async function addAdminQ() {
       if (editQ) {
         editQ.question = qText; editQ.options = opts; editQ.answer = ans; editQ.explanation = exp;
         if (imgFile) { await deleteUploadedFile(editQ.image); editQ.image = await uploadFile(imgFile); }
+        if (expImgFile) { await deleteUploadedFile(editQ.expImage); editQ.expImage = await uploadFile(expImgFile); }
       }
     } else {
-      const q = { id: genId(), question: qText, options: opts, answer: ans, explanation: exp, image: '' };
+      const q = { id: genId(), question: qText, options: opts, answer: ans, explanation: exp, image: '', expImage: '' };
       data.categories[catId].subcategories[subId].topics[topicId].questions.push(q);
       if (imgFile) {
         try { q.image = await uploadFile(imgFile); } catch { }
+      }
+      if (expImgFile) {
+        try { q.expImage = await uploadFile(expImgFile); } catch { }
       }
     }
     await saveData();
@@ -750,6 +758,10 @@ function clearAdminQForm() {
   [0, 1, 2, 3].forEach(i => document.getElementById('adminQO' + i).value = '');
   document.getElementById('adminQExp').value = '';
   document.getElementById('adminQAns').value = '0';
+  document.getElementById('adminQImg').value = '';
+  document.getElementById('adminQImgName').innerHTML = '';
+  document.getElementById('adminQExpImg').value = '';
+  document.getElementById('adminQExpImgName').innerHTML = '';
 }
 
 function editAdminQ(catId, subId, topicId, qId) {
@@ -764,6 +776,8 @@ function editAdminQ(catId, subId, topicId, qId) {
       document.getElementById('adminAddQBtn').textContent = 'Update Question';
       document.getElementById('adminQImg').value = '';
       document.getElementById('adminQImgName').innerHTML = q.image ? '<img src="' + imgUrl(q.image) + '" style="max-width:80px;max-height:60px;vertical-align:middle;border-radius:4px;border:1px solid var(--border);">' : '';
+      document.getElementById('adminQExpImg').value = '';
+      document.getElementById('adminQExpImgName').innerHTML = q.expImage ? '<img src="' + imgUrl(q.expImage) + '" style="max-width:80px;max-height:60px;vertical-align:middle;border-radius:4px;border:1px solid var(--border);">' : '';
     }
   });
 }
@@ -772,7 +786,7 @@ async function delAdminQ(catId, subId, topicId, qId) {
   if (!confirm('Delete this question?')) return;
   const qs = data.categories[catId].subcategories[subId].topics[topicId].questions;
   const idx = qs.findIndex(q => q.id === qId);
-  if (idx !== -1) { await deleteUploadedFile(qs[idx].image); qs.splice(idx, 1); }
+  if (idx !== -1) { await deleteUploadedFile(qs[idx].image); await deleteUploadedFile(qs[idx].expImage); qs.splice(idx, 1); }
   await saveData(); renderDashboard(); renderAdmin(); updateStats();
 }
 
@@ -925,9 +939,12 @@ function renderMockQuestion() {
   });
 
   const exp = document.getElementById('mockQExp');
-  if (answered && q.explanation) {
-    document.getElementById('mockQExpText').textContent = q.explanation;
+  const expImg = document.getElementById('mockQExpImg');
+  if (answered && (q.explanation || q.expImage)) {
+    document.getElementById('mockQExpText').textContent = q.explanation || '';
     exp.classList.remove('hidden');
+    if (q.expImage) { expImg.src = imgUrl(q.expImage); expImg.classList.remove('hidden'); }
+    else expImg.classList.add('hidden');
   } else {
     exp.classList.add('hidden');
   }
@@ -1005,7 +1022,7 @@ function submitMockTest() {
       if (oi === d.userAns && oi !== q.answer) cls += ' wrong';
       return '<div class="' + cls + '">' + String.fromCharCode(65 + oi) + '. ' + esc(o) + '</div>';
     }).join('') + '</div>';
-    detailHtml += '<div class="q-exp"><strong>Explanation:</strong> ' + esc(q.explanation || '') + '</div></div>';
+    detailHtml += '<div class="q-exp"><strong>Explanation:</strong> ' + esc(q.explanation || '') + (q.expImage ? '<br><img class="q-img" src="' + imgUrl(q.expImage) + '" alt="Explanation image">' : '') + '</div></div>';
   });
   document.getElementById('mockResultDetails').innerHTML = detailHtml;
   document.getElementById('mockResultContainer').classList.remove('hidden');
