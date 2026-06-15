@@ -700,7 +700,7 @@ function renderAdminQuestions(container) {
     syncFilterToAddForm();
   });
   document.getElementById('aqFilterSearch').addEventListener('input', applyAQFilters);
-  if (prevFilterCat && prevFilterSub && prevFilterTopic) applyAQFilters();
+  if (prevFilterCat || prevFilterSub || prevFilterTopic || prevFilterSearch) applyAQFilters();
 }
 
 function populateAdminQSub(catId) {
