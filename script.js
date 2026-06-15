@@ -379,36 +379,99 @@ function openQuestionBank(catId, subId, topicId) {
   const list = document.createElement('div'); list.id = 'qbQuestionList';
   container.appendChild(list);
 
+  window._qbAllQs = qs;
+
+  window.buildQBItem = function buildQBItem(q, i, ctxCatId, ctxSubId, ctxTopicId) {
+    const item = document.createElement('div'); item.className = 'q-item';
+    item.dataset.qid = q.id;
+
+    const head = document.createElement('div'); head.className = 'q-head';
+    const num = document.createElement('div'); num.className = 'q-num';
+    num.textContent = 'Question ' + (i + 1);
+    head.appendChild(num);
+    const editBtn = document.createElement('button'); editBtn.className = 'qb-edit-btn';
+    editBtn.innerHTML = '<i class="fas fa-pen"></i>';
+    editBtn.title = 'Edit question';
+    editBtn.onclick = function () { enterEditMode(item, q, i, ctxCatId, ctxSubId, ctxTopicId); };
+    head.appendChild(editBtn);
+    item.appendChild(head);
+    if (q.image) {
+      const img = document.createElement('img'); img.className = 'q-img'; img.src = imgUrl(q.image); img.alt = 'Question image';
+      item.appendChild(img);
+    }
+    const text = document.createElement('div'); text.className = 'q-text';
+    text.textContent = q.question;
+    item.appendChild(text);
+    const ans = document.createElement('div'); ans.className = 'q-answer';
+    ans.innerHTML = '<strong>Answer:</strong> ' + esc(q.options ? q.options[q.answer] : '');
+    item.appendChild(ans);
+    if (q.explanation || q.expImage) {
+      const exp = document.createElement('div'); exp.className = 'q-exp';
+      let expHtml = '<strong>Explanation:</strong> ' + esc(q.explanation || '');
+      if (q.expImage) expHtml += '<br><img src="' + imgUrl(q.expImage) + '" class="q-img" style="max-width:200px;margin-top:6px;">';
+      exp.innerHTML = expHtml;
+      item.appendChild(exp);
+    }
+    return item;
+  }
+
+  window.enterEditMode = function enterEditMode(item, q, i, ctxCatId, ctxSubId, ctxTopicId) {
+    if (item.classList.contains('qb-editing')) return;
+    item.classList.add('qb-editing');
+    item.innerHTML = '<div class="q-head"><div class="q-num">Question ' + (i + 1) + '</div></div>'
+      + '<div class="qb-edit-field"><label>Question</label><textarea class="qb-edit-input qb-edit-qtext">' + esc(q.question) + '</textarea></div>'
+      + '<div class="qb-edit-field"><label>Options</label>'
+      + [0,1,2,3].map(j => '<div class="qb-opt-row"><span class="qb-opt-letter">' + String.fromCharCode(65 + j) + '.</span><input class="qb-edit-input qb-edit-opt" data-opt="' + j + '" value="' + esc(q.options[j] || '') + '">'
+        + '<label class="qb-ans-radio"><input type="radio" name="qb-ans-' + q.id + '" value="' + j + '"' + (j === q.answer ? ' checked' : '') + '> Correct</label></div>').join('')
+      + '</div>'
+      + '<div class="qb-edit-field"><label>Explanation</label><textarea class="qb-edit-input qb-edit-exp">' + esc(q.explanation || '') + '</textarea></div>'
+      + '<div class="qb-edit-field"><label>Question Image</label><input type="file" accept="image/*" class="qb-edit-img">'
+      + (q.image ? '<div class="qb-edit-preview"><img src="' + imgUrl(q.image) + '" style="max-width:120px;max-height:80px;border-radius:6px;border:1px solid var(--border);"></div>' : '')
+      + '</div>'
+      + '<div class="qb-edit-field"><label>Explanation Image</label><input type="file" accept="image/*" class="qb-edit-expimg">'
+      + (q.expImage ? '<div class="qb-edit-preview"><img src="' + imgUrl(q.expImage) + '" style="max-width:120px;max-height:80px;border-radius:6px;border:1px solid var(--border);"></div>' : '')
+      + '</div>'
+      + '<div class="qb-edit-actions"><button class="btn-primary qb-save-btn">Save</button><button class="btn-secondary qb-cancel-btn">Cancel</button></div>';
+
+    item.querySelector('.qb-save-btn').onclick = async function () {
+      const qText = item.querySelector('.qb-edit-qtext').value.trim();
+      const opts = [0,1,2,3].map(j => item.querySelector('.qb-edit-opt[data-opt="' + j + '"]').value.trim());
+      const ans = parseInt(item.querySelector('input[name="qb-ans-' + q.id + '"]:checked').value);
+      const exp = item.querySelector('.qb-edit-exp').value.trim();
+      const imgFile = item.querySelector('.qb-edit-img').files[0];
+      const expImgFile = item.querySelector('.qb-edit-expimg').files[0];
+      if (!qText || opts.some(o => !o)) { alert('Fill all fields.'); return; }
+      if ((imgFile && imgFile.size > 2 * 1024 * 1024) || (expImgFile && expImgFile.size > 2 * 1024 * 1024)) { alert('Image too large! Max 2 MB.'); return; }
+
+      const btn = item.querySelector('.qb-save-btn');
+      btn.disabled = true; btn.textContent = 'Saving...';
+
+      q.question = qText; q.options = opts; q.answer = ans; q.explanation = exp;
+      if (imgFile) { try { q.image = await uploadFile(imgFile, 'questions'); } catch (e) { alert('Image upload failed: ' + e.message); } }
+      if (expImgFile) { try { q.expImage = await uploadFile(expImgFile, 'explanations'); } catch (e) { alert('Image upload failed: ' + e.message); } }
+      await saveData();
+      renderDashboard(); updateStats(); renderAdmin();
+      item.classList.remove('qb-editing');
+      item.innerHTML = '';
+      item.appendChild(buildQBItem(q, i, ctxCatId, ctxSubId, ctxTopicId));
+    };
+
+    item.querySelector('.qb-cancel-btn').onclick = function () {
+      item.classList.remove('qb-editing');
+      item.innerHTML = '';
+      item.appendChild(buildQBItem(q, i, ctxCatId, ctxSubId, ctxTopicId));
+    };
+  }
+
   function renderQBList(qs) {
     list.innerHTML = '';
     qs.forEach((q, i) => {
-      const item = document.createElement('div'); item.className = 'q-item';
-      const num = document.createElement('div'); num.className = 'q-num';
-      num.textContent = 'Question ' + (i + 1);
-      item.appendChild(num);
-      if (q.image) {
-        const img = document.createElement('img'); img.className = 'q-img'; img.src = imgUrl(q.image); img.alt = 'Question image';
-        item.appendChild(img);
-      }
-      const text = document.createElement('div'); text.className = 'q-text';
-      text.textContent = q.question;
-      item.appendChild(text);
-      const ans = document.createElement('div'); ans.className = 'q-answer';
-      ans.innerHTML = '<strong>Answer:</strong> ' + esc(q.options ? q.options[q.answer] : '');
-      item.appendChild(ans);
-      if (q.explanation || q.expImage) {
-        const exp = document.createElement('div'); exp.className = 'q-exp';
-        let expHtml = '<strong>Explanation:</strong> ' + esc(q.explanation || '');
-        if (q.expImage) expHtml += '<br><img src="' + imgUrl(q.expImage) + '" class="q-img" style="max-width:200px;margin-top:6px;">';
-        exp.innerHTML = expHtml;
-        item.appendChild(exp);
-      }
+      const item = buildQBItem(q, i, _qbContext.catId, _qbContext.subId, _qbContext.topicId);
       list.appendChild(item);
     });
     if (!qs.length) list.innerHTML = '<div class="empty-state"><i class="fas fa-search"></i><p>No questions match your search.</p></div>';
   }
 
-  window._qbAllQs = qs;
   renderQBList(qs);
 }
 
@@ -419,9 +482,9 @@ function filterQBQuestions(val) {
   if (!list) return;
   list.innerHTML = '';
   const filtered = qs.filter(x => x.question.toLowerCase().includes(q) || (x.explanation || '').toLowerCase().includes(q));
+  const ctx = window._qbContext || {};
   filtered.forEach((x, i) => {
-    const item = document.createElement('div'); item.className = 'q-item';
-    item.innerHTML = '<div class="q-num">Question ' + (i + 1) + '</div>' + (x.image ? '<img class="q-img" src="' + imgUrl(x.image) + '" alt="Question image">' : '') + '<div class="q-text">' + esc(x.question) + '</div><div class="q-answer"><strong>Answer:</strong> ' + esc(x.options[x.answer]) + '</div>' + (x.explanation ? '<div class="q-exp"><strong>Explanation:</strong> ' + esc(x.explanation) + '</div>' : '');
+    const item = buildQBItem(x, i, ctx.catId, ctx.subId, ctx.topicId);
     list.appendChild(item);
   });
   if (!filtered.length) list.innerHTML = '<div class="empty-state"><i class="fas fa-search"></i><p>No questions match your search.</p></div>';
