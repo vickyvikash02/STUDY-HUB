@@ -987,6 +987,8 @@ function startMockTest(idx) {
   const qMap = new Map();
   forEachQ(q => { if ((t.questionIds || []).includes(q.id) && !qMap.has(q.id)) qMap.set(q.id, q); });
   const allQs = (t.questionIds || []).map(id => qMap.get(id)).filter(Boolean);
+  console.log('Mock test questionIds:', JSON.stringify(t.questionIds), 'matched:', allQs.length, 'qMap size:', qMap.size);
+  t.questionIds.forEach(id => { if (!qMap.has(id)) console.log('MISSING id:', id, typeof id, 'qMap keys:', [...qMap.keys()].map(k => k + '(' + typeof k + ')')); });
   if (!allQs.length) { alert('No questions found for this test.'); return; }
   _mockState = { testIdx: idx, questions: allQs, idx: 0, answers: {}, submitted: false };
   document.getElementById('mockListContainer').classList.add('hidden');
