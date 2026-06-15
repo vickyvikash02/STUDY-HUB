@@ -982,13 +982,11 @@ function renderMockList() {
 }
 
 function startMockTest(idx) {
+  if (_mockState && _mockState._timer) clearInterval(_mockState._timer);
   const t = mockTests[idx];
-  const idsToFind = [...(t.questionIds || [])];
-  const allQs = [];
-  forEachQ(q => {
-    const idIdx = idsToFind.indexOf(q.id);
-    if (idIdx !== -1) { allQs.push(q); idsToFind.splice(idIdx, 1); }
-  });
+  const qMap = new Map();
+  forEachQ(q => { if ((t.questionIds || []).includes(q.id) && !qMap.has(q.id)) qMap.set(q.id, q); });
+  const allQs = (t.questionIds || []).map(id => qMap.get(id)).filter(Boolean);
   if (!allQs.length) { alert('No questions found for this test.'); return; }
   _mockState = { testIdx: idx, questions: allQs, idx: 0, answers: {}, submitted: false };
   document.getElementById('mockListContainer').classList.add('hidden');
@@ -1097,7 +1095,7 @@ function submitMockTest() {
   const circle = document.getElementById('mockResultCircle');
   circle.style.background = pct >= 80 ? 'var(--success)' : pct >= 50 ? 'var(--warning)' : 'var(--danger)';
   document.getElementById('mockResultPct').textContent = pct + '%';
-  document.getElementById('mockResultSummary').textContent = correct + '/' + total + ' correct (' + pct + '%)';
+  document.getElementById('mockResultSummary').innerHTML = '<strong>Score:</strong> ' + correct + '/' + total + ' (' + pct + '%)';
   let detailHtml = '';
   details.forEach((d, i) => {
     const q = d.q;
@@ -1114,6 +1112,11 @@ function submitMockTest() {
   });
   document.getElementById('mockResultDetails').innerHTML = detailHtml;
   document.getElementById('mockResultContainer').classList.remove('hidden');
+}
+
+function retryMockTest() {
+  if (!_mockState) return;
+  if (confirm('Restart this test? Your current answers will be cleared.')) startMockTest(_mockState.testIdx);
 }
 
 function quitMockTest() {
@@ -1167,6 +1170,7 @@ async function init() {
   document.getElementById('mockSubmitPaletteBtn').addEventListener('click', () => { if (confirm('Submit test?')) submitMockTest(); });
   document.getElementById('mockQuitBtn').addEventListener('click', () => { if (confirm('Quit test?')) quitMockTest(); });
   document.getElementById('mockResultBackBtn').addEventListener('click', quitMockTest);
+  document.getElementById('mockRetryBtn').addEventListener('click', retryMockTest);
 
   // Admin tabs
   document.querySelectorAll('.admin-tab').forEach(t => t.addEventListener('click', function () {
