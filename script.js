@@ -703,7 +703,7 @@ function renderAdminQuestions(container) {
   html += '<div class="admin-row"><select id="adminQAns"><option value="0">Answer: A</option><option value="1">B</option><option value="2">C</option><option value="3">D</option></select>';
   html += '<input type="text" id="adminQExp" placeholder="Explanation" style="flex:2;"></div>';
   html += '<div class="admin-row"><input type="file" id="adminQExpImg" accept="image/*" style="flex:1;"><span id="adminQExpImgName" style="font-size:12px;color:var(--text2);"></span></div>';
-  html += '<input type="hidden" id="adminQEditId"><button class="btn-primary" id="adminAddQBtn">Add Question</button></div>';
+  html += '<input type="hidden" id="adminQEditId"><input type="hidden" id="adminQEditCat"><input type="hidden" id="adminQEditSub"><input type="hidden" id="adminQEditTopic"><button class="btn-primary" id="adminAddQBtn">Add Question</button></div>';
 
   html += '</div>';
 
@@ -872,7 +872,22 @@ async function addAdminQ() {
 
   try {
     if (editId) {
-      let editQ = (data.categories[catId]?.subcategories[subId]?.topics[topicId]?.questions || []).find(q => q.id == editId);
+      const editCat = document.getElementById('adminQEditCat').value;
+      const editSub = document.getElementById('adminQEditSub').value;
+      const editTopic = document.getElementById('adminQEditTopic').value;
+      const isMoved = editCat !== catId || editSub !== subId || editTopic !== topicId;
+      let editQ;
+      if (isMoved) {
+        const oldTopic = data.categories[editCat]?.subcategories[editSub]?.topics[editTopic];
+        if (oldTopic) {
+          const idx = (oldTopic.questions || []).findIndex(q => q.id == editId);
+          if (idx !== -1) editQ = oldTopic.questions.splice(idx, 1)[0];
+        }
+        if (!editQ) { alert('Could not find original question.'); btn.disabled = false; btn.textContent = 'Update Question'; return; }
+        data.categories[catId].subcategories[subId].topics[topicId].questions.push(editQ);
+      } else {
+        editQ = (data.categories[catId]?.subcategories[subId]?.topics[topicId]?.questions || []).find(q => q.id == editId);
+      }
       if (editQ) {
         editQ.question = qText; editQ.options = opts; editQ.answer = ans; editQ.explanation = exp;
         if (imgFile) { await deleteUploadedFile(editQ.image); editQ.image = await uploadFile(imgFile, 'questions').catch(e => { alert('Image upload failed: ' + e.message); return editQ.image; }); }
@@ -908,6 +923,10 @@ function clearAdminQForm() {
   document.getElementById('adminQImgName').innerHTML = '';
   document.getElementById('adminQExpImg').value = '';
   document.getElementById('adminQExpImgName').innerHTML = '';
+  document.getElementById('adminQEditId').value = '';
+  document.getElementById('adminQEditCat').value = '';
+  document.getElementById('adminQEditSub').value = '';
+  document.getElementById('adminQEditTopic').value = '';
 }
 
 function editAdminQ(catId, subId, topicId, qId) {
@@ -915,6 +934,9 @@ function editAdminQ(catId, subId, topicId, qId) {
   if (!topic) return;
   const q = (topic.questions || []).find(q => q.id == qId);
   if (!q) return;
+  document.getElementById('adminQEditCat').value = catId;
+  document.getElementById('adminQEditSub').value = subId;
+  document.getElementById('adminQEditTopic').value = topicId;
   document.getElementById('adminQCat').value = catId;
   const subSel = document.getElementById('adminQSub');
   subSel.innerHTML = '<option value="">Select Subcategory</option>';
