@@ -78,7 +78,7 @@ function syncIds() {
   qidCounter = maxId;
 }
 
-function genId() { return ++qidCounter; }
+function genId() { return Date.now() + (++qidCounter); }
 
 function sortedKeys(obj) {
   return Object.keys(obj).sort((a, b) => (obj[a].order || 0) - (obj[b].order || 0));
@@ -983,9 +983,12 @@ function renderMockList() {
 
 function startMockTest(idx) {
   const t = mockTests[idx];
-  const qMap = new Map();
-  forEachQ(q => { if ((t.questionIds || []).includes(q.id)) qMap.set(q.id, q); });
-  const allQs = (t.questionIds || []).map(id => qMap.get(id)).filter(Boolean);
+  const idsToFind = [...(t.questionIds || [])];
+  const allQs = [];
+  forEachQ(q => {
+    const idIdx = idsToFind.indexOf(q.id);
+    if (idIdx !== -1) { allQs.push(q); idsToFind.splice(idIdx, 1); }
+  });
   if (!allQs.length) { alert('No questions found for this test.'); return; }
   _mockState = { testIdx: idx, questions: allQs, idx: 0, answers: {}, submitted: false };
   document.getElementById('mockListContainer').classList.add('hidden');
@@ -1135,7 +1138,7 @@ function loadTheme() {
 
 // ======================== UTILITIES ========================
 function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
-function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[a[i], a[j]] = [a[j], a[i]]; } return a; }
+
 function updateStats() { document.getElementById('statsBadge').textContent = countQuestions() + ' questions'; }
 
 // ======================== EVENT BINDING ========================
