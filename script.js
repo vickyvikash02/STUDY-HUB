@@ -684,6 +684,10 @@ function delTopic(catId, subId, topicId) {
 }
 
 function renderAdminQuestions(container) {
+  const prevFilterCat = document.getElementById('aqFilterCat')?.value || '';
+  const prevFilterSub = document.getElementById('aqFilterSub')?.value || '';
+  const prevFilterTopic = document.getElementById('aqFilterTopic')?.value || '';
+  const prevFilterSearch = document.getElementById('aqFilterSearch')?.value || '';
   let html = '<div class="admin-section"><h3>Add Question</h3>';
   html += '<div class="admin-row"><select id="adminQCat"><option value="">Select Category</option>';
   sortedKeys(data.categories).forEach(catId => {
@@ -706,11 +710,19 @@ function renderAdminQuestions(container) {
   html += '<div class="admin-section"><h3>All Questions</h3>';
   html += '<div class="admin-row" style="flex-wrap:wrap;gap:6px;margin-bottom:10px;">';
   html += '<select id="aqFilterCat" style="flex:1;min-width:120px;"><option value="">All Categories</option>';
-  sortedKeys(data.categories).forEach(catId => { html += '<option value="' + catId + '">' + data.categories[catId].name + '</option>'; });
+  sortedKeys(data.categories).forEach(catId => { html += '<option value="' + catId + '"' + (catId === prevFilterCat ? ' selected' : '') + '>' + data.categories[catId].name + '</option>'; });
   html += '</select>';
-  html += '<select id="aqFilterSub" style="flex:1;min-width:120px;"><option value="">All Subcategories</option></select>';
-  html += '<select id="aqFilterTopic" style="flex:1;min-width:120px;"><option value="">All Topics</option></select>';
-  html += '<input type="text" id="aqFilterSearch" placeholder="Search questions..." style="flex:2;min-width:180px;"></div>';
+  html += '<select id="aqFilterSub" style="flex:1;min-width:120px;"><option value="">All Subcategories</option>';
+  if (prevFilterCat && data.categories[prevFilterCat]) {
+    sortedKeys(data.categories[prevFilterCat].subcategories || {}).forEach(sid => { html += '<option value="' + sid + '"' + (sid === prevFilterSub ? ' selected' : '') + '>' + data.categories[prevFilterCat].subcategories[sid].name + '</option>'; });
+  }
+  html += '</select>';
+  html += '<select id="aqFilterTopic" style="flex:1;min-width:120px;"><option value="">All Topics</option>';
+  if (prevFilterCat && prevFilterSub && data.categories[prevFilterCat] && data.categories[prevFilterCat].subcategories[prevFilterSub]) {
+    sortedKeys(data.categories[prevFilterCat].subcategories[prevFilterSub].topics || {}).forEach(tid => { html += '<option value="' + tid + '"' + (tid === prevFilterTopic ? ' selected' : '') + '>' + data.categories[prevFilterCat].subcategories[prevFilterSub].topics[tid].name + '</option>'; });
+  }
+  html += '</select>';
+  html += '<input type="text" id="aqFilterSearch" placeholder="Search questions..." value="' + esc(prevFilterSearch) + '" style="flex:2;min-width:180px;"></div>';
 
   html += '<div id="aqList"><p class="empty-state" style="padding:20px;">Use filters above to find questions.</p></div></div>';
   container.innerHTML = html;
@@ -758,6 +770,7 @@ function renderAdminQuestions(container) {
   });
   document.getElementById('aqFilterTopic').addEventListener('change', applyAQFilters);
   document.getElementById('aqFilterSearch').addEventListener('input', applyAQFilters);
+  applyAQFilters();
 }
 
 function populateAdminQSub(catId) {
