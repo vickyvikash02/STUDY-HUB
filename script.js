@@ -632,23 +632,19 @@ function renderAdminQuestions(container) {
 
   html += '</div>';
 
-  const catKeys = sortedKeys(data.categories);
-  const defaultCat = (!prevFilterCat && catKeys.length) ? catKeys[0] : prevFilterCat;
-  const defaultSub = prevFilterSub;
-  const defaultTopic = prevFilterTopic;
   html += '<div class="admin-section"><h3>All Questions</h3>';
   html += '<div class="admin-row" style="flex-wrap:wrap;gap:6px;margin-bottom:10px;">';
-  html += '<select id="aqFilterCat" style="flex:1;min-width:120px;">';
-  catKeys.forEach(catId => { html += '<option value="' + catId + '"' + (catId === defaultCat ? ' selected' : '') + '>' + data.categories[catId].name + '</option>'; });
+  html += '<select id="aqFilterCat" style="flex:1;min-width:120px;"><option value="">Select Category</option>';
+  sortedKeys(data.categories).forEach(catId => { html += '<option value="' + catId + '"' + (catId === prevFilterCat ? ' selected' : '') + '>' + data.categories[catId].name + '</option>'; });
   html += '</select>';
   html += '<select id="aqFilterSub" style="flex:1;min-width:120px;"><option value="">All Subcategories</option>';
-  if (defaultCat && data.categories[defaultCat]) {
-    sortedKeys(data.categories[defaultCat].subcategories || {}).forEach(sid => { html += '<option value="' + sid + '"' + (sid === defaultSub ? ' selected' : '') + '>' + data.categories[defaultCat].subcategories[sid].name + '</option>'; });
+  if (prevFilterCat && data.categories[prevFilterCat]) {
+    sortedKeys(data.categories[prevFilterCat].subcategories || {}).forEach(sid => { html += '<option value="' + sid + '"' + (sid === prevFilterSub ? ' selected' : '') + '>' + data.categories[prevFilterCat].subcategories[sid].name + '</option>'; });
   }
   html += '</select>';
   html += '<select id="aqFilterTopic" style="flex:1;min-width:120px;"><option value="">All Topics</option>';
-  if (defaultCat && defaultSub && data.categories[defaultCat]?.subcategories[defaultSub]) {
-    sortedKeys(data.categories[defaultCat].subcategories[defaultSub].topics || {}).forEach(tid => { html += '<option value="' + tid + '"' + (tid === defaultTopic ? ' selected' : '') + '>' + data.categories[defaultCat].subcategories[defaultSub].topics[tid].name + '</option>'; });
+  if (prevFilterCat && prevFilterSub && data.categories[prevFilterCat]?.subcategories[prevFilterSub]) {
+    sortedKeys(data.categories[prevFilterCat].subcategories[prevFilterSub].topics || {}).forEach(tid => { html += '<option value="' + tid + '"' + (tid === prevFilterTopic ? ' selected' : '') + '>' + data.categories[prevFilterCat].subcategories[prevFilterSub].topics[tid].name + '</option>'; });
   }
   html += '</select>';
   html += '<input type="text" id="aqFilterSearch" placeholder="Search questions..." value="' + esc(prevFilterSearch) + '" style="flex:2;min-width:180px;"></div>';
@@ -703,7 +699,7 @@ function renderAdminQuestions(container) {
     syncFilterToAddForm();
   });
   document.getElementById('aqFilterSearch').addEventListener('input', applyAQFilters);
-  if (defaultCat || defaultSub || defaultTopic || prevFilterSearch) applyAQFilters();
+  if (prevFilterCat || prevFilterSub || prevFilterTopic || prevFilterSearch) applyAQFilters();
 }
 
 function populateAdminQSub(catId) {
