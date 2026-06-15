@@ -588,27 +588,47 @@ function delSub(catId, subId) {
 }
 
 function renderAdminTopics(container) {
+  const prevCat = document.getElementById('atFilterCat')?.value || '';
+  const prevSub = document.getElementById('atFilterSub')?.value || '';
+  const prevSearch = document.getElementById('atFilterSearch')?.value || '';
   let html = '<div class="admin-section"><h3>Add Topic</h3><div class="admin-row"><select id="adminTopicCat"><option value="">Category</option>';
   sortedKeys(data.categories).forEach(catId => { html += '<option value="' + catId + '">' + data.categories[catId].name + '</option>'; });
   html += '</select><select id="adminTopicSub"><option value="">Subcategory</option></select>';
   html += '<input type="text" id="adminTopicName" placeholder="Topic name"><button class="btn-primary" id="adminAddTopicBtn">Add</button></div></div>';
   html += '<div class="admin-section"><h3>Existing Topics</h3>';
+  html += '<div class="admin-row" style="flex-wrap:wrap;gap:6px;margin-bottom:10px;">';
+  html += '<select id="atFilterCat" style="flex:1;min-width:120px;"><option value="">All Categories</option>';
+  sortedKeys(data.categories).forEach(catId => { html += '<option value="' + catId + '"' + (catId === prevCat ? ' selected' : '') + '>' + data.categories[catId].name + '</option>'; });
+  html += '</select>';
+  html += '<select id="atFilterSub" style="flex:1;min-width:120px;"><option value="">All Subcategories</option>';
+  if (prevCat && data.categories[prevCat]) {
+    sortedKeys(data.categories[prevCat].subcategories || {}).forEach(sid => { html += '<option value="' + sid + '"' + (sid === prevSub ? ' selected' : '') + '>' + data.categories[prevCat].subcategories[sid].name + '</option>'; });
+  }
+  html += '</select>';
+  html += '<input type="text" id="atFilterSearch" placeholder="Search topics..." value="' + esc(prevSearch) + '" style="flex:2;min-width:180px;"></div>';
+  html += '<div id="atList">';
   let topicNum = 0;
+  let hasAny = false;
   sortedKeys(data.categories).forEach(catId => {
     const c = data.categories[catId];
+    if (prevCat && catId !== prevCat) return;
     sortedKeys(c.subcategories || {}).forEach(subId => {
+      if (prevSub && subId !== prevSub) return;
       const s = c.subcategories[subId];
       const topicKeys = sortedKeys(s.topics || {});
       topicKeys.forEach((topicId, idx) => {
         const t = s.topics[topicId];
+        if (prevSearch && !t.name.toLowerCase().includes(prevSearch.toLowerCase())) return;
         topicNum++;
+        hasAny = true;
         const upBtn = idx > 0 ? '<button class="act-btn move-up" onclick="moveTopicUp(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-chevron-up"></i></button>' : '';
         const downBtn = idx === 0 ? '<button class="act-btn move-down" onclick="moveTopicDown(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-chevron-down"></i></button>' : '';
         html += '<div class="admin-item"><span>' + topicNum + '. ' + c.icon + ' ' + c.name + ' → ' + s.name + ' → ' + t.name + ' (' + (t.questions || []).length + ' Q)</span><span>' + upBtn + downBtn + '<button class="act-btn edit" onclick="editTopic(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-pen"></i> Edit</button><button class="act-btn del" onclick="delTopic(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-trash"></i> Del</button></span></div>';
       });
     });
   });
-  html += '</div>';
+  if (!hasAny) html += '<p class="empty-state" style="padding:20px;">No topics match your filters.</p>';
+  html += '</div></div>';
   container.innerHTML = html;
 
   document.getElementById('adminAddTopicBtn').addEventListener('click', addTopic);
@@ -618,6 +638,20 @@ function renderAdminTopics(container) {
     const cat = data.categories[this.value];
     if (cat) sortedKeys(cat.subcategories || {}).forEach(sid => { sel.innerHTML += '<option value="' + sid + '">' + cat.subcategories[sid].name + '</option>'; });
   });
+
+  document.getElementById('atFilterCat').addEventListener('change', function () {
+    const subSel = document.getElementById('atFilterSub');
+    subSel.innerHTML = '<option value="">All Subcategories</option>';
+    const cat = data.categories[this.value];
+    if (cat) sortedKeys(cat.subcategories || {}).forEach(sid => { subSel.innerHTML += '<option value="' + sid + '">' + cat.subcategories[sid].name + '</option>'; });
+    applyATFilters();
+  });
+  document.getElementById('atFilterSub').addEventListener('change', applyATFilters);
+  document.getElementById('atFilterSearch').addEventListener('input', applyATFilters);
+}
+
+function applyATFilters() {
+  renderAdmin();
 }
 
 function moveTopicUp(catId, subId, topicId) { moveItem(data.categories[catId].subcategories[subId].topics, topicId, 'up'); saveData(); renderDashboard(); renderAdmin(); }
