@@ -45,8 +45,11 @@ async function uploadFile(file, folder) {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('upload_preset', UPLOAD_PRESET);
-  if (folder) formData.append('folder', folder);
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`, {
+  if (folder) {
+    formData.append('folder', folder);
+    formData.append('asset_folder', folder);
+  }
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
     method: 'POST',
     body: formData
   });
@@ -55,6 +58,7 @@ async function uploadFile(file, folder) {
     throw new Error('Cloudinary ' + res.status + ': ' + text);
   }
   const data = await res.json();
+  console.log('Cloudinary upload response:', data);
   return data.secure_url;
 }
 
