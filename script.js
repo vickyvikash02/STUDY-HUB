@@ -41,10 +41,11 @@ async function saveData() {
   } catch { }
 }
 
-async function uploadFile(file) {
+async function uploadFile(file, folder) {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('upload_preset', UPLOAD_PRESET);
+  if (folder) formData.append('folder', folder);
   const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`, {
     method: 'POST',
     body: formData
@@ -459,7 +460,7 @@ async function addCat() {
   if (!name) { alert('Enter a name.'); return; }
   const id = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
   if (data.categories[id]) { alert('Category already exists.'); return; }
-  const iconImage = iconImgFile ? await uploadFile(iconImgFile) : '';
+  const iconImage = iconImgFile ? await uploadFile(iconImgFile, 'category-icons') : '';
   const nextOrder = Object.keys(data.categories).reduce((m, k) => Math.max(m, data.categories[k].order || 0), 0) + 1;
   data.categories[id] = { id, name, icon, iconImage, color: null, subcategories: {}, order: nextOrder };
   await saveData(); renderDashboard(); renderAdmin();
@@ -751,17 +752,17 @@ async function addAdminQ() {
       forEachQ((q) => { if (q.id === parseInt(editId)) editQ = q; });
       if (editQ) {
         editQ.question = qText; editQ.options = opts; editQ.answer = ans; editQ.explanation = exp;
-        if (imgFile) { await deleteUploadedFile(editQ.image); editQ.image = await uploadFile(imgFile).catch(e => { alert('Image upload failed: ' + e.message); return editQ.image; }); }
-        if (expImgFile) { await deleteUploadedFile(editQ.expImage); editQ.expImage = await uploadFile(expImgFile).catch(e => { alert('Image upload failed: ' + e.message); return editQ.expImage; }); }
+        if (imgFile) { await deleteUploadedFile(editQ.image); editQ.image = await uploadFile(imgFile, 'questions').catch(e => { alert('Image upload failed: ' + e.message); return editQ.image; }); }
+        if (expImgFile) { await deleteUploadedFile(editQ.expImage); editQ.expImage = await uploadFile(expImgFile, 'explanations').catch(e => { alert('Image upload failed: ' + e.message); return editQ.expImage; }); }
       }
     } else {
       const q = { id: genId(), question: qText, options: opts, answer: ans, explanation: exp, image: '', expImage: '' };
       data.categories[catId].subcategories[subId].topics[topicId].questions.push(q);
       if (imgFile) {
-        try { q.image = await uploadFile(imgFile); } catch (e) { alert('Image upload failed: ' + e.message); }
+        try { q.image = await uploadFile(imgFile, 'questions'); } catch (e) { alert('Image upload failed: ' + e.message); }
       }
       if (expImgFile) {
-        try { q.expImage = await uploadFile(expImgFile); } catch (e) { alert('Image upload failed: ' + e.message); }
+        try { q.expImage = await uploadFile(expImgFile, 'explanations'); } catch (e) { alert('Image upload failed: ' + e.message); }
       }
     }
     await saveData();
