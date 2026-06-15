@@ -394,6 +394,28 @@ function openQuestionBank(catId, subId, topicId) {
     editBtn.title = 'Edit question';
     editBtn.onclick = function () { enterEditMode(item, q, i, ctxCatId, ctxSubId, ctxTopicId); };
     head.appendChild(editBtn);
+    const delBtn = document.createElement('button'); delBtn.className = 'qb-edit-btn qb-del-btn';
+    delBtn.innerHTML = '<i class="fas fa-trash"></i>';
+    delBtn.title = 'Delete question';
+    delBtn.onclick = async function () {
+      if (!confirm('Delete this question?')) return;
+      const qs = data.categories[ctxCatId].subcategories[ctxSubId].topics[ctxTopicId].questions;
+      const idx = qs.findIndex(x => x.id === q.id);
+      if (idx !== -1) { qs.splice(idx, 1); }
+      await saveData();
+      renderDashboard(); updateStats(); renderAdmin();
+      window._qbAllQs = qs;
+      const qbList = document.getElementById('qbQuestionList');
+      if (qbList) {
+        qbList.innerHTML = '';
+        if (qs.length) {
+          qs.forEach((x, xi) => qbList.appendChild(buildQBItem(x, xi, ctxCatId, ctxSubId, ctxTopicId)));
+        } else {
+          qbList.innerHTML = '<div class="empty-state"><i class="fas fa-inbox"></i><p>No questions in this topic yet.</p></div>';
+        }
+      }
+    };
+    head.appendChild(delBtn);
     item.appendChild(head);
     if (q.image) {
       const img = document.createElement('img'); img.className = 'q-img'; img.src = imgUrl(q.image); img.alt = 'Question image';
