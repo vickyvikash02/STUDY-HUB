@@ -987,7 +987,7 @@ function startMockTest(idx) {
   forEachQ(q => { if ((t.questionIds || []).includes(q.id)) qMap.set(q.id, q); });
   const allQs = (t.questionIds || []).map(id => qMap.get(id)).filter(Boolean);
   if (!allQs.length) { alert('No questions found for this test.'); return; }
-  _mockState = { testIdx: idx, questions: shuffle(allQs), idx: 0, answers: {}, submitted: false };
+  _mockState = { testIdx: idx, questions: allQs, idx: 0, answers: {}, submitted: false };
   document.getElementById('mockListContainer').classList.add('hidden');
   document.getElementById('mockTestContainer').classList.remove('hidden');
   document.getElementById('mockTestTitle').textContent = t.name;
