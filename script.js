@@ -351,6 +351,46 @@ function renderQBTopics(catId, subId) {
   document.getElementById('qbContent').innerHTML = html;
 }
 
+function filterDashboardTopics(val) {
+  const q = val.toLowerCase().trim();
+  document.querySelectorAll('.cat-card').forEach(card => {
+    let catMatch = false;
+    const subcatHeads = card.querySelectorAll('.subcat-head');
+    subcatHeads.forEach(head => {
+      const topicList = head.nextElementSibling;
+      const pills = topicList ? topicList.querySelectorAll('.topic-pill') : [];
+      let subMatch = false;
+      pills.forEach(pill => {
+        const match = !q || pill.textContent.toLowerCase().includes(q);
+        pill.style.display = match ? '' : 'none';
+        if (match) subMatch = true;
+      });
+      if (q) {
+        const subName = head.textContent.trim();
+        const subNameMatch = subName.toLowerCase().includes(q);
+        if (subMatch || subNameMatch) {
+          topicList.classList.remove('hidden');
+          head.querySelector('.arrow')?.classList.add('open');
+          catMatch = true;
+        }
+        if (!subNameMatch && !subMatch) {
+          topicList.classList.add('hidden');
+          head.querySelector('.arrow')?.classList.remove('open');
+        }
+      } else {
+        topicList.classList.add('hidden');
+        head.querySelector('.arrow')?.classList.remove('open');
+      }
+    });
+    const catName = card.querySelector('.cat-head')?.textContent || '';
+    if (q && !catMatch && !catName.toLowerCase().includes(q)) {
+      card.style.display = 'none';
+    } else {
+      card.style.display = '';
+    }
+  });
+}
+
 function toggleSubcat(catId, subId) {
   const el = document.getElementById('topics-' + catId + '-' + subId);
   const arrow = document.getElementById('arrow-' + catId + '-' + subId);
