@@ -49,7 +49,10 @@ async function uploadFile(file) {
     method: 'POST',
     body: formData
   });
-  if (!res.ok) throw new Error('Upload failed');
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error('Cloudinary ' + res.status + ': ' + text);
+  }
   const data = await res.json();
   return data.secure_url;
 }
