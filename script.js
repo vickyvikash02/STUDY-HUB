@@ -881,24 +881,28 @@ function renderBuilder() {
 function populateBuilderFilters() {
   const catSel = document.getElementById('builderCatFilter');
   const subSel = document.getElementById('builderSubFilter');
+  const topicSel = document.getElementById('builderTopicFilter');
   catSel.innerHTML = '<option value="">Select Category</option>';
   sortedKeys(data.categories).forEach(catId => { catSel.innerHTML += '<option value="' + catId + '">' + data.categories[catId].name + '</option>'; });
   catSel.onchange = function () {
     subSel.innerHTML = '<option value="">Select Subcategory</option>';
+    topicSel.innerHTML = '<option value="">Select Topic</option>';
     const cat = data.categories[this.value];
     if (cat) sortedKeys(cat.subcategories || {}).forEach(sid => { subSel.innerHTML += '<option value="' + sid + '">' + cat.subcategories[sid].name + '</option>'; });
     renderBuilderQList();
   };
-  subSel.onchange = renderBuilderQList;
-  document.getElementById('builderTopicFilter').onchange = renderBuilderQList;
-  document.getElementById('builderTopicFilter').innerHTML = '<option value="">Select Topic</option>';
-  sortedKeys(data.categories).forEach(catId => {
-    sortedKeys(data.categories[catId].subcategories || {}).forEach(subId => {
-      sortedKeys(data.categories[catId].subcategories[subId].topics || {}).forEach(tid => {
-        document.getElementById('builderTopicFilter').innerHTML += '<option value="' + tid + '">' + data.categories[catId].subcategories[subId].topics[tid].name + '</option>';
+  subSel.onchange = function () {
+    topicSel.innerHTML = '<option value="">Select Topic</option>';
+    const catId = catSel.value;
+    if (catId && this.value && data.categories[catId]?.subcategories[this.value]) {
+      sortedKeys(data.categories[catId].subcategories[this.value].topics || {}).forEach(tid => {
+        topicSel.innerHTML += '<option value="' + tid + '">' + data.categories[catId].subcategories[this.value].topics[tid].name + '</option>';
       });
-    });
-  });
+    }
+    renderBuilderQList();
+  };
+  topicSel.onchange = renderBuilderQList;
+  topicSel.innerHTML = '<option value="">Select Topic</option>';
 }
 
 function renderBuilderQList() {
