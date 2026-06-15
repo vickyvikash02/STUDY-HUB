@@ -743,8 +743,7 @@ function applyAQFilters() {
   const search = document.getElementById('aqFilterSearch').value.toLowerCase().trim();
 
   const container = document.getElementById('aqList');
-  if (!cat || !sub) { container.innerHTML = '<p class="empty-state" style="padding:20px;">Select a Category and Subcategory.</p>'; return; }
-  if (!topic && !search) { container.innerHTML = '<p class="empty-state" style="padding:20px;">Select a Topic or use Search to find questions.</p>'; return; }
+  if (!cat && !sub && !topic && !search) { container.innerHTML = '<p class="empty-state" style="padding:20px;">Select a filter or type to search.</p>'; return; }
   let html = '';
   let prevTopicKey = null;
   let topicCount = 0;
