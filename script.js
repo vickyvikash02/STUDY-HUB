@@ -748,17 +748,17 @@ async function addAdminQ() {
       forEachQ((q) => { if (q.id === parseInt(editId)) editQ = q; });
       if (editQ) {
         editQ.question = qText; editQ.options = opts; editQ.answer = ans; editQ.explanation = exp;
-        if (imgFile) { await deleteUploadedFile(editQ.image); editQ.image = await uploadFile(imgFile); }
-        if (expImgFile) { await deleteUploadedFile(editQ.expImage); editQ.expImage = await uploadFile(expImgFile); }
+        if (imgFile) { await deleteUploadedFile(editQ.image); editQ.image = await uploadFile(imgFile).catch(e => { alert('Image upload failed: ' + e.message); return editQ.image; }); }
+        if (expImgFile) { await deleteUploadedFile(editQ.expImage); editQ.expImage = await uploadFile(expImgFile).catch(e => { alert('Image upload failed: ' + e.message); return editQ.expImage; }); }
       }
     } else {
       const q = { id: genId(), question: qText, options: opts, answer: ans, explanation: exp, image: '', expImage: '' };
       data.categories[catId].subcategories[subId].topics[topicId].questions.push(q);
       if (imgFile) {
-        try { q.image = await uploadFile(imgFile); } catch { }
+        try { q.image = await uploadFile(imgFile); } catch (e) { alert('Image upload failed: ' + e.message); }
       }
       if (expImgFile) {
-        try { q.expImage = await uploadFile(expImgFile); } catch { }
+        try { q.expImage = await uploadFile(expImgFile); } catch (e) { alert('Image upload failed: ' + e.message); }
       }
     }
     await saveData();
