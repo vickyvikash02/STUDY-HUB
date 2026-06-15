@@ -775,8 +775,7 @@ async function addAdminQ() {
 
   try {
     if (editId) {
-      let editQ = null;
-      forEachQ((q) => { if (q.id === parseInt(editId)) editQ = q; });
+      let editQ = (data.categories[catId]?.subcategories[subId]?.topics[topicId]?.questions || []).find(q => q.id == editId);
       if (editQ) {
         editQ.question = qText; editQ.options = opts; editQ.answer = ans; editQ.explanation = exp;
         if (imgFile) { await deleteUploadedFile(editQ.image); editQ.image = await uploadFile(imgFile, 'questions').catch(e => { alert('Image upload failed: ' + e.message); return editQ.image; }); }
@@ -815,34 +814,34 @@ function clearAdminQForm() {
 }
 
 function editAdminQ(catId, subId, topicId, qId) {
-  forEachQ((q, i, cid, sid, tid) => {
-    if (q.id === qId) {
-      document.getElementById('adminQCat').value = cid;
-      const subSel = document.getElementById('adminQSub');
-      subSel.innerHTML = '<option value="">Select Subcategory</option>';
-      const cat = data.categories[cid];
-      if (cat) sortedKeys(cat.subcategories || {}).forEach(s => { subSel.innerHTML += '<option value="' + s + '"' + (s === sid ? ' selected' : '') + '>' + cat.subcategories[s].name + '</option>'; });
-      const topicSel = document.getElementById('adminQTopic');
-      topicSel.innerHTML = '<option value="">Select Topic</option>';
-      if (cat && cat.subcategories[sid]) sortedKeys(cat.subcategories[sid].topics || {}).forEach(t => { topicSel.innerHTML += '<option value="' + t + '"' + (t === tid ? ' selected' : '') + '>' + cat.subcategories[sid].topics[t].name + '</option>'; });
-      document.getElementById('adminQQ').value = q.question;
-      (q.options || []).forEach((o, oi) => document.getElementById('adminQO' + oi).value = o);
-      document.getElementById('adminQAns').value = q.answer;
-      document.getElementById('adminQExp').value = q.explanation || '';
-      document.getElementById('adminQEditId').value = q.id;
-      document.getElementById('adminAddQBtn').textContent = 'Update Question';
-      document.getElementById('adminQImg').value = '';
-      document.getElementById('adminQImgName').innerHTML = q.image ? '<img src="' + imgUrl(q.image) + '" style="max-width:80px;max-height:60px;vertical-align:middle;border-radius:4px;border:1px solid var(--border);">' : '';
-      document.getElementById('adminQExpImg').value = '';
-      document.getElementById('adminQExpImgName').innerHTML = q.expImage ? '<img src="' + imgUrl(q.expImage) + '" style="max-width:80px;max-height:60px;vertical-align:middle;border-radius:4px;border:1px solid var(--border);">' : '';
-    }
-  });
+  const topic = data.categories[catId]?.subcategories[subId]?.topics[topicId];
+  if (!topic) return;
+  const q = (topic.questions || []).find(q => q.id == qId);
+  if (!q) return;
+  document.getElementById('adminQCat').value = catId;
+  const subSel = document.getElementById('adminQSub');
+  subSel.innerHTML = '<option value="">Select Subcategory</option>';
+  const cat = data.categories[catId];
+  if (cat) sortedKeys(cat.subcategories || {}).forEach(s => { subSel.innerHTML += '<option value="' + s + '"' + (s === subId ? ' selected' : '') + '>' + cat.subcategories[s].name + '</option>'; });
+  const topicSel = document.getElementById('adminQTopic');
+  topicSel.innerHTML = '<option value="">Select Topic</option>';
+  if (cat && cat.subcategories[subId]) sortedKeys(cat.subcategories[subId].topics || {}).forEach(t => { topicSel.innerHTML += '<option value="' + t + '"' + (t === topicId ? ' selected' : '') + '>' + cat.subcategories[subId].topics[t].name + '</option>'; });
+  document.getElementById('adminQQ').value = q.question;
+  (q.options || []).forEach((o, oi) => document.getElementById('adminQO' + oi).value = o);
+  document.getElementById('adminQAns').value = q.answer;
+  document.getElementById('adminQExp').value = q.explanation || '';
+  document.getElementById('adminQEditId').value = q.id;
+  document.getElementById('adminAddQBtn').textContent = 'Update Question';
+  document.getElementById('adminQImg').value = '';
+  document.getElementById('adminQImgName').innerHTML = q.image ? '<img src="' + imgUrl(q.image) + '" style="max-width:80px;max-height:60px;vertical-align:middle;border-radius:4px;border:1px solid var(--border);">' : '';
+  document.getElementById('adminQExpImg').value = '';
+  document.getElementById('adminQExpImgName').innerHTML = q.expImage ? '<img src="' + imgUrl(q.expImage) + '" style="max-width:80px;max-height:60px;vertical-align:middle;border-radius:4px;border:1px solid var(--border);">' : '';
 }
 
 async function delAdminQ(catId, subId, topicId, qId) {
   if (!confirm('Delete this question?')) return;
   const qs = data.categories[catId].subcategories[subId].topics[topicId].questions;
-  const idx = qs.findIndex(q => q.id === qId);
+  const idx = qs.findIndex(q => q.id == qId);
   if (idx !== -1) { await deleteUploadedFile(qs[idx].image); await deleteUploadedFile(qs[idx].expImage); qs.splice(idx, 1); }
   await saveData(); renderDashboard(); renderAdmin(); updateStats();
 }
