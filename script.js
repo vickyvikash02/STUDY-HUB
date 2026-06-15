@@ -681,6 +681,7 @@ function renderAdminQuestions(container) {
     const cat = data.categories[this.value];
     if (cat) sortedKeys(cat.subcategories || {}).forEach(sid => { subSel.innerHTML += '<option value="' + sid + '">' + cat.subcategories[sid].name + '</option>'; });
     applyAQFilters();
+    syncFilterToAddForm();
   });
   document.getElementById('aqFilterSub').addEventListener('change', function () {
     const sel = document.getElementById('aqFilterTopic');
@@ -692,8 +693,12 @@ function renderAdminQuestions(container) {
       });
     }
     applyAQFilters();
+    syncFilterToAddForm();
   });
-  document.getElementById('aqFilterTopic').addEventListener('change', applyAQFilters);
+  document.getElementById('aqFilterTopic').addEventListener('change', function () {
+    applyAQFilters();
+    syncFilterToAddForm();
+  });
   document.getElementById('aqFilterSearch').addEventListener('input', applyAQFilters);
   applyAQFilters();
 }
@@ -712,6 +717,23 @@ function populateAdminQTopic(catId, subId) {
     Object.keys(data.categories[catId].subcategories[subId].topics || {}).forEach(tid => {
       sel.innerHTML += '<option value="' + tid + '">' + data.categories[catId].subcategories[subId].topics[tid].name + '</option>';
     });
+  }
+}
+
+function syncFilterToAddForm() {
+  const cat = document.getElementById('aqFilterCat').value;
+  const sub = document.getElementById('aqFilterSub').value;
+  const topic = document.getElementById('aqFilterTopic').value;
+  document.getElementById('adminQCat').value = cat;
+  const subSel = document.getElementById('adminQSub');
+  subSel.innerHTML = '<option value="">Select Subcategory</option>';
+  if (cat && data.categories[cat]) {
+    sortedKeys(data.categories[cat].subcategories || {}).forEach(sid => { subSel.innerHTML += '<option value="' + sid + '"' + (sid === sub ? ' selected' : '') + '>' + data.categories[cat].subcategories[sid].name + '</option>'; });
+  }
+  const topicSel = document.getElementById('adminQTopic');
+  topicSel.innerHTML = '<option value="">Select Topic</option>';
+  if (cat && sub && data.categories[cat]?.subcategories[sub]) {
+    sortedKeys(data.categories[cat].subcategories[sub].topics || {}).forEach(tid => { topicSel.innerHTML += '<option value="' + tid + '"' + (tid === topic ? ' selected' : '') + '>' + data.categories[cat].subcategories[sub].topics[tid].name + '</option>'; });
   }
 }
 
