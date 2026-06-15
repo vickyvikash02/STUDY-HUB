@@ -2,6 +2,10 @@
 const THEME_KEY = 'studyhub_theme';
 const DATA_REF = typeof db !== 'undefined' && db ? db.ref('/studyhub/data') : null;
 
+// ======================== CLOUDINARY ========================
+const CLOUD_NAME = 'dtltp3gez';
+const UPLOAD_PRESET = 'studyhub';
+
 let data = { categories: {} };
 let mockTests = [];
 let qidCounter = 0;
@@ -38,16 +42,22 @@ async function saveData() {
 }
 
 async function uploadFile(file) {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(r.result);
-    r.onerror = () => reject(r.error);
-    r.readAsDataURL(file);
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', UPLOAD_PRESET);
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`, {
+    method: 'POST',
+    body: formData
   });
+  if (!res.ok) throw new Error('Upload failed');
+  const data = await res.json();
+  return data.secure_url;
 }
 
 async function deleteUploadedFile(url) {
-  // Images are stored as data URLs embedded in the data — nothing to delete
+  // Cloudinary deletion requires a signed API call (not possible from browser-only app).
+  // Images will be cleaned up periodically or via the Cloudinary console.
+  if (!url || !url.includes('res.cloudinary.com')) return;
 }
 
 function imgUrl(url) {
