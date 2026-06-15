@@ -700,7 +700,7 @@ function renderAdminQuestions(container) {
     syncFilterToAddForm();
   });
   document.getElementById('aqFilterSearch').addEventListener('input', applyAQFilters);
-  applyAQFilters();
+  if (prevFilterCat || prevFilterSub || prevFilterTopic || prevFilterSearch) applyAQFilters();
 }
 
 function populateAdminQSub(catId) {
@@ -744,6 +744,7 @@ function applyAQFilters() {
   const search = document.getElementById('aqFilterSearch').value.toLowerCase().trim();
 
   const container = document.getElementById('aqList');
+  if (!cat && !sub && !topic && !search) { container.innerHTML = '<p class="empty-state" style="padding:20px;">Use filters above to find questions.</p>'; return; }
   let html = '';
   let prevTopicKey = null;
   let topicCount = 0;
