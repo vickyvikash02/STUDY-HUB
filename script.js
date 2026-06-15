@@ -907,6 +907,7 @@ function renderBuilderQList() {
   const topicF = document.getElementById('builderTopicFilter').value;
   const container = document.getElementById('builderQList');
   container.innerHTML = '';
+  if (!catF || !subF || !topicF) { container.innerHTML = '<p style="text-align:center;padding:20px;color:var(--text2);">Select Category, Subcategory, and Topic to see questions.</p>'; return; }
   forEachQ((q, i, catId, subId, topicId, cat, sub, topic) => {
     if (catF && catF !== catId) return;
     if (subF && subF !== subId) return;
