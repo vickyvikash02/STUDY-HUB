@@ -73,8 +73,9 @@ function imgUrl(url) {
 }
 
 function syncIds() {
-  qidCounter = 0;
-  forEachQ(() => qidCounter++);
+  let maxId = 0;
+  forEachQ((q) => { if (q.id > maxId) maxId = q.id; });
+  qidCounter = maxId;
 }
 
 function genId() { return ++qidCounter; }
