@@ -389,33 +389,6 @@ function openQuestionBank(catId, subId, topicId) {
     const num = document.createElement('div'); num.className = 'q-num';
     num.textContent = 'Question ' + (i + 1);
     head.appendChild(num);
-    const editBtn = document.createElement('button'); editBtn.className = 'qb-edit-btn';
-    editBtn.innerHTML = '<i class="fas fa-pen"></i>';
-    editBtn.title = 'Edit question';
-    editBtn.onclick = function () { enterEditMode(item, q, i, ctxCatId, ctxSubId, ctxTopicId); };
-    head.appendChild(editBtn);
-    const delBtn = document.createElement('button'); delBtn.className = 'qb-edit-btn qb-del-btn';
-    delBtn.innerHTML = '<i class="fas fa-trash"></i>';
-    delBtn.title = 'Delete question';
-    delBtn.onclick = async function () {
-      if (!confirm('Delete this question?')) return;
-      const qs = data.categories[ctxCatId].subcategories[ctxSubId].topics[ctxTopicId].questions;
-      const idx = qs.findIndex(x => x.id === q.id);
-      if (idx !== -1) { qs.splice(idx, 1); }
-      await saveData();
-      renderDashboard(); updateStats(); renderAdmin();
-      window._qbAllQs = qs;
-      const qbList = document.getElementById('qbQuestionList');
-      if (qbList) {
-        qbList.innerHTML = '';
-        if (qs.length) {
-          qs.forEach((x, xi) => qbList.appendChild(buildQBItem(x, xi, ctxCatId, ctxSubId, ctxTopicId)));
-        } else {
-          qbList.innerHTML = '<div class="empty-state"><i class="fas fa-inbox"></i><p>No questions in this topic yet.</p></div>';
-        }
-      }
-    };
-    head.appendChild(delBtn);
     item.appendChild(head);
     if (q.image) {
       const img = document.createElement('img'); img.className = 'q-img'; img.src = imgUrl(q.image); img.alt = 'Question image';
@@ -435,54 +408,6 @@ function openQuestionBank(catId, subId, topicId) {
       item.appendChild(exp);
     }
     return item;
-  }
-
-  window.enterEditMode = function enterEditMode(item, q, i, ctxCatId, ctxSubId, ctxTopicId) {
-    if (item.classList.contains('qb-editing')) return;
-    item.classList.add('qb-editing');
-    item.innerHTML = '<div class="q-head"><div class="q-num">Question ' + (i + 1) + '</div></div>'
-      + '<div class="qb-edit-field"><label>Question</label><textarea class="qb-edit-input qb-edit-qtext">' + esc(q.question) + '</textarea></div>'
-      + '<div class="qb-edit-field"><label>Options</label>'
-      + [0,1,2,3].map(j => '<div class="qb-opt-row"><span class="qb-opt-letter">' + String.fromCharCode(65 + j) + '.</span><input class="qb-edit-input qb-edit-opt" data-opt="' + j + '" value="' + esc(q.options[j] || '') + '">'
-        + '<label class="qb-ans-radio"><input type="radio" name="qb-ans-' + q.id + '" value="' + j + '"' + (j === q.answer ? ' checked' : '') + '> Correct</label></div>').join('')
-      + '</div>'
-      + '<div class="qb-edit-field"><label>Explanation</label><textarea class="qb-edit-input qb-edit-exp">' + esc(q.explanation || '') + '</textarea></div>'
-      + '<div class="qb-edit-field"><label>Question Image</label><input type="file" accept="image/*" class="qb-edit-img">'
-      + (q.image ? '<div class="qb-edit-preview"><img src="' + imgUrl(q.image) + '" style="max-width:120px;max-height:80px;border-radius:6px;border:1px solid var(--border);"></div>' : '')
-      + '</div>'
-      + '<div class="qb-edit-field"><label>Explanation Image</label><input type="file" accept="image/*" class="qb-edit-expimg">'
-      + (q.expImage ? '<div class="qb-edit-preview"><img src="' + imgUrl(q.expImage) + '" style="max-width:120px;max-height:80px;border-radius:6px;border:1px solid var(--border);"></div>' : '')
-      + '</div>'
-      + '<div class="qb-edit-actions"><button class="btn-primary qb-save-btn">Save</button><button class="btn-secondary qb-cancel-btn">Cancel</button></div>';
-
-    item.querySelector('.qb-save-btn').onclick = async function () {
-      const qText = item.querySelector('.qb-edit-qtext').value.trim();
-      const opts = [0,1,2,3].map(j => item.querySelector('.qb-edit-opt[data-opt="' + j + '"]').value.trim());
-      const ans = parseInt(item.querySelector('input[name="qb-ans-' + q.id + '"]:checked').value);
-      const exp = item.querySelector('.qb-edit-exp').value.trim();
-      const imgFile = item.querySelector('.qb-edit-img').files[0];
-      const expImgFile = item.querySelector('.qb-edit-expimg').files[0];
-      if (!qText || opts.some(o => !o)) { alert('Fill all fields.'); return; }
-      if ((imgFile && imgFile.size > 2 * 1024 * 1024) || (expImgFile && expImgFile.size > 2 * 1024 * 1024)) { alert('Image too large! Max 2 MB.'); return; }
-
-      const btn = item.querySelector('.qb-save-btn');
-      btn.disabled = true; btn.textContent = 'Saving...';
-
-      q.question = qText; q.options = opts; q.answer = ans; q.explanation = exp;
-      if (imgFile) { try { q.image = await uploadFile(imgFile, 'questions'); } catch (e) { alert('Image upload failed: ' + e.message); } }
-      if (expImgFile) { try { q.expImage = await uploadFile(expImgFile, 'explanations'); } catch (e) { alert('Image upload failed: ' + e.message); } }
-      await saveData();
-      renderDashboard(); updateStats(); renderAdmin();
-      item.classList.remove('qb-editing');
-      item.innerHTML = '';
-      item.appendChild(buildQBItem(q, i, ctxCatId, ctxSubId, ctxTopicId));
-    };
-
-    item.querySelector('.qb-cancel-btn').onclick = function () {
-      item.classList.remove('qb-editing');
-      item.innerHTML = '';
-      item.appendChild(buildQBItem(q, i, ctxCatId, ctxSubId, ctxTopicId));
-    };
   }
 
   function renderQBList(qs) {
