@@ -983,8 +983,9 @@ function renderMockList() {
 
 function startMockTest(idx) {
   const t = mockTests[idx];
-  const allQs = [];
-  forEachQ(q => { if ((t.questionIds || []).includes(q.id)) allQs.push(q); });
+  const qMap = new Map();
+  forEachQ(q => { if ((t.questionIds || []).includes(q.id)) qMap.set(q.id, q); });
+  const allQs = (t.questionIds || []).map(id => qMap.get(id)).filter(Boolean);
   if (!allQs.length) { alert('No questions found for this test.'); return; }
   _mockState = { testIdx: idx, questions: shuffle(allQs), idx: 0, answers: {}, submitted: false };
   document.getElementById('mockListContainer').classList.add('hidden');
