@@ -881,17 +881,17 @@ function renderBuilder() {
 function populateBuilderFilters() {
   const catSel = document.getElementById('builderCatFilter');
   const subSel = document.getElementById('builderSubFilter');
-  catSel.innerHTML = '<option value="">All Categories</option>';
+  catSel.innerHTML = '<option value="">Select Category</option>';
   sortedKeys(data.categories).forEach(catId => { catSel.innerHTML += '<option value="' + catId + '">' + data.categories[catId].name + '</option>'; });
   catSel.onchange = function () {
-    subSel.innerHTML = '<option value="">All Subcategories</option>';
+    subSel.innerHTML = '<option value="">Select Subcategory</option>';
     const cat = data.categories[this.value];
     if (cat) sortedKeys(cat.subcategories || {}).forEach(sid => { subSel.innerHTML += '<option value="' + sid + '">' + cat.subcategories[sid].name + '</option>'; });
     renderBuilderQList();
   };
   subSel.onchange = renderBuilderQList;
   document.getElementById('builderTopicFilter').onchange = renderBuilderQList;
-  document.getElementById('builderTopicFilter').innerHTML = '<option value="">All Topics</option>';
+  document.getElementById('builderTopicFilter').innerHTML = '<option value="">Select Topic</option>';
   sortedKeys(data.categories).forEach(catId => {
     sortedKeys(data.categories[catId].subcategories || {}).forEach(subId => {
       sortedKeys(data.categories[catId].subcategories[subId].topics || {}).forEach(tid => {
