@@ -490,10 +490,17 @@ async function addEbook() {
   const btn = document.getElementById('ebookUploadBtn');
   btn.disabled = true; btn.textContent = 'Uploading...';
   try {
-    const ref = storage.ref('ebooks/' + Date.now() + '_' + file.name);
-    await ref.put(file);
-    const url = await ref.getDownloadURL();
-    data.ebooks.push({ id: Date.now(), name, url, uploaded: new Date().toLocaleDateString() });
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', UPLOAD_PRESET);
+    formData.append('folder', 'ebooks');
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, { method: 'POST', body: formData });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(res.status + ': ' + text);
+    }
+    const d = await res.json();
+    data.ebooks.push({ id: Date.now(), name, url: d.secure_url, uploaded: new Date().toLocaleDateString() });
     await saveData();
     document.getElementById('ebookName').value = '';
     document.getElementById('ebookFile').value = '';
