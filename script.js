@@ -468,7 +468,7 @@ function filterQBQuestions(val) {
 
 // ======================== E-BOOK ========================
 function renderEbook() {
-  renderEbookList();
+  renderEbookList(false);
 }
 
 function renderAdminEbook(container) {
@@ -479,7 +479,7 @@ function renderAdminEbook(container) {
   html += '<div class="admin-section"><h3>All E-Books</h3><div id="ebookList"></div></div>';
   container.innerHTML = html;
   document.getElementById('ebookUploadBtn').addEventListener('click', addEbook);
-  renderEbookList();
+  renderEbookList(true);
 }
 
 async function addEbook() {
@@ -501,12 +501,12 @@ async function addEbook() {
     await saveData();
     document.getElementById('ebookName').value = '';
     document.getElementById('ebookFile').value = '';
-    renderEbookList();
+    renderEbookList(true);
   } catch (e) { alert('Upload error: ' + e.message); }
   btn.disabled = false; btn.textContent = 'Upload';
 }
 
-function renderEbookList() {
+function renderEbookList(showDelete) {
   const container = document.getElementById('ebookList');
   if (!data.ebooks.length) {
     container.innerHTML = '<div class="empty-state" style="padding:20px;"><i class="fas fa-book-open"></i><p>No e-books uploaded yet.</p></div>';
@@ -524,7 +524,7 @@ function renderEbookList() {
       <div class="ebook-actions">
         <button class="btn-secondary" onclick="window.open('${esc(e.url)}','_blank')"><i class="fas fa-eye"></i> View</button>
         <button class="btn-primary" onclick="window.open('${esc(e.url)}?fl_attachment=1','_blank')"><i class="fas fa-download"></i> Download</button>
-        <button class="act-btn del" onclick="delEbook(${i})"><i class="fas fa-trash"></i></button>
+        ${showDelete ? `<button class="act-btn del" onclick="delEbook(${i})"><i class="fas fa-trash"></i></button>` : ''}
       </div>
     </div>`).join('');
 }
