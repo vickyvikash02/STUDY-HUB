@@ -24,7 +24,7 @@ async function loadData() {
   } catch {
     try {
       const r = localStorage.getItem('studyhub_data');
-      if (r) { const d = JSON.parse(r); data = { categories: d.categories || {} }; mockTests = d.mockTests || []; }
+      if (r) { const d = JSON.parse(r); data = { categories: d.categories || {}, ebooks: d.ebooks || [] }; mockTests = d.mockTests || []; }
     } catch {}
   }
   if (!data.categories) data.categories = {};
@@ -468,7 +468,7 @@ function filterQBQuestions(val) {
 
 // ======================== E-BOOK ========================
 function renderEbook() {
-  renderEbookList(false);
+  renderEbookList(false, 'ebookList');
 }
 
 function renderAdminEbook(container) {
@@ -476,10 +476,10 @@ function renderAdminEbook(container) {
   html += '<input type="text" id="ebookName" placeholder="E-Book name" style="flex:1;min-width:160px;">';
   html += '<input type="file" id="ebookFile" accept=".pdf" style="flex:1;min-width:120px;">';
   html += '<button class="btn-primary" id="ebookUploadBtn"><i class="fas fa-upload"></i> Upload</button></div></div>';
-  html += '<div class="admin-section"><h3>All E-Books</h3><div id="ebookList"></div></div>';
+  html += '<div class="admin-section"><h3>All E-Books</h3><div id="adminEbookList"></div></div>';
   container.innerHTML = html;
   document.getElementById('ebookUploadBtn').addEventListener('click', addEbook);
-  renderEbookList(true);
+  renderEbookList(true, 'adminEbookList');
 }
 
 async function addEbook() {
@@ -501,13 +501,13 @@ async function addEbook() {
     await saveData();
     document.getElementById('ebookName').value = '';
     document.getElementById('ebookFile').value = '';
-    renderEbookList(true);
+    renderEbookList(true, 'adminEbookList');
   } catch (e) { alert('Upload error: ' + e.message); }
   btn.disabled = false; btn.textContent = 'Upload';
 }
 
-function renderEbookList(showDelete) {
-  const container = document.getElementById('ebookList');
+function renderEbookList(showDelete, containerId) {
+  const container = document.getElementById(containerId);
   if (!data.ebooks.length) {
     container.innerHTML = '<div class="empty-state" style="padding:20px;"><i class="fas fa-book-open"></i><p>No e-books uploaded yet.</p></div>';
     return;
