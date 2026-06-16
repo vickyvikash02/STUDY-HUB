@@ -84,20 +84,6 @@ function sortedKeys(obj) {
   return Object.keys(obj).sort((a, b) => (obj[a].order || 0) - (obj[b].order || 0));
 }
 
-function swapOrder(a, b) {
-  const t = a.order; a.order = b.order; b.order = t;
-}
-
-function moveItem(list, id, dir) {
-  const keys = Object.keys(list);
-  keys.forEach((k, i) => { if (list[k].order == null) list[k].order = i + 1; });
-  const sorted = keys.sort((a, b) => (list[a].order || 0) - (list[b].order || 0));
-  const idx = sorted.indexOf(id);
-  const target = dir === 'up' ? idx - 1 : idx + 1;
-  if (target < 0 || target >= sorted.length) return;
-  swapOrder(list[sorted[idx]], list[sorted[target]]);
-}
-
 function forEachQ(fn) {
   sortedKeys(data.categories).forEach(catId => {
     const cat = data.categories[catId];
@@ -492,21 +478,83 @@ function renderAdmin() {
 function renderAdminCategories(container) {
   let html = '<div class="admin-section"><h3>Add Category</h3><div class="admin-row"><input type="text" id="adminCatName" placeholder="Category name"><input type="file" id="adminCatIconImg" accept="image/*" style="max-width:150px;"><input type="text" id="adminCatIcon" placeholder="Emoji (e.g. 🌍)" style="max-width:70px;"><button class="btn-primary" id="adminAddCatBtn">Add</button></div></div>';
   html += '<div class="admin-section"><h3>Existing Categories</h3>';
+  html += '<div id="admin-cat-list">';
   const catKeys = sortedKeys(data.categories);
   catKeys.forEach((catId, idx) => {
     const c = data.categories[catId];
     const iconHtml = c.iconImage ? '<img src="' + imgUrl(c.iconImage) + '" style="width:20px;height:20px;vertical-align:middle;border-radius:4px;">' : (c.icon || '📂');
-    const upBtn = idx > 0 ? '<button class="act-btn move-up" onclick="moveCatUp(\'' + catId + '\')"><i class="fas fa-chevron-up"></i></button>' : '';
-    const downBtn = idx === 0 ? '<button class="act-btn move-down" onclick="moveCatDown(\'' + catId + '\')"><i class="fas fa-chevron-down"></i></button>' : '';
-    html += `<div class="admin-item"><span>${c.order || (idx+1)}. ${iconHtml} ${c.name}</span><span>${upBtn}${downBtn}<button class="act-btn edit" onclick="editCat('${catId}')"><i class="fas fa-pen"></i> Edit</button><button class="act-btn del" onclick="delCat('${catId}')"><i class="fas fa-trash"></i> Del</button></span></div>`;
+    html += `<div class="admin-item" data-id="${catId}"><span class="drag-handle" draggable="true"><i class="fas fa-grip-vertical"></i></span><span>${c.order || (idx+1)}. ${iconHtml} ${c.name}</span><span><button class="act-btn edit" onclick="editCat('${catId}')"><i class="fas fa-pen"></i> Edit</button><button class="act-btn del" onclick="delCat('${catId}')"><i class="fas fa-trash"></i> Del</button></span></div>`;
   });
-  html += '</div>';
+  html += '</div></div>';
   container.innerHTML = html;
   document.getElementById('adminAddCatBtn').addEventListener('click', addCat);
+  enableDragSort('admin-cat-list', () => data.categories, () => { saveData(); renderDashboard(); renderAdmin(); });
 }
 
-function moveCatUp(catId) { moveItem(data.categories, catId, 'up'); saveData(); renderDashboard(); renderAdmin(); }
-function moveCatDown(catId) { moveItem(data.categories, catId, 'down'); saveData(); renderDashboard(); renderAdmin(); }
+function enableDragSort(containerId, getListFn, saveFn) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  let dragSrc = null;
+
+  container.addEventListener('dragstart', (e) => {
+    const item = e.target.closest('.admin-item');
+    const handle = e.target.closest('.drag-handle');
+    if (!item || !handle) { e.preventDefault(); return; }
+    dragSrc = item;
+    item.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', item.dataset.id);
+  });
+
+  container.addEventListener('dragend', (e) => {
+    const item = e.target.closest('.admin-item');
+    if (item) item.classList.remove('dragging');
+    container.querySelectorAll('.admin-item').forEach(el => el.classList.remove('drag-over'));
+  });
+
+  container.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const item = e.target.closest('.admin-item');
+    if (item && item !== dragSrc) {
+      container.querySelectorAll('.admin-item').forEach(el => el.classList.remove('drag-over'));
+      item.classList.add('drag-over');
+    }
+  });
+
+  container.addEventListener('dragleave', (e) => {
+    const item = e.target.closest('.admin-item');
+    if (item) item.classList.remove('drag-over');
+  });
+
+  container.addEventListener('drop', (e) => {
+    e.preventDefault();
+    container.querySelectorAll('.admin-item').forEach(el => el.classList.remove('drag-over'));
+    const target = e.target.closest('.admin-item');
+    if (!target || !dragSrc || target === dragSrc) return;
+    if (dragSrc.dataset.cat && dragSrc.dataset.cat !== target.dataset.cat) return;
+    if (dragSrc.dataset.sub && dragSrc.dataset.sub !== target.dataset.sub) return;
+
+    const list = getListFn(dragSrc);
+    if (!list) return;
+
+    const items = [...container.querySelectorAll('.admin-item')];
+    const srcIdx = items.indexOf(dragSrc);
+    const tgtIdx = items.indexOf(target);
+    if (srcIdx === -1 || tgtIdx === -1) return;
+
+    const keys = Object.keys(list).sort((a, b) => (list[a].order || 0) - (list[b].order || 0));
+    const ordered = keys.map(k => ({ key: k, obj: list[k] }));
+    const [moved] = ordered.splice(srcIdx, 1);
+    ordered.splice(tgtIdx, 0, moved);
+    ordered.forEach((item, i) => { item.obj.order = i + 1; });
+
+    dragSrc.classList.remove('dragging');
+    dragSrc = null;
+    saveFn();
+  });
+}
 
 async function addCat() {
   const name = document.getElementById('adminCatName').value.trim();
@@ -541,6 +589,7 @@ function renderAdminSubcategories(container) {
   sortedKeys(data.categories).forEach(catId => { html += '<option value="' + catId + '">' + data.categories[catId].name + '</option>'; });
   html += '</select><input type="text" id="adminSubName" placeholder="Subcategory name"><button class="btn-primary" id="adminAddSubBtn">Add</button></div></div>';
   html += '<div class="admin-section"><h3>Existing Subcategories</h3>';
+  html += '<div id="admin-sub-list">';
   let subNum = 0;
   sortedKeys(data.categories).forEach(catId => {
     const c = data.categories[catId];
@@ -548,18 +597,17 @@ function renderAdminSubcategories(container) {
     subKeys.forEach((subId, idx) => {
       const s = c.subcategories[subId];
       subNum++;
-      const upBtn = idx > 0 ? '<button class="act-btn move-up" onclick="moveSubUp(\'' + catId + '\',\'' + subId + '\')"><i class="fas fa-chevron-up"></i></button>' : '';
-      const downBtn = idx === 0 ? '<button class="act-btn move-down" onclick="moveSubDown(\'' + catId + '\',\'' + subId + '\')"><i class="fas fa-chevron-down"></i></button>' : '';
-      html += '<div class="admin-item"><span>' + subNum + '. ' + c.icon + ' ' + c.name + ' → ' + s.name + '</span><span>' + upBtn + downBtn + '<button class="act-btn edit" onclick="editSub(\'' + catId + '\',\'' + subId + '\')"><i class="fas fa-pen"></i> Edit</button><button class="act-btn del" onclick="delSub(\'' + catId + '\',\'' + subId + '\')"><i class="fas fa-trash"></i> Del</button></span></div>';
+      html += '<div class="admin-item" data-id="' + subId + '" data-cat="' + catId + '"><span class="drag-handle" draggable="true"><i class="fas fa-grip-vertical"></i></span><span>' + subNum + '. ' + c.icon + ' ' + c.name + ' → ' + s.name + '</span><span><button class="act-btn edit" onclick="editSub(\'' + catId + '\',\'' + subId + '\')"><i class="fas fa-pen"></i> Edit</button><button class="act-btn del" onclick="delSub(\'' + catId + '\',\'' + subId + '\')"><i class="fas fa-trash"></i> Del</button></span></div>';
     });
   });
-  html += '</div>';
+  html += '</div></div>';
   container.innerHTML = html;
   document.getElementById('adminAddSubBtn').addEventListener('click', addSub);
+  enableDragSort('admin-sub-list', (item) => {
+    const catId = item.dataset.cat;
+    return data.categories[catId]?.subcategories;
+  }, () => { saveData(); renderDashboard(); renderAdmin(); });
 }
-
-function moveSubUp(catId, subId) { moveItem(data.categories[catId].subcategories, subId, 'up'); saveData(); renderDashboard(); renderAdmin(); }
-function moveSubDown(catId, subId) { moveItem(data.categories[catId].subcategories, subId, 'down'); saveData(); renderDashboard(); renderAdmin(); }
 
 function addSub() {
   const catId = document.getElementById('adminSubCat').value;
@@ -621,9 +669,7 @@ function renderAdminTopics(container) {
         if (prevSearch && !t.name.toLowerCase().includes(prevSearch.toLowerCase())) return;
         topicNum++;
         hasAny = true;
-        const upBtn = idx > 0 ? '<button class="act-btn move-up" onclick="moveTopicUp(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-chevron-up"></i></button>' : '';
-        const downBtn = idx === 0 ? '<button class="act-btn move-down" onclick="moveTopicDown(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-chevron-down"></i></button>' : '';
-        html += '<div class="admin-item"><span>' + topicNum + '. ' + c.icon + ' ' + c.name + ' → ' + s.name + ' → ' + t.name + ' (' + (t.questions || []).length + ' Q)</span><span>' + upBtn + downBtn + '<button class="act-btn edit" onclick="editTopic(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-pen"></i> Edit</button><button class="act-btn del" onclick="delTopic(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-trash"></i> Del</button></span></div>';
+        html += '<div class="admin-item" data-id="' + topicId + '" data-cat="' + catId + '" data-sub="' + subId + '"><span class="drag-handle" draggable="true"><i class="fas fa-grip-vertical"></i></span><span>' + topicNum + '. ' + c.icon + ' ' + c.name + ' → ' + s.name + ' → ' + t.name + ' (' + (t.questions || []).length + ' Q)</span><span><button class="act-btn edit" onclick="editTopic(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-pen"></i> Edit</button><button class="act-btn del" onclick="delTopic(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-trash"></i> Del</button></span></div>';
       });
     });
   });
@@ -648,14 +694,18 @@ function renderAdminTopics(container) {
   });
   document.getElementById('atFilterSub').addEventListener('change', applyATFilters);
   document.getElementById('atFilterSearch').addEventListener('input', applyATFilters);
+  enableDragSort('atList', (item) => {
+    const catId = item.dataset.cat;
+    const subId = item.dataset.sub;
+    return data.categories[catId]?.subcategories[subId]?.topics;
+  }, () => { saveData(); renderDashboard(); renderAdmin(); });
 }
 
 function applyATFilters() {
   renderAdmin();
 }
 
-function moveTopicUp(catId, subId, topicId) { moveItem(data.categories[catId].subcategories[subId].topics, topicId, 'up'); saveData(); renderDashboard(); renderAdmin(); }
-function moveTopicDown(catId, subId, topicId) { moveItem(data.categories[catId].subcategories[subId].topics, topicId, 'down'); saveData(); renderDashboard(); renderAdmin(); }
+
 
 function addTopic() {
   const catId = document.getElementById('adminTopicCat').value;

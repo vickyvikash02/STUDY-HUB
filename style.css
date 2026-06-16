@@ -399,10 +399,19 @@ body {
 .admin-item {
   display: flex; align-items: center; gap: 12px; padding: 10px 16px;
   border-radius: var(--radius-xs); background: var(--surface2);
-  margin-bottom: 6px; font-size: 13px; transition: background var(--transition);
-  min-height: 44px; box-sizing: border-box;
+  margin-bottom: 6px; font-size: 13px; transition: background var(--transition), opacity var(--transition);
+  min-height: 44px; box-sizing: border-box; cursor: default;
 }
 .admin-item:hover { background: var(--border); }
+.admin-item .drag-handle {
+  cursor: grab; color: var(--text2); font-size: 14px; padding: 4px;
+  border-radius: 4px; transition: color var(--transition), background var(--transition);
+  user-select: none; flex-shrink: 0; line-height: 1;
+}
+.admin-item .drag-handle:hover { color: var(--primary); background: var(--primary-light); }
+.admin-item .drag-handle:active { cursor: grabbing; }
+.admin-item.dragging { opacity: 0.4; }
+.admin-item.drag-over { border-top: 2px solid var(--primary); border-radius: 0; margin-top: -1px; }
 .admin-item span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .admin-item span:last-child {
   flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px;
