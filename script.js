@@ -234,14 +234,13 @@ function switchPage(page) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.page === page));
-  const titles = { dashboard: 'Dashboard', questions: 'Question Bank', mocks: 'Mock Tests', builder: 'Test Builder', ebook: 'E-Book', admin: 'Admin' };
+  const titles = { dashboard: 'Dashboard', questions: 'Question Bank', mocks: 'Mock Tests', builder: 'Test Builder', admin: 'Admin' };
   document.getElementById('pageTitle').textContent = titles[page] || 'Dashboard';
   document.getElementById('statsBadge').textContent = countQuestions() + ' questions';
   if (page === 'questions' && !_qbContext) renderQBTopics();
   if (page === 'dashboard') { _qbContext = null; renderDashboard(); }
   if (page === 'mocks') renderMockList();
   if (page === 'builder') renderBuilder();
-  if (page === 'ebook') renderEbook();
   if (page === 'admin') renderAdmin();
   document.getElementById('sidebar').classList.remove('open');
 }
@@ -467,8 +466,14 @@ function filterQBQuestions(val) {
 }
 
 // ======================== E-BOOK ========================
-function renderEbook() {
-  document.getElementById('ebookUploadBtn').onclick = addEbook;
+function renderAdminEbook(container) {
+  let html = '<div class="admin-section"><h3>Add E-Book</h3><div class="admin-row" style="flex-wrap:wrap;gap:8px;">';
+  html += '<input type="text" id="ebookName" placeholder="E-Book name" style="flex:1;min-width:160px;">';
+  html += '<input type="file" id="ebookFile" accept=".pdf" style="flex:1;min-width:120px;">';
+  html += '<button class="btn-primary" id="ebookUploadBtn"><i class="fas fa-upload"></i> Upload</button></div></div>';
+  html += '<div class="admin-section"><h3>All E-Books</h3><div id="ebookList"></div></div>';
+  container.innerHTML = html;
+  document.getElementById('ebookUploadBtn').addEventListener('click', addEbook);
   renderEbookList();
 }
 
@@ -499,7 +504,7 @@ async function addEbook() {
 function renderEbookList() {
   const container = document.getElementById('ebookList');
   if (!data.ebooks.length) {
-    container.innerHTML = '<div class="empty-state"><i class="fas fa-book-open"></i><p>No e-books uploaded yet.</p></div>';
+    container.innerHTML = '<div class="empty-state" style="padding:20px;"><i class="fas fa-book-open"></i><p>No e-books uploaded yet.</p></div>';
     return;
   }
   container.innerHTML = data.ebooks.map((e, i) => `
@@ -535,6 +540,7 @@ function renderAdmin() {
   else if (tab === 'subcategories') renderAdminSubcategories(container);
   else if (tab === 'topics') renderAdminTopics(container);
   else if (tab === 'questions') renderAdminQuestions(container);
+  else if (tab === 'ebook') renderAdminEbook(container);
 }
 
 function renderAdminCategories(container) {
