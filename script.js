@@ -475,10 +475,26 @@ function renderAdminEbook(container) {
   let html = '<div class="admin-section"><h3>Add E-Book</h3><div class="admin-row" style="flex-wrap:wrap;gap:8px;">';
   html += '<input type="text" id="ebookName" placeholder="E-Book name" style="flex:1;min-width:160px;">';
   html += '<input type="file" id="ebookFile" accept=".pdf" style="flex:1;min-width:120px;">';
-  html += '<button class="btn-primary" id="ebookUploadBtn"><i class="fas fa-upload"></i> Upload</button></div></div>';
+  html += '<button class="btn-primary" id="ebookUploadBtn"><i class="fas fa-upload"></i> Upload</button></div>';
+  html += '<div class="admin-row" style="flex-wrap:wrap;gap:8px;margin-top:8px;">';
+  html += '<input type="text" id="ebookManualUrl" placeholder="Or paste Cloudinary URL directly" style="flex:2;min-width:200px;">';
+  html += '<button class="btn-secondary" id="ebookAddUrlBtn"><i class="fas fa-link"></i> Add URL</button></div></div>';
   html += '<div class="admin-section"><h3>All E-Books</h3><div id="adminEbookList"></div></div>';
   container.innerHTML = html;
   document.getElementById('ebookUploadBtn').addEventListener('click', addEbook);
+  document.getElementById('ebookAddUrlBtn').addEventListener('click', addEbookUrl);
+  renderEbookList(true, 'adminEbookList');
+}
+
+function addEbookUrl() {
+  const name = document.getElementById('ebookName').value.trim();
+  const url = document.getElementById('ebookManualUrl').value.trim();
+  if (!name) { alert('Enter an e-book name.'); return; }
+  if (!url) { alert('Paste a Cloudinary URL.'); return; }
+  data.ebooks.push({ id: Date.now(), name, url, uploaded: new Date().toLocaleDateString() });
+  saveData();
+  document.getElementById('ebookName').value = '';
+  document.getElementById('ebookManualUrl').value = '';
   renderEbookList(true, 'adminEbookList');
 }
 
