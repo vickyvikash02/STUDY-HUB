@@ -483,7 +483,7 @@ function renderAdminCategories(container) {
   catKeys.forEach((catId, idx) => {
     const c = data.categories[catId];
     const iconHtml = c.iconImage ? '<img src="' + imgUrl(c.iconImage) + '" style="width:20px;height:20px;vertical-align:middle;border-radius:4px;">' : (c.icon || '📂');
-    html += `<div class="admin-item" data-id="${catId}"><span class="drag-handle" draggable="true"><i class="fas fa-grip-vertical"></i></span><span>${c.order || (idx+1)}. ${iconHtml} ${c.name}</span><span><button class="act-btn edit" onclick="editCat('${catId}')"><i class="fas fa-pen"></i> Edit</button><button class="act-btn del" onclick="delCat('${catId}')"><i class="fas fa-trash"></i> Del</button></span></div>`;
+    html += `<div class="admin-item" data-id="${catId}"><span>${c.order || (idx+1)}. ${iconHtml} ${c.name}</span><span><button class="act-btn edit" onclick="editCat('${catId}')"><i class="fas fa-pen"></i> Edit</button><button class="act-btn del" onclick="delCat('${catId}')"><i class="fas fa-trash"></i> Del</button><span class="drag-handle" draggable="true"><i class="fas fa-grip-vertical"></i></span></span></div>`;
   });
   html += '</div></div>';
   container.innerHTML = html;
@@ -597,7 +597,7 @@ function renderAdminSubcategories(container) {
     subKeys.forEach((subId, idx) => {
       const s = c.subcategories[subId];
       subNum++;
-      html += '<div class="admin-item" data-id="' + subId + '" data-cat="' + catId + '"><span class="drag-handle" draggable="true"><i class="fas fa-grip-vertical"></i></span><span>' + subNum + '. ' + c.icon + ' ' + c.name + ' → ' + s.name + '</span><span><button class="act-btn edit" onclick="editSub(\'' + catId + '\',\'' + subId + '\')"><i class="fas fa-pen"></i> Edit</button><button class="act-btn del" onclick="delSub(\'' + catId + '\',\'' + subId + '\')"><i class="fas fa-trash"></i> Del</button></span></div>';
+      html += '<div class="admin-item" data-id="' + subId + '" data-cat="' + catId + '"><span>' + subNum + '. ' + c.icon + ' ' + c.name + ' → ' + s.name + '</span><span><button class="act-btn edit" onclick="editSub(\'' + catId + '\',\'' + subId + '\')"><i class="fas fa-pen"></i> Edit</button><button class="act-btn del" onclick="delSub(\'' + catId + '\',\'' + subId + '\')"><i class="fas fa-trash"></i> Del</button><span class="drag-handle" draggable="true"><i class="fas fa-grip-vertical"></i></span></span></div>';
     });
   });
   html += '</div></div>';
@@ -669,7 +669,7 @@ function renderAdminTopics(container) {
         if (prevSearch && !t.name.toLowerCase().includes(prevSearch.toLowerCase())) return;
         topicNum++;
         hasAny = true;
-        html += '<div class="admin-item" data-id="' + topicId + '" data-cat="' + catId + '" data-sub="' + subId + '"><span class="drag-handle" draggable="true"><i class="fas fa-grip-vertical"></i></span><span>' + topicNum + '. ' + c.icon + ' ' + c.name + ' → ' + s.name + ' → ' + t.name + ' (' + (t.questions || []).length + ' Q)</span><span><button class="act-btn edit" onclick="editTopic(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-pen"></i> Edit</button><button class="act-btn del" onclick="delTopic(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-trash"></i> Del</button></span></div>';
+        html += '<div class="admin-item" data-id="' + topicId + '" data-cat="' + catId + '" data-sub="' + subId + '"><span>' + topicNum + '. ' + c.icon + ' ' + c.name + ' → ' + s.name + ' → ' + t.name + ' (' + (t.questions || []).length + ' Q)</span><span><button class="act-btn edit" onclick="editTopic(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-pen"></i> Edit</button><button class="act-btn del" onclick="delTopic(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-trash"></i> Del</button><span class="drag-handle" draggable="true"><i class="fas fa-grip-vertical"></i></span></span></div>';
       });
     });
   });

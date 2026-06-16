@@ -406,7 +406,7 @@ body {
 .admin-item .drag-handle {
   cursor: grab; color: var(--text2); font-size: 14px; padding: 4px;
   border-radius: 4px; transition: color var(--transition), background var(--transition);
-  user-select: none; flex-shrink: 0; line-height: 1;
+  user-select: none; flex-shrink: 0; line-height: 1; margin-left: 6px;
 }
 .admin-item .drag-handle:hover { color: var(--primary); background: var(--primary-light); }
 .admin-item .drag-handle:active { cursor: grabbing; }
