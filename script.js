@@ -494,7 +494,8 @@ async function addEbook() {
     formData.append('file', file);
     formData.append('upload_preset', UPLOAD_PRESET);
     formData.append('folder', 'ebooks');
-    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/raw/upload`, { method: 'POST', body: formData });
+    formData.append('resource_type', 'auto');
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, { method: 'POST', body: formData });
     if (!res.ok) throw new Error('Upload failed: ' + res.status);
     const d = await res.json();
     data.ebooks.push({ id: Date.now(), name, url: d.secure_url, uploaded: new Date().toLocaleDateString() });
