@@ -510,7 +510,7 @@ function renderEbookList(showDelete, containerId) {
   }
   container.innerHTML = data.ebooks.map((e, i) => {
     let actions = '<button class="btn-secondary" onclick="window.open(\'' + esc(e.url) + '\',\'_blank\')"><i class="fas fa-eye"></i> View</button>';
-    actions += '<button class="btn-primary" onclick="window.open(\'' + esc(e.url) + '?fl_attachment=1\',\'_blank\')"><i class="fas fa-download"></i> Download</button>';
+    actions += '<a class="btn-primary" href="' + esc(e.url) + '" download style="text-decoration:none;display:inline-flex;align-items:center;gap:8px;padding:9px 18px;border-radius:10px;font-weight:600;font-size:12px;cursor:pointer;font-family:inherit;background:var(--primary);color:#fff;border:none;"><i class="fas fa-download"></i> Download</a>';
     if (showDelete) actions += '<button class="act-btn del" onclick="delEbook(' + i + ')"><i class="fas fa-trash"></i></button>';
     return '<div class="ebook-card"><div class="ebook-info"><i class="fas fa-file-pdf ebook-icon"></i><div><div class="ebook-name">' + esc(e.name) + '</div><div class="ebook-meta">' + esc(e.uploaded) + '</div></div></div><div class="ebook-actions">' + actions + '</div></div>';
   }).join('');
