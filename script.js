@@ -6,7 +6,7 @@ const DATA_REF = typeof db !== 'undefined' && db ? db.ref('/studyhub/data') : nu
 const CLOUD_NAME = 'dtltp3gez';
 const UPLOAD_PRESET = 'studyhub';
 
-let data = { categories: {} };
+let data = { categories: {}, ebooks: [] };
 let mockTests = [];
 let qidCounter = 0;
 
@@ -15,10 +15,10 @@ async function loadData() {
     const snap = await DATA_REF.once('value');
     const d = snap.val();
     if (d) {
-      data = { categories: d.categories || {} };
+      data = { categories: d.categories || {}, ebooks: d.ebooks || [] };
       mockTests = d.mockTests || [];
     } else {
-      data = { categories: {} };
+      data = { categories: {}, ebooks: [] };
       mockTests = [];
     }
   } catch {
@@ -28,6 +28,7 @@ async function loadData() {
     } catch {}
   }
   if (!data.categories) data.categories = {};
+  if (!Array.isArray(data.ebooks)) data.ebooks = [];
   if (!Array.isArray(mockTests)) mockTests = [];
   syncIds();
 }
@@ -37,7 +38,7 @@ async function saveData() {
     localStorage.setItem('studyhub_data', JSON.stringify(data));
   } catch { }
   try {
-    await DATA_REF.update({ categories: data.categories, mockTests });
+    await DATA_REF.update({ categories: data.categories, mockTests, ebooks: data.ebooks });
   } catch { }
 }
 
@@ -233,13 +234,14 @@ function switchPage(page) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.page === page));
-  const titles = { dashboard: 'Dashboard', questions: 'Question Bank', mocks: 'Mock Tests', builder: 'Test Builder', admin: 'Admin' };
+  const titles = { dashboard: 'Dashboard', questions: 'Question Bank', mocks: 'Mock Tests', builder: 'Test Builder', ebook: 'E-Book', admin: 'Admin' };
   document.getElementById('pageTitle').textContent = titles[page] || 'Dashboard';
   document.getElementById('statsBadge').textContent = countQuestions() + ' questions';
   if (page === 'questions' && !_qbContext) renderQBTopics();
   if (page === 'dashboard') { _qbContext = null; renderDashboard(); }
   if (page === 'mocks') renderMockList();
   if (page === 'builder') renderBuilder();
+  if (page === 'ebook') renderEbook();
   if (page === 'admin') renderAdmin();
   document.getElementById('sidebar').classList.remove('open');
 }
@@ -462,6 +464,66 @@ function filterQBQuestions(val) {
     list.appendChild(item);
   });
   if (!filtered.length) list.innerHTML = '<div class="empty-state"><i class="fas fa-search"></i><p>No questions match your search.</p></div>';
+}
+
+// ======================== E-BOOK ========================
+function renderEbook() {
+  document.getElementById('ebookUploadBtn').onclick = addEbook;
+  renderEbookList();
+}
+
+async function addEbook() {
+  const name = document.getElementById('ebookName').value.trim();
+  const file = document.getElementById('ebookFile').files[0];
+  if (!name) { alert('Enter an e-book name.'); return; }
+  if (!file) { alert('Select a PDF file.'); return; }
+  const btn = document.getElementById('ebookUploadBtn');
+  btn.disabled = true; btn.textContent = 'Uploading...';
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', UPLOAD_PRESET);
+    formData.append('folder', 'ebooks');
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/raw/upload`, { method: 'POST', body: formData });
+    if (!res.ok) throw new Error('Upload failed: ' + res.status);
+    const d = await res.json();
+    data.ebooks.push({ id: Date.now(), name, url: d.secure_url, uploaded: new Date().toLocaleDateString() });
+    await saveData();
+    document.getElementById('ebookName').value = '';
+    document.getElementById('ebookFile').value = '';
+    renderEbookList();
+  } catch (e) { alert('Upload error: ' + e.message); }
+  btn.disabled = false; btn.textContent = 'Upload';
+}
+
+function renderEbookList() {
+  const container = document.getElementById('ebookList');
+  if (!data.ebooks.length) {
+    container.innerHTML = '<div class="empty-state"><i class="fas fa-book-open"></i><p>No e-books uploaded yet.</p></div>';
+    return;
+  }
+  container.innerHTML = data.ebooks.map((e, i) => `
+    <div class="ebook-card">
+      <div class="ebook-info">
+        <i class="fas fa-file-pdf ebook-icon"></i>
+        <div>
+          <div class="ebook-name">${esc(e.name)}</div>
+          <div class="ebook-meta">${esc(e.uploaded)}</div>
+        </div>
+      </div>
+      <div class="ebook-actions">
+        <button class="btn-secondary" onclick="window.open('${esc(e.url)}','_blank')"><i class="fas fa-eye"></i> View</button>
+        <button class="btn-primary" onclick="window.open('${esc(e.url)}?fl_attachment=1','_blank')"><i class="fas fa-download"></i> Download</button>
+        <button class="act-btn del" onclick="delEbook(${i})"><i class="fas fa-trash"></i></button>
+      </div>
+    </div>`).join('');
+}
+
+function delEbook(idx) {
+  if (!confirm('Delete "' + data.ebooks[idx].name + '"?')) return;
+  data.ebooks.splice(idx, 1);
+  saveData();
+  renderEbookList();
 }
 
 // ======================== ADMIN ========================

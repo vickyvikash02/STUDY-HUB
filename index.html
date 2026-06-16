@@ -23,6 +23,7 @@
       <a class="nav-item" data-page="questions"><i class="fas fa-question-circle"></i> Question Bank</a>
       <a class="nav-item" data-page="mocks"><i class="fas fa-tasks"></i> Mock Tests</a>
       <a class="nav-item" data-page="builder"><i class="fas fa-plus-circle"></i> Test Builder</a>
+      <a class="nav-item" data-page="ebook"><i class="fas fa-book"></i> E-Book</a>
       <a class="nav-item" data-page="admin"><i class="fas fa-cog"></i> Admin</a>
     </nav>
     <div class="sidebar-footer">
@@ -139,6 +140,26 @@
         <div id="builderExisting" class="builder-existing">
           <h3>Existing Tests</h3>
           <div id="builderTestList"></div>
+        </div>
+      </section>
+
+      <!-- ===================== E-BOOK ===================== -->
+      <section id="page-ebook" class="page">
+        <div class="hero">
+          <h1>📖 E-Book Library</h1>
+          <p>Upload and manage PDF study materials.</p>
+        </div>
+        <div class="ebook-section" id="ebookUploadSection">
+          <h3>Add E-Book</h3>
+          <div class="ebook-form">
+            <input type="text" id="ebookName" placeholder="E-Book name">
+            <input type="file" id="ebookFile" accept=".pdf">
+            <button class="btn-primary" id="ebookUploadBtn"><i class="fas fa-upload"></i> Upload</button>
+          </div>
+        </div>
+        <div class="ebook-section" id="ebookListSection">
+          <h3>All E-Books</h3>
+          <div id="ebookList"></div>
         </div>
       </section>
 
