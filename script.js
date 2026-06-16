@@ -512,28 +512,21 @@ function renderEbookList(showDelete) {
     container.innerHTML = '<div class="empty-state" style="padding:20px;"><i class="fas fa-book-open"></i><p>No e-books uploaded yet.</p></div>';
     return;
   }
-  container.innerHTML = data.ebooks.map((e, i) => `
-    <div class="ebook-card">
-      <div class="ebook-info">
-        <i class="fas fa-file-pdf ebook-icon"></i>
-        <div>
-          <div class="ebook-name">${esc(e.name)}</div>
-          <div class="ebook-meta">${esc(e.uploaded)}</div>
-        </div>
-      </div>
-      <div class="ebook-actions">
-        <button class="btn-secondary" onclick="window.open('${esc(e.url)}','_blank')"><i class="fas fa-eye"></i> View</button>
-        <button class="btn-primary" onclick="window.open('${esc(e.url)}?fl_attachment=1','_blank')"><i class="fas fa-download"></i> Download</button>
-        ${showDelete ? `<button class="act-btn del" onclick="delEbook(${i})"><i class="fas fa-trash"></i></button>` : ''}
-      </div>
-    </div>`).join('');
+  container.innerHTML = data.ebooks.map((e, i) => {
+    let actions = '<button class="btn-secondary" onclick="window.open(\'' + esc(e.url) + '\',\'_blank\')"><i class="fas fa-eye"></i> View</button>';
+    actions += '<button class="btn-primary" onclick="window.open(\'' + esc(e.url) + '?fl_attachment=1\',\'_blank\')"><i class="fas fa-download"></i> Download</button>';
+    if (showDelete) actions += '<button class="act-btn del" onclick="delEbook(' + i + ')"><i class="fas fa-trash"></i></button>';
+    return '<div class="ebook-card"><div class="ebook-info"><i class="fas fa-file-pdf ebook-icon"></i><div><div class="ebook-name">' + esc(e.name) + '</div><div class="ebook-meta">' + esc(e.uploaded) + '</div></div></div><div class="ebook-actions">' + actions + '</div></div>';
+  }).join('');
 }
 
 function delEbook(idx) {
   if (!confirm('Delete "' + data.ebooks[idx].name + '"?')) return;
   data.ebooks.splice(idx, 1);
   saveData();
-  renderEbookList();
+  const activeTab = document.querySelector('.admin-tab.active');
+  if (activeTab && activeTab.dataset.admin === 'ebook') renderAdmin();
+  else renderEbook();
 }
 
 // ======================== ADMIN ========================
