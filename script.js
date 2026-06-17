@@ -1124,16 +1124,16 @@ function populateBuilderFilters() {
   catSel.innerHTML = '<option value="">Select Category</option>';
   sortedKeys(data.categories).forEach(catId => { catSel.innerHTML += '<option value="' + catId + '">' + data.categories[catId].name + '</option>'; });
   catSel.onchange = function () {
-    subSel.innerHTML = '<option value="">Select Subcategory</option>';
+    subSel.innerHTML = '<option value="">Select Subcategory</option><option value="__all__">All Subcategories</option>';
     topicSel.innerHTML = '<option value="">Select Topic</option>';
     const cat = data.categories[this.value];
     if (cat) sortedKeys(cat.subcategories || {}).forEach(sid => { subSel.innerHTML += '<option value="' + sid + '">' + cat.subcategories[sid].name + '</option>'; });
     renderBuilderQList();
   };
   subSel.onchange = function () {
-    topicSel.innerHTML = '<option value="">Select Topic</option>';
+    topicSel.innerHTML = '<option value="">Select Topic</option><option value="__all__">All Topics</option>';
     const catId = catSel.value;
-    if (catId && this.value && data.categories[catId]?.subcategories[this.value]) {
+    if (catId && this.value && this.value !== '__all__' && data.categories[catId]?.subcategories[this.value]) {
       sortedKeys(data.categories[catId].subcategories[this.value].topics || {}).forEach(tid => {
         topicSel.innerHTML += '<option value="' + tid + '">' + data.categories[catId].subcategories[this.value].topics[tid].name + '</option>';
       });
@@ -1150,11 +1150,11 @@ function renderBuilderQList() {
   const topicF = document.getElementById('builderTopicFilter').value;
   const container = document.getElementById('builderQList');
   container.innerHTML = '';
-  if (!catF || !subF || !topicF) { container.innerHTML = '<p style="text-align:center;padding:20px;color:var(--text2);">Select Category, Subcategory, and Topic to see questions.</p>'; return; }
+  if (!catF) { container.innerHTML = '<p style="text-align:center;padding:20px;color:var(--text2);">Select a category to see questions.</p>'; return; }
   forEachQ((q, i, catId, subId, topicId, cat, sub, topic) => {
     if (catF && catF !== catId) return;
-    if (subF && subF !== subId) return;
-    if (topicF && topicF !== topicId) return;
+    if (subF && subF !== '__all__' && subF !== subId) return;
+    if (topicF && topicF !== '__all__' && topicF !== topicId) return;
     const div = document.createElement('div'); div.className = 'builder-qitem';
     div.innerHTML = '<input type="checkbox" class="bq-check" value="' + q.id + '"><div class="bq-text">' + esc(q.question) + '</div><div class="bq-meta">' + cat.name + ' → ' + sub.name + ' → ' + topic.name + '</div>';
     container.appendChild(div);
