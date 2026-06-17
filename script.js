@@ -513,7 +513,6 @@ function renderEbookList(showDelete, containerId) {
   }
   container.innerHTML = data.ebooks.map((e, i) => {
     let actions = '<button class="btn-secondary" onclick="openPdf(' + i + ',false)"><i class="fas fa-eye"></i> View</button>';
-    actions += '<button class="btn-primary" onclick="openPdf(' + i + ',true)"><i class="fas fa-download"></i> Download</button>';
     if (showDelete) {
       actions += '<button class="act-btn edit" onclick="renameEbook(' + i + ')"><i class="fas fa-pen"></i></button>';
       actions += '<button class="act-btn del" onclick="delEbook(' + i + ')"><i class="fas fa-trash"></i></button>';
