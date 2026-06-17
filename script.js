@@ -1,10 +1,5 @@
 // ======================== DATA ========================
 const THEME_KEY = 'studyhub_theme';
-const DATA_REF = typeof db !== 'undefined' && db ? db.ref('/studyhub/data') : null;
-
-// ======================== CLOUDINARY ========================
-const CLOUD_NAME = 'dtltp3gez';
-const UPLOAD_PRESET = 'studyhub';
 
 let data = { categories: {}, ebooks: [] };
 let mockTests = [];
@@ -12,9 +7,9 @@ let qidCounter = 0;
 
 async function loadData() {
   try {
-    const snap = await DATA_REF.once('value');
-    const d = snap.val();
-    if (d) {
+    const { data: rows, error } = await sb.from('app_data').select('payload').eq('id', 1).single();
+    if (!error && rows) {
+      const d = rows.payload;
       data = { categories: d.categories || {}, ebooks: d.ebooks || [] };
       mockTests = d.mockTests || [];
     } else {
@@ -38,35 +33,25 @@ async function saveData() {
     localStorage.setItem('studyhub_data', JSON.stringify(data));
   } catch { }
   try {
-    await DATA_REF.update({ categories: data.categories, mockTests, ebooks: data.ebooks });
+    await sb.from('app_data').upsert({ id: 1, payload: data }, { onConflict: 'id' });
   } catch { }
 }
 
 async function uploadFile(file, folder) {
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('upload_preset', UPLOAD_PRESET);
-  if (folder) {
-    formData.append('folder', folder);
-    formData.append('asset_folder', folder);
-  }
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
-    method: 'POST',
-    body: formData
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error('Cloudinary ' + res.status + ': ' + text);
-  }
-  const data = await res.json();
-  console.log('Cloudinary upload response:', data);
-  return data.secure_url;
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const path = folder + '/' + Date.now() + '_' + safeName;
+  const { error } = await sb.storage.from('studyhub').upload(path, file);
+  if (error) throw new Error(error.message);
+  const { data: { publicUrl } } = sb.storage.from('studyhub').getPublicUrl(path);
+  return publicUrl;
 }
 
 async function deleteUploadedFile(url) {
-  // Cloudinary deletion requires a signed API call (not possible from browser-only app).
-  // Images will be cleaned up periodically or via the Cloudinary console.
-  if (!url || !url.includes('res.cloudinary.com')) return;
+  if (!url) return;
+  const parts = url.split('/object/public/studyhub/');
+  if (parts.length === 2) {
+    await sb.storage.from('studyhub').remove([parts[1]]).catch(() => {});
+  }
 }
 
 function imgUrl(url) {
@@ -477,7 +462,7 @@ function renderAdminEbook(container) {
   html += '<input type="file" id="ebookFile" accept=".pdf" style="flex:1;min-width:120px;">';
   html += '<button class="btn-primary" id="ebookUploadBtn"><i class="fas fa-upload"></i> Upload</button></div>';
   html += '<div class="admin-row" style="flex-wrap:wrap;gap:8px;margin-top:8px;">';
-  html += '<input type="text" id="ebookManualUrl" placeholder="Or paste Cloudinary URL directly" style="flex:2;min-width:200px;">';
+  html += '<input type="text" id="ebookManualUrl" placeholder="Or paste a direct URL" style="flex:2;min-width:200px;">';
   html += '<button class="btn-secondary" id="ebookAddUrlBtn"><i class="fas fa-link"></i> Add URL</button></div></div>';
   html += '<div class="admin-section"><h3>All E-Books</h3><div id="adminEbookList"></div></div>';
   container.innerHTML = html;
@@ -488,9 +473,9 @@ function renderAdminEbook(container) {
 
 function addEbookUrl() {
   const name = document.getElementById('ebookName').value.trim();
-  const url = document.getElementById('ebookManualUrl').value.trim();
+  let url = document.getElementById('ebookManualUrl').value.trim();
   if (!name) { alert('Enter an e-book name.'); return; }
-  if (!url) { alert('Paste a Cloudinary URL.'); return; }
+  if (!url) { alert('Paste a URL.'); return; }
   data.ebooks.push({ id: Date.now(), name, url, uploaded: new Date().toLocaleDateString() });
   saveData();
   document.getElementById('ebookName').value = '';
@@ -506,8 +491,12 @@ async function addEbook() {
   const btn = document.getElementById('ebookUploadBtn');
   btn.disabled = true; btn.textContent = 'Uploading...';
   try {
-    const url = await uploadFile(file, 'ebooks');
-    data.ebooks.push({ id: Date.now(), name, url, uploaded: new Date().toLocaleDateString() });
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const path = 'ebooks/' + Date.now() + '_' + safeName;
+    const { error } = await sb.storage.from('studyhub').upload(path, file);
+    if (error) throw new Error(error.message);
+    const { data: { publicUrl } } = sb.storage.from('studyhub').getPublicUrl(path);
+    data.ebooks.push({ id: Date.now(), name, url: publicUrl, uploaded: new Date().toLocaleDateString() });
     await saveData();
     document.getElementById('ebookName').value = '';
     document.getElementById('ebookFile').value = '';
@@ -523,12 +512,29 @@ function renderEbookList(showDelete, containerId) {
     return;
   }
   container.innerHTML = data.ebooks.map((e, i) => {
-    let actions = '<button class="btn-secondary" onclick="window.open(\'' + esc(e.url) + '\',\'_blank\')"><i class="fas fa-eye"></i> View</button>';
-    actions += '<button class="btn-primary" onclick="window.open(\'' + esc(e.url) + '\',\'_blank\')"><i class="fas fa-download"></i> Download</button>';
-    if (showDelete) actions += '<button class="act-btn del" onclick="delEbook(' + i + ')"><i class="fas fa-trash"></i></button>';
-    actions += '<button class="act-btn edit" onclick="alert(\'' + esc(e.url) + '\')" title="Copy URL"><i class="fas fa-link"></i></button>';
+    let actions = '<button class="btn-secondary" onclick="openPdf(' + i + ',false)"><i class="fas fa-eye"></i> View</button>';
+    actions += '<button class="btn-primary" onclick="openPdf(' + i + ',true)"><i class="fas fa-download"></i> Download</button>';
+    if (showDelete) {
+      actions += '<button class="act-btn edit" onclick="renameEbook(' + i + ')"><i class="fas fa-pen"></i></button>';
+      actions += '<button class="act-btn del" onclick="delEbook(' + i + ')"><i class="fas fa-trash"></i></button>';
+    }
     return '<div class="ebook-card"><div class="ebook-info"><i class="fas fa-file-pdf ebook-icon"></i><div><div class="ebook-name">' + esc(e.name) + '</div><div class="ebook-meta">' + esc(e.uploaded) + '</div></div></div><div class="ebook-actions">' + actions + '</div></div>';
   }).join('');
+}
+
+function openPdf(idx, download) {
+  const ebook = data.ebooks[idx];
+  if (!ebook) return;
+  if (download) {
+    const a = document.createElement('a');
+    a.href = ebook.url;
+    a.download = ebook.name + '.pdf';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } else {
+    window.open(ebook.url, '_blank');
+  }
 }
 
 function delEbook(idx) {
@@ -538,6 +544,16 @@ function delEbook(idx) {
   const activeTab = document.querySelector('.admin-tab.active');
   if (activeTab && activeTab.dataset.admin === 'ebook') renderAdmin();
   else renderEbook();
+}
+
+function renameEbook(idx) {
+  const ebook = data.ebooks[idx];
+  if (!ebook) return;
+  const name = prompt('Rename e-book:', ebook.name);
+  if (!name || name.trim() === ebook.name) return;
+  ebook.name = name.trim();
+  saveData();
+  renderEbookList(true, 'adminEbookList');
 }
 
 // ======================== ADMIN ========================
@@ -1370,7 +1386,34 @@ function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.
 function updateStats() { document.getElementById('statsBadge').textContent = countQuestions() + ' questions'; }
 
 // ======================== EVENT BINDING ========================
+async function setupSupabase() {
+  let bucketOk = false, tableOk = false;
+  try {
+    const { data: buckets } = await sb.storage.listBuckets();
+    if (buckets?.find(b => b.name === 'studyhub')) bucketOk = true;
+  } catch (e) {}
+  if (!bucketOk) {
+    try {
+      const { error } = await sb.storage.createBucket('studyhub', { public: true });
+      if (!error) bucketOk = true;
+    } catch (e) {}
+    if (!bucketOk) console.warn('Create bucket "studyhub" in Supabase Dashboard → Storage');
+  }
+  try {
+    const { data, error } = await sb.from('app_data').select('id').eq('id', 1).single();
+    if (!error) tableOk = true;
+  } catch (e) {}
+  if (!tableOk) {
+    try {
+      const { error } = await sb.from('app_data').insert({ id: 1, payload: {} }).single();
+      if (!error) tableOk = true;
+    } catch (e) {}
+    if (!tableOk) console.warn('Run setup.sql in Supabase Dashboard → SQL Editor');
+  }
+}
+
 async function init() {
+  await setupSupabase();
   try {
     await loadData();
     loadTheme();
