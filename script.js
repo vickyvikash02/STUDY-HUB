@@ -1228,10 +1228,11 @@ function startMockTest(idx) {
   console.log('Mock test questionIds:', JSON.stringify(t.questionIds), 'matched:', allQs.length, 'qMap size:', qMap.size);
   t.questionIds.forEach(id => { if (!qMap.has(id)) console.log('MISSING id:', id, typeof id, 'qMap keys:', [...qMap.keys()].map(k => k + '(' + typeof k + ')')); });
   if (!allQs.length) { alert('No questions found for this test.'); return; }
-  _mockState = { testIdx: idx, questions: allQs, idx: 0, answers: {}, submitted: false };
+  _mockState = { testIdx: idx, questions: allQs, idx: 0, answers: {}, marked: {}, submitted: false };
   document.getElementById('mockListContainer').classList.add('hidden');
   document.getElementById('mockTestContainer').classList.remove('hidden');
   document.getElementById('mockTestTitle').textContent = t.name;
+  document.getElementById('tcsSectionBtn').textContent = t.name;
   document.getElementById('mockResultContainer').classList.add('hidden');
   renderMockQuestion();
   renderMockPalette();
@@ -1247,21 +1248,22 @@ function renderMockQuestion() {
   const mockQImg = document.getElementById('mockQImg');
   if (q.image) { mockQImg.src = imgUrl(q.image); mockQImg.classList.remove('hidden'); }
   else mockQImg.classList.add('hidden');
-  document.getElementById('mockProgressDisplay').textContent = (s.idx + 1) + '/' + s.questions.length;
 
   const answered = s.answers[q.id] !== undefined;
   const opts = document.getElementById('mockQOpts');
   opts.innerHTML = '';
   (q.options || []).forEach((o, i) => {
-    const d = document.createElement('div'); d.className = 'opt-item';
-    d.textContent = String.fromCharCode(65 + i) + '. ' + o;
+    const label = document.createElement('label'); label.className = 'option';
+    const radio = document.createElement('input'); radio.type = 'radio'; radio.name = 'mockq';
+    if (answered) radio.disabled = true;
+    if (!answered) radio.addEventListener('change', () => selectMockAnswer(i));
+    label.appendChild(radio);
+    label.appendChild(document.createTextNode(String.fromCharCode(97 + i) + ') ' + o));
     if (answered) {
-      if (i === q.answer) d.classList.add('correct');
-      if (i === s.answers[q.id] && i !== q.answer) d.classList.add('wrong');
-    } else {
-      d.addEventListener('click', () => selectMockAnswer(i));
+      if (i === q.answer) label.classList.add('correct');
+      if (i === s.answers[q.id] && i !== q.answer) label.classList.add('wrong');
     }
-    opts.appendChild(d);
+    opts.appendChild(label);
   });
 
   const exp = document.getElementById('mockQExp');
@@ -1291,19 +1293,39 @@ function selectMockAnswer(idx) {
 function mockNext() { if (_mockState && _mockState.idx < _mockState.questions.length - 1) { _mockState.idx++; renderMockQuestion(); } }
 function mockPrev() { if (_mockState && _mockState.idx > 0) { _mockState.idx--; renderMockQuestion(); } }
 
+function mockMarkForReview() {
+  if (!_mockState) return;
+  _mockState.marked[_mockState.questions[_mockState.idx].id] = true;
+  if (_mockState.idx < _mockState.questions.length - 1) { _mockState.idx++; renderMockQuestion(); }
+  else renderMockPalette();
+}
+
+function mockClearResponse() {
+  if (!_mockState) return;
+  const q = _mockState.questions[_mockState.idx];
+  delete _mockState.answers[q.id];
+  renderMockQuestion();
+}
+
 function renderMockPalette() {
   if (!_mockState) return;
   const grid = document.getElementById('mockPaletteGrid');
   grid.innerHTML = '';
+  let answered = 0, marked = 0, notVisited = 0;
   _mockState.questions.forEach((q, i) => {
     const b = document.createElement('button'); b.className = 'palette-btn';
     b.textContent = i + 1;
     if (i === _mockState.idx) b.classList.add('current');
-    if (_mockState.answers[q.id] !== undefined) b.classList.add('answered');
+    if (_mockState.answers[q.id] !== undefined) { b.classList.add('answered'); answered++; }
+    if (_mockState.marked[q.id]) { b.classList.add('marked'); marked++; }
     b.addEventListener('click', () => { _mockState.idx = i; renderMockQuestion(); });
     grid.appendChild(b);
   });
-  document.getElementById('mockProgressDisplay').textContent = (_mockState.idx + 1) + '/' + _mockState.questions.length;
+  notVisited = _mockState.questions.length - answered - marked;
+  document.getElementById('legendAnswered').textContent = answered;
+  document.getElementById('legendNotAnswered').textContent = _mockState.questions.length - answered;
+  document.getElementById('legendMarked').textContent = marked;
+  document.getElementById('legendNotVisited').textContent = notVisited;
 }
 
 function startMockTimer(duration) {
@@ -1313,7 +1335,7 @@ function startMockTimer(duration) {
     _mockState._remaining--;
     const m = Math.floor(_mockState._remaining / 60);
     const s = _mockState._remaining % 60;
-    document.getElementById('mockTimerDisplay').innerHTML = '<i class="far fa-clock"></i> ' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+    document.getElementById('mockTimerDisplay').textContent = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
     if (_mockState._remaining <= 0) submitMockTest();
   }, 1000);
 }
@@ -1434,6 +1456,8 @@ async function init() {
   document.getElementById('mockNextBtn').addEventListener('click', mockNext);
   document.getElementById('mockPrevBtn').addEventListener('click', mockPrev);
   document.getElementById('mockSubmitBtn').addEventListener('click', submitMockTest);
+  document.getElementById('mockMarkBtn').addEventListener('click', mockMarkForReview);
+  document.getElementById('mockClearBtn').addEventListener('click', mockClearResponse);
   document.getElementById('mockSubmitPaletteBtn').addEventListener('click', () => { if (confirm('Submit test?')) submitMockTest(); });
   document.getElementById('mockQuitBtn').addEventListener('click', () => { if (confirm('Quit test?')) quitMockTest(); });
   document.getElementById('mockResultBackBtn').addEventListener('click', quitMockTest);

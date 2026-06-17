@@ -71,34 +71,57 @@
           <div id="mockList" class="mock-grid"></div>
         </div>
         <div id="mockTestContainer" class="hidden">
-          <div class="mock-header">
-            <button class="back-btn" id="mockQuitBtn"><i class="fas fa-arrow-left"></i> Quit</button>
-            <h3 id="mockTestTitle">Test</h3>
-            <div class="mock-header-info">
-              <span id="mockTimerDisplay"><i class="far fa-clock"></i> 00:00</span>
-              <span id="mockProgressDisplay">0/0</span>
-            </div>
+          <div class="tcs-header">
+            <h1 id="mockTestTitle">Test</h1>
+            <div class="tcs-logo">Skill Vertex</div>
           </div>
-          <div class="mock-body">
-            <div class="mock-main">
-              <div class="q-number" id="mockQNumber">Q1</div>
-              <img class="q-img hidden" id="mockQImg" alt="Question image">
-              <div class="q-text" id="mockQText"></div>
-              <div class="q-opts" id="mockQOpts"></div>
-              <div class="q-explanation hidden" id="mockQExp">
-                <strong>Explanation:</strong> <span id="mockQExpText"></span>
-                <img class="q-img hidden" id="mockQExpImg" alt="Explanation image" style="margin-top:8px;">
+          <div class="tcs-body">
+            <div class="tcs-left">
+              <div class="tcs-section-box">
+                <div class="tcs-section-title">Sections</div>
+                <button class="tcs-section-btn" id="tcsSectionBtn">Numerical Ability</button>
               </div>
-              <div class="mock-nav">
-                <button class="btn-secondary" id="mockPrevBtn"><i class="fas fa-chevron-left"></i> Previous</button>
-                <button class="btn-primary" id="mockNextBtn">Next <i class="fas fa-chevron-right"></i></button>
-                <button class="btn-success hidden" id="mockSubmitBtn"><i class="fas fa-check"></i> Submit</button>
+              <div class="tcs-qbox">
+                <div class="tcs-qheader"><span id="mockQNumber">Question No 1</span></div>
+                <div class="tcs-qcontent">
+                  <p id="mockQText"></p>
+                  <img class="q-img hidden" id="mockQImg" alt="">
+                  <div id="mockQOpts"></div>
+                  <div class="q-explanation hidden" id="mockQExp">
+                    <strong>Explanation:</strong> <span id="mockQExpText"></span>
+                    <img class="q-img hidden" id="mockQExpImg" alt="" style="margin-top:8px;">
+                  </div>
+                </div>
+                <div class="tcs-bottom">
+                  <div class="tcs-left-buttons">
+                    <button class="tcs-btn" id="mockPrevBtn"><i class="fas fa-chevron-left"></i> Previous</button>
+                    <button class="tcs-btn" id="mockMarkBtn">Mark for Review & Next</button>
+                    <button class="tcs-btn" id="mockClearBtn">Clear Response</button>
+                  </div>
+                  <button class="tcs-save-btn" id="mockNextBtn">Save & Next <i class="fas fa-chevron-right"></i></button>
+                  <button class="tcs-save-btn hidden" id="mockSubmitBtn"><i class="fas fa-check"></i> Submit Test</button>
+                </div>
               </div>
             </div>
-            <div class="mock-palette" id="mockPalette">
-              <h4>Question Palette</h4>
-              <div id="mockPaletteGrid"></div>
-              <button class="btn-success" id="mockSubmitPaletteBtn" style="margin-top:12px;width:100%;">Submit Test</button>
+            <div class="tcs-right">
+              <div class="tcs-profile">
+                <div class="tcs-avatar"></div>
+                <div>Time Left:</div>
+                <div class="tcs-timer" id="mockTimerDisplay">00:00</div>
+              </div>
+              <div class="tcs-legend">
+                <h3>Legend</h3>
+                <div class="tcs-legend-item"><div class="tcs-status tcs-green" id="legendAnswered">0</div> Answered</div>
+                <div class="tcs-legend-item"><div class="tcs-status tcs-orange" id="legendNotAnswered">0</div> Not Answered</div>
+                <div class="tcs-legend-item"><div class="tcs-status tcs-purple" id="legendMarked">0</div> Marked</div>
+                <div class="tcs-legend-item"><div class="tcs-status tcs-gray" id="legendNotVisited">0</div> Not Visited</div>
+              </div>
+              <h3 style="margin-top:20px;color:#0c4c8a;font-size:15px;">Question Palette</h3>
+              <div class="tcs-palette" id="mockPaletteGrid"></div>
+              <div class="tcs-side-buttons">
+                <button id="mockQuitBtn">Quit Test</button>
+                <button id="mockSubmitPaletteBtn">Submit Test</button>
+              </div>
             </div>
           </div>
           <div class="mock-result hidden" id="mockResultContainer">
