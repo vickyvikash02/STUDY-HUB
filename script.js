@@ -574,8 +574,14 @@ function openPdf(idx, download) {
     a.click();
     document.body.removeChild(a);
   } else {
-    window.open(ebook.url, '_blank');
+    window.open(viewUrl(ebook.url), '_blank');
   }
+}
+
+function viewUrl(url) {
+  const m = url && url.match(/[?&]id=([^&]+)/);
+  if (m) return 'https://drive.google.com/file/d/' + m[1] + '/preview';
+  return url;
 }
 
 function delEbook(idx) {
