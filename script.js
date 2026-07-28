@@ -7,21 +7,9 @@ let qidCounter = 0;
 
 async function loadData() {
   try {
-    const { data: rows, error } = await sb.from('app_data').select('payload').eq('id', 1).single();
-    if (!error && rows) {
-      const d = rows.payload;
-      data = { categories: d.categories || {}, ebooks: d.ebooks || [] };
-      mockTests = d.mockTests || [];
-    } else {
-      data = { categories: {}, ebooks: [] };
-      mockTests = [];
-    }
-  } catch {
-    try {
-      const r = localStorage.getItem('studyhub_data');
-      if (r) { const d = JSON.parse(r); data = { categories: d.categories || {}, ebooks: d.ebooks || [] }; mockTests = d.mockTests || []; }
-    } catch {}
-  }
+    const r = localStorage.getItem('studyhub_data');
+    if (r) { const d = JSON.parse(r); data = { categories: d.categories || {}, ebooks: d.ebooks || [] }; mockTests = d.mockTests || []; }
+  } catch {}
   if (!data.categories) data.categories = {};
   if (!Array.isArray(data.ebooks)) data.ebooks = [];
   if (!Array.isArray(mockTests)) mockTests = [];
@@ -32,26 +20,19 @@ async function saveData() {
   try {
     localStorage.setItem('studyhub_data', JSON.stringify(data));
   } catch { }
-  try {
-    await sb.from('app_data').upsert({ id: 1, payload: data }, { onConflict: 'id' });
-  } catch { }
 }
 
 async function uploadFile(file, folder) {
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-  const path = folder + '/' + Date.now() + '_' + safeName;
-  const { error } = await sb.storage.from('studyhub').upload(path, file);
-  if (error) throw new Error(error.message);
-  const { data: { publicUrl } } = sb.storage.from('studyhub').getPublicUrl(path);
-  return publicUrl;
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
 }
 
 async function deleteUploadedFile(url) {
-  if (!url) return;
-  const parts = url.split('/object/public/studyhub/');
-  if (parts.length === 2) {
-    await sb.storage.from('studyhub').remove([parts[1]]).catch(() => {});
-  }
+  // Data URLs are embedded in the JSON — no server file to delete
 }
 
 function imgUrl(url) {
@@ -460,10 +441,7 @@ function renderAdminEbook(container) {
   const apiKey = localStorage.getItem('gdrive_api_key') || '';
   let html = '<div class="admin-section"><h3>Add E-Book</h3><div class="admin-row" style="flex-wrap:wrap;gap:8px;">';
   html += '<input type="text" id="ebookName" placeholder="E-Book name" style="flex:1;min-width:160px;">';
-  html += '<input type="file" id="ebookFile" accept=".pdf" style="flex:1;min-width:120px;">';
-  html += '<button class="btn-primary" id="ebookUploadBtn"><i class="fas fa-upload"></i> Upload</button></div>';
-  html += '<div class="admin-row" style="flex-wrap:wrap;gap:8px;margin-top:8px;">';
-  html += '<input type="text" id="ebookManualUrl" placeholder="Or paste a Google Drive / direct URL" style="flex:2;min-width:200px;">';
+  html += '<input type="text" id="ebookManualUrl" placeholder="Paste a Google Drive / direct URL" style="flex:2;min-width:200px;">';
   html += '<button class="btn-secondary" id="ebookAddUrlBtn"><i class="fas fa-link"></i> Add URL</button></div></div>';
   html += '<div class="admin-section"><h3>Linked Drive Folders</h3>';
   html += '<div class="admin-row" style="flex-wrap:wrap;gap:8px;">';
@@ -474,7 +452,6 @@ function renderAdminEbook(container) {
   html += '<div id="driveFolderList"></div></div>';
   html += '<div class="admin-section"><h3>All E-Books <span style="font-weight:400;font-size:13px;color:var(--text2);">(' + (data.ebooks || []).length + ')</span></h3><div id="adminEbookList"></div></div>';
   container.innerHTML = html;
-  document.getElementById('ebookUploadBtn').addEventListener('click', addEbook);
   document.getElementById('ebookAddUrlBtn').addEventListener('click', addEbookUrl);
   document.getElementById('linkDriveFolderBtn').addEventListener('click', linkDriveFolder);
   renderDriveFolders();
@@ -592,28 +569,6 @@ function addEbookUrl() {
   document.getElementById('ebookName').value = '';
   document.getElementById('ebookManualUrl').value = '';
   renderEbookList(true, 'adminEbookList');
-}
-
-async function addEbook() {
-  const name = document.getElementById('ebookName').value.trim();
-  const file = document.getElementById('ebookFile').files[0];
-  if (!name) { alert('Enter an e-book name.'); return; }
-  if (!file) { alert('Select a PDF file.'); return; }
-  const btn = document.getElementById('ebookUploadBtn');
-  btn.disabled = true; btn.textContent = 'Uploading...';
-  try {
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const path = 'ebooks/' + Date.now() + '_' + safeName;
-    const { error } = await sb.storage.from('studyhub').upload(path, file);
-    if (error) throw new Error(error.message);
-    const { data: { publicUrl } } = sb.storage.from('studyhub').getPublicUrl(path);
-    data.ebooks.push({ id: Date.now(), name, url: publicUrl, uploaded: new Date().toLocaleDateString() });
-    await saveData();
-    document.getElementById('ebookName').value = '';
-    document.getElementById('ebookFile').value = '';
-    renderEbookList(true, 'adminEbookList');
-  } catch (e) { alert('Upload error: ' + e.message); }
-  btn.disabled = false; btn.textContent = 'Upload';
 }
 
 function renderEbookList(showDelete, containerId) {
@@ -1524,34 +1479,7 @@ function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.
 function updateStats() { document.getElementById('statsBadge').textContent = countQuestions() + ' questions'; }
 
 // ======================== EVENT BINDING ========================
-async function setupSupabase() {
-  let bucketOk = false, tableOk = false;
-  try {
-    const { data: buckets } = await sb.storage.listBuckets();
-    if (buckets?.find(b => b.name === 'studyhub')) bucketOk = true;
-  } catch (e) {}
-  if (!bucketOk) {
-    try {
-      const { error } = await sb.storage.createBucket('studyhub', { public: true });
-      if (!error) bucketOk = true;
-    } catch (e) {}
-    if (!bucketOk) console.warn('Create bucket "studyhub" in Supabase Dashboard → Storage');
-  }
-  try {
-    const { data, error } = await sb.from('app_data').select('id').eq('id', 1).single();
-    if (!error) tableOk = true;
-  } catch (e) {}
-  if (!tableOk) {
-    try {
-      const { error } = await sb.from('app_data').insert({ id: 1, payload: {} }).single();
-      if (!error) tableOk = true;
-    } catch (e) {}
-    if (!tableOk) console.warn('Run setup.sql in Supabase Dashboard → SQL Editor');
-  }
-}
-
 async function init() {
-  await setupSupabase();
   try {
     await loadData();
     loadTheme();
