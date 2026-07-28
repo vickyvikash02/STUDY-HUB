@@ -457,7 +457,7 @@ function renderEbook() {
 }
 
 function renderAdminEbook(container) {
-  const savedKey = localStorage.getItem('gdrive_api_key') || '';
+  const apiKey = localStorage.getItem('gdrive_api_key') || '';
   let html = '<div class="admin-section"><h3>Add E-Book</h3><div class="admin-row" style="flex-wrap:wrap;gap:8px;">';
   html += '<input type="text" id="ebookName" placeholder="E-Book name" style="flex:1;min-width:160px;">';
   html += '<input type="file" id="ebookFile" accept=".pdf" style="flex:1;min-width:120px;">';
@@ -465,49 +465,118 @@ function renderAdminEbook(container) {
   html += '<div class="admin-row" style="flex-wrap:wrap;gap:8px;margin-top:8px;">';
   html += '<input type="text" id="ebookManualUrl" placeholder="Or paste a Google Drive / direct URL" style="flex:2;min-width:200px;">';
   html += '<button class="btn-secondary" id="ebookAddUrlBtn"><i class="fas fa-link"></i> Add URL</button></div></div>';
-  html += '<div class="admin-section"><h3>Import from Google Drive Folder</h3>';
+  html += '<div class="admin-section"><h3>Linked Drive Folders</h3>';
   html += '<div class="admin-row" style="flex-wrap:wrap;gap:8px;">';
-  html += '<input type="text" id="gdriveFolderUrl" placeholder="Google Drive folder URL or ID" style="flex:2;min-width:200px;">';
-  html += '<input type="text" id="gdriveApiKey" placeholder="API Key (saved after first use)" style="flex:1;min-width:140px;" value="' + esc(savedKey) + '">';
-  html += '<button class="btn-secondary" id="gdriveImportBtn"><i class="fas fa-folder-open"></i> Import</button></div></div>';
-  html += '<div class="admin-section"><h3>All E-Books</h3><div id="adminEbookList"></div></div>';
+  html += '<input type="text" id="driveFolderName" placeholder="Label (e.g. Maths Books)" style="flex:1;min-width:140px;">';
+  html += '<input type="text" id="driveFolderLink" placeholder="Google Drive folder URL or ID" style="flex:2;min-width:200px;">';
+  html += '<input type="text" id="driveFolderApiKey" placeholder="API Key (one-time)" style="flex:1;min-width:140px;" value="' + esc(apiKey) + '">';
+  html += '<button class="btn-secondary" id="linkDriveFolderBtn"><i class="fas fa-folder-plus"></i> Link Folder</button></div>';
+  html += '<div id="driveFolderList"></div></div>';
+  html += '<div class="admin-section"><h3>All E-Books <span style="font-weight:400;font-size:13px;color:var(--text2);">(' + (data.ebooks || []).length + ')</span></h3><div id="adminEbookList"></div></div>';
   container.innerHTML = html;
   document.getElementById('ebookUploadBtn').addEventListener('click', addEbook);
   document.getElementById('ebookAddUrlBtn').addEventListener('click', addEbookUrl);
-  document.getElementById('gdriveImportBtn').addEventListener('click', importGoogleDriveFolder);
+  document.getElementById('linkDriveFolderBtn').addEventListener('click', linkDriveFolder);
+  renderDriveFolders();
   renderEbookList(true, 'adminEbookList');
 }
 
-async function importGoogleDriveFolder() {
-  const folderInput = document.getElementById('gdriveFolderUrl').value.trim();
-  let apiKey = document.getElementById('gdriveApiKey').value.trim();
+function linkDriveFolder() {
+  const name = document.getElementById('driveFolderName').value.trim();
+  const folderInput = document.getElementById('driveFolderLink').value.trim();
+  let apiKey = document.getElementById('driveFolderApiKey').value.trim();
   if (apiKey) localStorage.setItem('gdrive_api_key', apiKey);
   if (!apiKey) apiKey = localStorage.getItem('gdrive_api_key');
   let folderId = folderInput;
   const m = folderInput.match(/folders\/([a-zA-Z0-9_-]+)/);
   if (m) folderId = m[1];
-  if (!folderId) { alert('Enter a valid Google Drive folder URL or ID.'); return; }
-  if (!apiKey) { alert('Enter your Google Drive API key. Get one free at https://console.cloud.google.com → APIs & Services → Credentials → Create API key'); return; }
-  const btn = document.getElementById('gdriveImportBtn');
-  btn.disabled = true; btn.textContent = 'Importing...';
-  try {
-    const res = await fetch('https://www.googleapis.com/drive/v3/files?q=\'' + folderId + '\'+in+parents+and+mimeType=\'application/pdf\'&key=' + apiKey + '&fields=files(id,name)');
+  if (!name || !folderId) { alert('Enter a folder name and URL.'); return; }
+  if (!apiKey) { alert('Enter your Google Drive API key first.'); return; }
+  if (!data.driveFolders) data.driveFolders = [];
+  if (data.driveFolders.some(f => f.folderId === folderId)) { alert('Folder already linked.'); return; }
+  data.driveFolders.push({ id: Date.now(), name, folderId });
+  saveData();
+  document.getElementById('driveFolderName').value = '';
+  document.getElementById('driveFolderLink').value = '';
+  renderDriveFolders();
+}
+
+async function renderDriveFolders() {
+  const container = document.getElementById('driveFolderList');
+  const apiKey = localStorage.getItem('gdrive_api_key');
+  if (!data.driveFolders || !data.driveFolders.length) {
+    container.innerHTML = '<p style="color:var(--text2);font-size:13px;margin-top:8px;">No folders linked yet.</p>';
+    return;
+  }
+  let html = '';
+  for (const folder of data.driveFolders) {
+    const idx = data.driveFolders.indexOf(folder);
+    html += '<div class="admin-item" style="flex-direction:column;align-items:stretch;gap:6px;margin-top:8px;">';
+    html += '<div style="display:flex;align-items:center;gap:8px;"><strong><i class="fas fa-folder"></i> ' + esc(folder.name) + '</strong>';
+    html += '<button class="del-btn" onclick="unlinkDriveFolder(' + idx + ')" style="margin-left:auto;">Unlink</button></div>';
+    if (apiKey) {
+      try {
+        const pdfs = await scanDriveFolder(folder.folderId, apiKey);
+        if (pdfs.length) {
+          html += '<div style="display:flex;flex-direction:column;gap:3px;margin-left:20px;margin-top:4px;">';
+          pdfs.forEach(f => {
+            const exists = data.ebooks.some(e => e.url && e.url.includes(f.id));
+            html += '<label style="font-size:13px;cursor:pointer;"><input type="checkbox" class="folder-pdf-check" data-id="' + f.id + '" data-name="' + esc(f.name.replace(/\.pdf$/i, '')) + '"' + (exists ? ' checked disabled' : '') + '> ' + esc(f.name) + (exists ? ' <span style="color:var(--text2);font-size:11px;">(added)</span>' : '') + '</label>';
+          });
+          html += '</div>';
+          html += '<button class="btn-primary" style="align-self:flex-start;font-size:12px;padding:5px 14px;margin-top:4px;" onclick="addSelectedFromFolder()"><i class="fas fa-plus"></i> Add Selected</button>';
+        } else {
+          html += '<p style="color:var(--text2);font-size:12px;margin-left:20px;margin-top:4px;">No PDFs found. Make sure the folder is shared publicly.</p>';
+        }
+      } catch (e) {
+        html += '<p style="color:var(--danger);font-size:12px;margin-left:20px;margin-top:4px;">Error: ' + esc(e.message) + '</p>';
+      }
+    } else {
+      html += '<p style="color:var(--text2);font-size:12px;margin-left:20px;margin-top:4px;">Enter your API key above and click Link Folder.</p>';
+    }
+    html += '</div>';
+  }
+  container.innerHTML = html;
+}
+
+async function scanDriveFolder(folderId, apiKey) {
+  const pdfs = [];
+  async function scan(id) {
+    const res = await fetch('https://www.googleapis.com/drive/v3/files?q=\'' + id + '\'+in+parents&key=' + apiKey + '&fields=files(id,name,mimeType)');
     const d = await res.json();
     if (d.error) throw new Error(d.error.message);
-    if (!d.files || !d.files.length) { alert('No PDFs found in that folder. Make sure the folder is shared publicly.'); btn.disabled = false; btn.textContent = 'Import'; return; }
-    let added = 0;
-    d.files.forEach(f => {
-      const exists = data.ebooks.some(e => e.url && e.url.includes(f.id));
-      if (!exists) {
-        data.ebooks.push({ id: Date.now() + added, name: f.name.replace(/\.pdf$/i, ''), url: 'https://drive.google.com/uc?export=download&id=' + f.id, uploaded: new Date().toLocaleDateString() });
-        added++;
-      }
+    if (!d.files) return;
+    for (const f of d.files) {
+      if (f.mimeType === 'application/vnd.google-apps.folder') await scan(f.id);
+      else if (f.mimeType === 'application/pdf') pdfs.push(f);
+    }
+  }
+  await scan(folderId);
+  return pdfs;
+}
+
+async function unlinkDriveFolder(idx) {
+  if (!confirm('Unlink "' + data.driveFolders[idx].name + '"?')) return;
+  data.driveFolders.splice(idx, 1);
+  await saveData();
+  renderDriveFolders();
+}
+
+async function addSelectedFromFolder() {
+  const checks = document.querySelectorAll('.folder-pdf-check:checked:not(:disabled)');
+  if (!checks.length) { alert('No new PDFs selected.'); return; }
+  checks.forEach(c => {
+    data.ebooks.push({
+      id: Date.now() + Math.random(),
+      name: c.dataset.name,
+      url: 'https://drive.google.com/uc?export=download&id=' + c.dataset.id,
+      uploaded: new Date().toLocaleDateString()
     });
-    await saveData();
-    renderEbookList(true, 'adminEbookList');
-    alert('Imported ' + added + ' new PDF(s) from folder.' + (d.files.length - added > 0 ? ' (' + (d.files.length - added) + ' already existed.)' : ''));
-  } catch (e) { alert('Error: ' + e.message); }
-  btn.disabled = false; btn.textContent = 'Import';
+  });
+  await saveData();
+  renderDriveFolders();
+  renderEbookList(true, 'adminEbookList');
+  alert('Added ' + checks.length + ' PDF(s).');
 }
 
 function addEbookUrl() {
