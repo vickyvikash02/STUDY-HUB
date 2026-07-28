@@ -457,18 +457,57 @@ function renderEbook() {
 }
 
 function renderAdminEbook(container) {
+  const savedKey = localStorage.getItem('gdrive_api_key') || '';
   let html = '<div class="admin-section"><h3>Add E-Book</h3><div class="admin-row" style="flex-wrap:wrap;gap:8px;">';
   html += '<input type="text" id="ebookName" placeholder="E-Book name" style="flex:1;min-width:160px;">';
   html += '<input type="file" id="ebookFile" accept=".pdf" style="flex:1;min-width:120px;">';
   html += '<button class="btn-primary" id="ebookUploadBtn"><i class="fas fa-upload"></i> Upload</button></div>';
   html += '<div class="admin-row" style="flex-wrap:wrap;gap:8px;margin-top:8px;">';
-  html += '<input type="text" id="ebookManualUrl" placeholder="Or paste a direct URL" style="flex:2;min-width:200px;">';
+  html += '<input type="text" id="ebookManualUrl" placeholder="Or paste a Google Drive / direct URL" style="flex:2;min-width:200px;">';
   html += '<button class="btn-secondary" id="ebookAddUrlBtn"><i class="fas fa-link"></i> Add URL</button></div></div>';
+  html += '<div class="admin-section"><h3>Import from Google Drive Folder</h3>';
+  html += '<div class="admin-row" style="flex-wrap:wrap;gap:8px;">';
+  html += '<input type="text" id="gdriveFolderUrl" placeholder="Google Drive folder URL or ID" style="flex:2;min-width:200px;">';
+  html += '<input type="text" id="gdriveApiKey" placeholder="API Key (saved after first use)" style="flex:1;min-width:140px;" value="' + esc(savedKey) + '">';
+  html += '<button class="btn-secondary" id="gdriveImportBtn"><i class="fas fa-folder-open"></i> Import</button></div></div>';
   html += '<div class="admin-section"><h3>All E-Books</h3><div id="adminEbookList"></div></div>';
   container.innerHTML = html;
   document.getElementById('ebookUploadBtn').addEventListener('click', addEbook);
   document.getElementById('ebookAddUrlBtn').addEventListener('click', addEbookUrl);
+  document.getElementById('gdriveImportBtn').addEventListener('click', importGoogleDriveFolder);
   renderEbookList(true, 'adminEbookList');
+}
+
+async function importGoogleDriveFolder() {
+  const folderInput = document.getElementById('gdriveFolderUrl').value.trim();
+  let apiKey = document.getElementById('gdriveApiKey').value.trim();
+  if (apiKey) localStorage.setItem('gdrive_api_key', apiKey);
+  if (!apiKey) apiKey = localStorage.getItem('gdrive_api_key');
+  let folderId = folderInput;
+  const m = folderInput.match(/folders\/([a-zA-Z0-9_-]+)/);
+  if (m) folderId = m[1];
+  if (!folderId) { alert('Enter a valid Google Drive folder URL or ID.'); return; }
+  if (!apiKey) { alert('Enter your Google Drive API key. Get one free at https://console.cloud.google.com → APIs & Services → Credentials → Create API key'); return; }
+  const btn = document.getElementById('gdriveImportBtn');
+  btn.disabled = true; btn.textContent = 'Importing...';
+  try {
+    const res = await fetch('https://www.googleapis.com/drive/v3/files?q=\'' + folderId + '\'+in+parents+and+mimeType=\'application/pdf\'&key=' + apiKey + '&fields=files(id,name)');
+    const d = await res.json();
+    if (d.error) throw new Error(d.error.message);
+    if (!d.files || !d.files.length) { alert('No PDFs found in that folder. Make sure the folder is shared publicly.'); btn.disabled = false; btn.textContent = 'Import'; return; }
+    let added = 0;
+    d.files.forEach(f => {
+      const exists = data.ebooks.some(e => e.url && e.url.includes(f.id));
+      if (!exists) {
+        data.ebooks.push({ id: Date.now() + added, name: f.name.replace(/\.pdf$/i, ''), url: 'https://drive.google.com/uc?export=download&id=' + f.id, uploaded: new Date().toLocaleDateString() });
+        added++;
+      }
+    });
+    await saveData();
+    renderEbookList(true, 'adminEbookList');
+    alert('Imported ' + added + ' new PDF(s) from folder.' + (d.files.length - added > 0 ? ' (' + (d.files.length - added) + ' already existed.)' : ''));
+  } catch (e) { alert('Error: ' + e.message); }
+  btn.disabled = false; btn.textContent = 'Import';
 }
 
 function addEbookUrl() {
@@ -476,6 +515,9 @@ function addEbookUrl() {
   let url = document.getElementById('ebookManualUrl').value.trim();
   if (!name) { alert('Enter an e-book name.'); return; }
   if (!url) { alert('Paste a URL.'); return; }
+  // Convert Google Drive share link to direct download
+  const m = url.match(/drive\.google\.com\/.*[?&]id=([^&]+)/) || url.match(/drive\.google\.com\/file\/d\/([^/]+)/);
+  if (m) url = 'https://drive.google.com/uc?export=download&id=' + m[1];
   data.ebooks.push({ id: Date.now(), name, url, uploaded: new Date().toLocaleDateString() });
   saveData();
   document.getElementById('ebookName').value = '';
