@@ -27,10 +27,6 @@
       <a class="nav-item" data-page="admin"><i class="fas fa-cog"></i> Admin</a>
     </nav>
     <div class="sidebar-footer">
-      <div class="sidebar-progress">
-        <div class="sidebar-progress-label"><span>Progress</span><span>0% accuracy</span></div>
-        <div class="sidebar-progress-bar"><div class="sidebar-progress-fill"></div></div>
-      </div>
       <button class="theme-toggle" id="themeToggle"><i class="fas fa-moon"></i></button>
     </div>
   </aside>
@@ -49,62 +45,11 @@
 
       <!-- ===================== DASHBOARD ===================== -->
       <section id="page-dashboard" class="page active">
-        <div class="dash-header">
-          <div>
-            <h1 class="dash-title">Dashboard</h1>
-            <p class="dash-subtitle">Welcome back! Here's your study overview.</p>
-          </div>
-          <div class="dash-header-actions">
-            <button class="dash-icon-btn" aria-label="Search"><i class="fas fa-search"></i></button>
-            <button class="dash-icon-btn" aria-label="Notifications"><i class="fas fa-bell"></i></button>
-            <span class="stats-badge" id="statsBadgeDash">0 questions</span>
-          </div>
+        <div class="hero">
+          <h1>📚 Your Study Hub</h1>
+          <p>Explore categories, practice questions, and test your knowledge.</p>
         </div>
-
-        <div class="hero-banner">
-          <div class="hero-bg-glow"></div>
-          <div class="hero-content">
-            <div class="hero-icon-wrap">
-              <i class="fas fa-graduation-cap"></i>
-            </div>
-            <h2>Your Study Hub</h2>
-            <p>Explore categories, practice questions, and test your knowledge.</p>
-          </div>
-          <div class="hero-illustration">
-            <div class="hero-shape hero-shape-1"></div>
-            <div class="hero-shape hero-shape-2"></div>
-            <div class="hero-shape hero-shape-3"></div>
-          </div>
-        </div>
-
-        <div class="dash-search">
-          <i class="fas fa-search"></i>
-          <input type="text" id="topicSearch" placeholder="Search topics, subjects or questions..." oninput="filterDashboardTopics(this.value)">
-        </div>
-
-        <div class="stats-grid" id="statsGrid">
-          <div class="stat-card stat-purple">
-            <div class="stat-icon-wrap"><i class="fas fa-check-circle"></i></div>
-            <div class="stat-number" id="statAttempted">0</div>
-            <div class="stat-label">Questions Attempted</div>
-          </div>
-          <div class="stat-card stat-emerald">
-            <div class="stat-icon-wrap"><i class="fas fa-bullseye"></i></div>
-            <div class="stat-number" id="statAccuracy">0%</div>
-            <div class="stat-label">Average Accuracy</div>
-          </div>
-          <div class="stat-card stat-amber">
-            <div class="stat-icon-wrap"><i class="fas fa-fire"></i></div>
-            <div class="stat-number" id="statStreak">0</div>
-            <div class="stat-label">Day Streak</div>
-          </div>
-          <div class="stat-card stat-pink">
-            <div class="stat-icon-wrap"><i class="fas fa-trophy"></i></div>
-            <div class="stat-number" id="statTests">0</div>
-            <div class="stat-label">Tests Completed</div>
-          </div>
-        </div>
-
+        <div class="dash-search"><i class="fas fa-search"></i><input type="text" id="topicSearch" placeholder="Search topics..." oninput="filterDashboardTopics(this.value)"></div>
         <div id="dashboardGrid" class="dash-grid"></div>
       </section>
 

@@ -22,54 +22,6 @@ async function saveData() {
   } catch { }
 }
 
-// ======================== STATS TRACKING ========================
-function loadStats() {
-  try { return JSON.parse(localStorage.getItem('studyhub_stats')) || { results: [], streak: 0, lastActive: null }; }
-  catch { return { results: [], streak: 0, lastActive: null }; }
-}
-
-function saveStats(stats) {
-  localStorage.setItem('studyhub_stats', JSON.stringify(stats));
-}
-
-function updateStreak(stats) {
-  const today = new Date().toDateString();
-  if (stats.lastActive === today) return stats;
-  const yesterday = new Date(Date.now() - 86400000).toDateString();
-  if (stats.lastActive === yesterday) { stats.streak++; }
-  else if (stats.lastActive !== today) { stats.streak = 1; }
-  stats.lastActive = today;
-  return stats;
-}
-
-function updateDashboardStats() {
-  const stats = loadStats();
-  updateStreak(stats); saveStats(stats);
-
-  const totalQ = countQuestions();
-  const results = stats.results || [];
-  const avgAcc = results.length ? Math.round(results.reduce((s, r) => s + r.pct, 0) / results.length) : 0;
-
-  document.getElementById('statsBadge').textContent = totalQ + ' questions';
-  const dashBadge = document.getElementById('statsBadgeDash');
-  if (dashBadge) dashBadge.textContent = totalQ + ' questions';
-
-  const el = (id) => document.getElementById(id);
-  if (el('statAttempted')) el('statAttempted').textContent = totalQ;
-  if (el('statAccuracy')) el('statAccuracy').textContent = avgAcc + '%';
-  if (el('statStreak')) el('statStreak').textContent = stats.streak;
-  if (el('statTests')) el('statTests').textContent = results.length;
-
-  // Sidebar progress bar
-  const fill = document.querySelector('.sidebar-progress-fill');
-  const label = document.querySelector('.sidebar-progress-label span:last-child');
-  if (fill && label) {
-    const pct = Math.min(avgAcc, 100);
-    fill.style.width = pct + '%';
-    label.textContent = avgAcc + '% accuracy';
-  }
-}
-
 async function uploadFile(file, folder) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -250,7 +202,7 @@ function switchPage(page) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.page === page));
   const titles = { dashboard: 'Dashboard', questions: 'Question Bank', mocks: 'Mock Tests', builder: 'Test Builder', ebook: 'E-Book', admin: 'Admin' };
   document.getElementById('pageTitle').textContent = titles[page] || 'Dashboard';
-  updateDashboardStats();
+  document.getElementById('statsBadge').textContent = countQuestions() + ' questions';
   if (page === 'questions' && !_qbContext) renderQBTopics();
   if (page === 'dashboard') { _qbContext = null; renderDashboard(); }
   if (page === 'mocks') renderMockList();
@@ -1474,12 +1426,6 @@ function submitMockTest() {
     details.push({ q, userAns, isCorrect });
   });
   const pct = Math.round(correct / total * 100);
-
-  // Save result for stats
-  const stats = loadStats();
-  stats.results.push({ pct, correct, total, date: new Date().toISOString() });
-  updateStreak(stats); saveStats(stats);
-
   const circle = document.getElementById('mockResultCircle');
   circle.style.background = pct >= 80 ? 'var(--success)' : pct >= 50 ? 'var(--warning)' : 'var(--danger)';
   document.getElementById('mockResultPct').textContent = pct + '%';
@@ -1500,7 +1446,6 @@ function submitMockTest() {
   });
   document.getElementById('mockResultDetails').innerHTML = detailHtml;
   document.getElementById('mockResultContainer').classList.remove('hidden');
-  updateDashboardStats();
 }
 
 function retryMockTest() {
@@ -1531,7 +1476,7 @@ function loadTheme() {
 // ======================== UTILITIES ========================
 function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
-function updateStats() { updateDashboardStats(); }
+function updateStats() { document.getElementById('statsBadge').textContent = countQuestions() + ' questions'; }
 
 // ======================== EVENT BINDING ========================
 async function init() {
