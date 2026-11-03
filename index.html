@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-<link rel="stylesheet" href="style.css?v=4">
+<link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
 
@@ -271,68 +271,191 @@
           </div>
           <div id="mockList" class="mock-grid"></div>
         </div>
-        <div id="mockTestContainer" class="hidden">
-          <div class="tcs-header">
-            <h1 id="mockTestTitle">Test</h1>
-            <div class="tcs-logo">Study Hub</div>
-          </div>
-          <div class="tcs-body">
-            <div class="tcs-left">
-              <div class="tcs-section-box">
-                <div class="tcs-section-title">Sections</div>
-                <button class="tcs-section-btn" id="tcsSectionBtn">Numerical Ability</button>
+        <div id="mockTestContainer" class="exam-shell hidden">
+          <!-- ===== Exam header ===== -->
+          <header class="exam-header">
+            <div class="exam-brand">
+              <span class="exam-logo"><i class="fas fa-graduation-cap"></i></span>
+              <div class="exam-brand-text">
+                <h1 id="mockTestTitle">Mock Test</h1>
+                <span class="exam-brand-sub" id="mockTestSubtitle">Computer Based Test</span>
               </div>
-              <div class="tcs-qbox">
-                <div class="tcs-qheader"><span id="mockQNumber">Question No 1</span></div>
-                <div class="tcs-qcontent">
-                  <p id="mockQText"></p>
-                  <img class="q-img hidden" id="mockQImg" alt="">
-                  <div id="mockQOpts"></div>
-                  <div class="q-explanation hidden" id="mockQExp">
+            </div>
+
+            <div class="exam-clock" id="examClock" aria-live="polite">
+              <span class="exam-clock-label">Time Left</span>
+              <div class="exam-clock-digits">
+                <span class="clock-box"><b id="mockTimerHours">00</b><small>HRS</small></span>
+                <span class="clock-sep">:</span>
+                <span class="clock-box"><b id="mockTimerMinutes">00</b><small>MIN</small></span>
+                <span class="clock-sep">:</span>
+                <span class="clock-box"><b id="mockTimerSeconds">00</b><small>SEC</small></span>
+              </div>
+            </div>
+
+            <div class="exam-header-actions">
+              <button type="button" class="exam-icon-btn" id="examThemeToggle" title="Toggle theme" aria-label="Toggle theme"><i class="fas fa-moon"></i></button>
+              <button type="button" class="exam-icon-btn" id="mockPauseBtn" title="Pause test"><i class="fas fa-pause"></i><span>Pause</span></button>
+              <button type="button" class="exam-icon-btn" id="mockFullscreenBtn" title="Fullscreen"><i class="fas fa-expand"></i><span>Fullscreen</span></button>
+            </div>
+          </header>
+
+          <!-- ===== Subject navigation ===== -->
+          <nav class="exam-subjects" id="mockSubjectNav" aria-label="Test sections"></nav>
+
+          <!-- ===== Body ===== -->
+          <div class="exam-body" id="examBody">
+            <section class="exam-main">
+              <div class="exam-toolbar">
+                <div class="exam-qno">Question No. <b id="mockQNumber">1</b></div>
+                <div class="exam-toolbar-right">
+                  <label class="exam-lang-wrap" title="Question language">
+                    <i class="fas fa-globe"></i>
+                    <select id="mockLanguage" class="exam-lang">
+                      <option value="en">English</option>
+                      <option value="hi">हिंदी</option>
+                    </select>
+                  </label>
+                  <button type="button" class="exam-btn exam-btn-save" id="mockSaveBtn"><i class="far fa-bookmark"></i> Save</button>
+                  <button type="button" class="exam-btn exam-btn-report" id="mockReportBtn"><i class="far fa-flag"></i> Report</button>
+                </div>
+              </div>
+
+              <div class="exam-question-scroll">
+                <div class="exam-question-card">
+                  <div class="exam-qtext" id="mockQText"></div>
+                  <img class="q-img hidden" id="mockQImg" alt="Question image">
+                  <div class="exam-options" id="mockQOpts"></div>
+                  <div class="exam-explanation hidden" id="mockQExp">
                     <strong>Explanation:</strong> <span id="mockQExpText"></span>
-                    <img class="q-img hidden" id="mockQExpImg" alt="" style="margin-top:8px;">
+                    <img class="q-img hidden" id="mockQExpImg" alt="Explanation image">
                   </div>
-                </div>
-                <div class="tcs-bottom">
-                  <div class="tcs-left-buttons">
-                    <button class="tcs-btn" id="mockPrevBtn"><i class="fas fa-chevron-left"></i> Previous</button>
-                    <button class="tcs-btn" id="mockMarkBtn">Mark for Review & Next</button>
-                    <button class="tcs-btn" id="mockClearBtn">Clear Response</button>
-                  </div>
-                  <button class="tcs-save-btn" id="mockNextBtn">Save & Next <i class="fas fa-chevron-right"></i></button>
-                  <button class="tcs-save-btn hidden" id="mockSubmitBtn"><i class="fas fa-check"></i> Submit Test</button>
                 </div>
               </div>
+
+              <div class="exam-bottom">
+                <div class="exam-bottom-left">
+                  <button type="button" class="exam-btn exam-btn-outline-blue" id="mockMarkBtn"><i class="far fa-bookmark"></i> Mark &amp; Save</button>
+                  <button type="button" class="exam-btn exam-btn-outline-red" id="mockClearBtn"><i class="fas fa-eraser"></i> Clear Response</button>
+                </div>
+                <div class="exam-bottom-right">
+                  <button type="button" class="exam-btn exam-btn-ghost" id="mockPrevBtn"><i class="fas fa-chevron-left"></i> Previous</button>
+                  <button type="button" class="exam-btn exam-btn-primary" id="mockNextBtn">Save &amp; Next <i class="fas fa-chevron-right"></i></button>
+                </div>
+              </div>
+            </section>
+
+            <!-- ===== Question palette ===== -->
+            <aside class="exam-side">
+              <div class="exam-candidate">
+                <div class="exam-avatar"><i class="fas fa-user"></i></div>
+                <div class="exam-candidate-info">
+                  <strong>Candidate</strong>
+                  <small>Roll No: SH-2026</small>
+                </div>
+              </div>
+
+              <div class="exam-legend">
+                <div class="exam-legend-item"><span class="status-chip st-answered" id="legendAnswered">0</span> Answered</div>
+                <div class="exam-legend-item"><span class="status-chip st-notanswered" id="legendNotAnswered">0</span> Not Answered</div>
+                <div class="exam-legend-item"><span class="status-chip st-notvisited" id="legendNotVisited">0</span> Not Visited</div>
+                <div class="exam-legend-item"><span class="status-chip st-marked" id="legendMarked">0</span> Marked for Review</div>
+                <div class="exam-legend-item"><span class="status-chip st-marked-answered" id="legendMarkedAnswered">0</span> Marked &amp; Answered</div>
+              </div>
+
+              <div class="exam-section-title">
+                <span>Section</span>
+                <strong id="mockSectionName">—</strong>
+              </div>
+
+              <div class="exam-palette" id="mockPaletteGrid"></div>
+
+              <div class="exam-side-actions">
+                <button type="button" class="exam-side-btn" id="mockQuestionPaperBtn"><i class="far fa-file-alt"></i> Question Paper</button>
+                <button type="button" class="exam-side-btn" id="mockInstructionsBtn"><i class="far fa-circle-question"></i> Instructions</button>
+              </div>
+
+              <button type="button" class="exam-submit" id="mockSubmitPaletteBtn"><i class="fas fa-paper-plane"></i> Submit Test</button>
+            </aside>
+          </div>
+
+          <!-- ===== Pause overlay ===== -->
+          <div class="exam-overlay hidden" id="mockPauseOverlay">
+            <div class="exam-modal exam-modal-sm">
+              <div class="exam-modal-icon"><i class="fas fa-pause"></i></div>
+              <h2>Test Paused</h2>
+              <p>The timer has been stopped. Your answers are safe.</p>
+              <button type="button" class="exam-btn exam-btn-primary exam-btn-block" id="mockResumeBtn"><i class="fas fa-play"></i> Resume Test</button>
             </div>
-            <div class="tcs-right">
-              <div class="tcs-profile">
-                <div class="tcs-avatar"></div>
-                <div>Time Left:</div>
-                <div class="tcs-timer" id="mockTimerDisplay">00:00</div>
+          </div>
+
+          <!-- ===== Instructions modal ===== -->
+          <div class="exam-overlay hidden" id="mockInstructionsModal">
+            <div class="exam-modal">
+              <div class="exam-modal-head">
+                <h2>Instructions</h2>
+                <button type="button" class="exam-modal-close" onclick="closeMockModal('mockInstructionsModal')" aria-label="Close"><i class="fas fa-times"></i></button>
               </div>
-              <div class="tcs-legend">
-                <h3>Legend</h3>
-                <div class="tcs-legend-item"><div class="tcs-status tcs-green" id="legendAnswered">0</div> Answered</div>
-                <div class="tcs-legend-item"><div class="tcs-status tcs-orange" id="legendNotAnswered">0</div> Not Answered</div>
-                <div class="tcs-legend-item"><div class="tcs-status tcs-purple" id="legendMarked">0</div> Marked</div>
-                <div class="tcs-legend-item"><div class="tcs-status tcs-gray" id="legendNotVisited">0</div> Not Visited</div>
+              <div class="exam-modal-body">
+                <ol class="exam-instructions">
+                  <li>The timer at the top shows the remaining time. It stops while the test is paused.</li>
+                  <li>Use the subject tabs to move between the sections of the paper.</li>
+                  <li>Click an option to select it, then <b>Save &amp; Next</b> to store the response and continue.</li>
+                  <li><b>Mark &amp; Save</b> stores your response and flags the question for review.</li>
+                  <li><b>Clear Response</b> removes the answer selected for the current question.</li>
+                  <li>The question palette colours show the status of every question in the current section.</li>
+                  <li>Click any question number in the palette to jump straight to it.</li>
+                  <li>Click <b>Submit Test</b> to finish. A confirmation summary is shown before submission.</li>
+                  <li>The test is submitted automatically when the timer reaches zero.</li>
+                </ol>
               </div>
-              <h3 style="margin-top:20px;color:#0c4c8a;font-size:15px;">Question Palette</h3>
-              <div class="tcs-palette" id="mockPaletteGrid"></div>
-              <div class="tcs-side-buttons">
-                <button id="mockQuitBtn">Quit Test</button>
-                <button id="mockSubmitPaletteBtn">Submit Test</button>
+              <div class="exam-modal-foot">
+                <button type="button" class="exam-btn exam-btn-primary" onclick="closeMockModal('mockInstructionsModal')">Got it</button>
               </div>
             </div>
           </div>
+
+          <!-- ===== Question paper modal ===== -->
+          <div class="exam-overlay hidden" id="mockPaperModal">
+            <div class="exam-modal exam-modal-wide">
+              <div class="exam-modal-head">
+                <h2>Question Paper</h2>
+                <button type="button" class="exam-modal-close" onclick="closeMockModal('mockPaperModal')" aria-label="Close"><i class="fas fa-times"></i></button>
+              </div>
+              <div class="exam-modal-body" id="mockPaperBody"></div>
+              <div class="exam-modal-foot">
+                <button type="button" class="exam-btn exam-btn-ghost" onclick="closeMockModal('mockPaperModal')">Close</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ===== Submit confirmation ===== -->
+          <div class="exam-overlay hidden" id="mockSubmitModal">
+            <div class="exam-modal exam-modal-sm">
+              <div class="exam-modal-icon exam-modal-icon-navy"><i class="fas fa-paper-plane"></i></div>
+              <h2>Submit Test?</h2>
+              <p>Once submitted you cannot change your answers.</p>
+              <div class="exam-submit-summary" id="mockSubmitSummary"></div>
+              <div class="exam-modal-actions">
+                <button type="button" class="exam-btn exam-btn-ghost" onclick="closeMockModal('mockSubmitModal')">Cancel</button>
+                <button type="button" class="exam-btn exam-btn-primary" id="mockConfirmSubmitBtn">Yes, Submit</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ===== Result ===== -->
           <div class="mock-result hidden" id="mockResultContainer">
-            <h2>Test Complete!</h2>
-            <div class="result-circle" id="mockResultCircle"><span id="mockResultPct">0%</span></div>
-            <p id="mockResultSummary"></p>
-            <div id="mockResultDetails"></div>
-            <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
-              <button class="btn-primary" id="mockResultBackBtn">Back to Tests</button>
-              <button class="btn-secondary" id="mockRetryBtn"><i class="fas fa-redo"></i> Retry Test</button>
+            <div class="exam-result-wrap">
+              <span class="exam-result-kicker">Exam submitted</span>
+              <h2>Test Complete!</h2>
+              <div class="result-circle" id="mockResultCircle"><span id="mockResultPct">0%</span></div>
+              <p id="mockResultSummary"></p>
+              <div class="exam-result-stats" id="mockResultStats"></div>
+              <div class="exam-result-actions">
+                <button class="btn-primary" id="mockResultBackBtn">Back to Tests</button>
+                <button class="btn-secondary" id="mockRetryBtn"><i class="fas fa-redo"></i> Retry Test</button>
+              </div>
+              <div id="mockResultDetails" class="exam-result-details"></div>
             </div>
           </div>
         </div>
@@ -399,6 +522,6 @@
   </main>
 </div>
 
-<script src="script.js?v=4"></script>
+<script src="script.js?v=5"></script>
 </body>
 </html>

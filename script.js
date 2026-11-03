@@ -1376,6 +1376,7 @@ function delMockTest(idx) {
 
 // ======================== MOCK TEST PLAYER ========================
 let _mockState = null;
+let _examToastTimer = null;
 
 function renderMockList() {
   const container = document.getElementById('mockList');
@@ -1386,151 +1387,522 @@ function renderMockList() {
   }
   mockTests.forEach((t, i) => {
     const div = document.createElement('div'); div.className = 'mock-card';
-    div.innerHTML = '<h3>' + esc(t.name) + '</h3><p><i class="far fa-clock"></i> ' + t.duration + ' min</p><p><i class="fas fa-star"></i> ' + t.totalMarks + ' marks</p><p style="color:var(--text2);">' + (t.questionIds || []).length + ' questions</p>';
+    div.innerHTML = '<h3>' + esc(t.name) + '</h3><p><i class="far fa-clock"></i> ' + t.duration + ' min</p><p><i class="fas fa-star"></i> ' + t.totalMarks + ' marks</p><p style="color:var(--text2);">' + (t.questionIds || []).length + ' questions</p><p class="mock-start"><i class="fas fa-play"></i> Start test</p>';
     div.addEventListener('click', () => startMockTest(i));
     container.appendChild(div);
   });
 }
 
+// Group the questions of a test into sections by their parent category.
+function buildMockSections(questions) {
+  const catName = new Map();
+  forEachQ((q, i, catId, subId, topicId, cat) => { catName.set(q.id, cat ? cat.name : 'General'); });
+  const byName = new Map();
+  const sections = [];
+  questions.forEach(q => {
+    const name = catName.get(q.id) || 'General';
+    let sec = byName.get(name);
+    if (!sec) { sec = { name, ids: [] }; byName.set(name, sec); sections.push(sec); }
+    sec.ids.push(q.id);
+  });
+  return sections.length ? sections : [{ name: 'General', ids: questions.map(q => q.id) }];
+}
+
 function startMockTest(idx) {
-  if (_mockState && _mockState._timer) clearInterval(_mockState._timer);
+  stopMockTimer();
   const t = mockTests[idx];
+  if (!t) return;
+
   const qMap = new Map();
   forEachQ(q => { if ((t.questionIds || []).includes(q.id) && !qMap.has(q.id)) qMap.set(q.id, q); });
   const allQs = (t.questionIds || []).map(id => qMap.get(id)).filter(Boolean);
-  console.log('Mock test questionIds:', JSON.stringify(t.questionIds), 'matched:', allQs.length, 'qMap size:', qMap.size);
-  t.questionIds.forEach(id => { if (!qMap.has(id)) console.log('MISSING id:', id, typeof id, 'qMap keys:', [...qMap.keys()].map(k => k + '(' + typeof k + ')')); });
   if (!allQs.length) { alert('No questions found for this test.'); return; }
-  _mockState = { testIdx: idx, questions: allQs, idx: 0, answers: {}, marked: {}, submitted: false };
+
+  switchPage('mocks');
+
+  _mockState = {
+    testIdx: idx,
+    test: t,
+    questions: allQs,
+    idx: 0,
+    answers: {},
+    pending: {},
+    marked: {},
+    visited: {},
+    sections: buildMockSections(allQs),
+    activeSection: 0,
+    submitted: false,
+    paused: false,
+    remaining: (t.duration || 20) * 60,
+    _timer: null
+  };
+
   document.getElementById('mockListContainer').classList.add('hidden');
   document.getElementById('mockTestContainer').classList.remove('hidden');
+  document.body.classList.add('exam-active');
+
   document.getElementById('mockTestTitle').textContent = t.name;
-  document.getElementById('tcsSectionBtn').textContent = t.name;
+  const now = new Date();
+  document.getElementById('mockTestSubtitle').textContent =
+    'Computer Based Test · ' +
+    now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) +
+    ' · Shift 1';
+
+  const langSel = document.getElementById('mockLanguage');
+  if (langSel) langSel.value = localStorage.getItem('studyhub_exam_lang') || 'en';
+
   document.getElementById('mockResultContainer').classList.add('hidden');
+  closeMockModal('mockPauseOverlay');
+  closeMockModal('mockInstructionsModal');
+  closeMockModal('mockPaperModal');
+  closeMockModal('mockSubmitModal');
+
+  setMockPauseUI(false);
+  setExamThemeIcon();
+  updateMockFullscreenIcon();
+
   renderMockQuestion();
-  renderMockPalette();
   startMockTimer(t.duration);
+}
+
+function mockCurrentSection() {
+  if (!_mockState) return 0;
+  const q = _mockState.questions[_mockState.idx];
+  if (!q) return 0;
+  const i = _mockState.sections.findIndex(s => s.ids.includes(q.id));
+  return i < 0 ? 0 : i;
+}
+
+function renderMockSubjects() {
+  const nav = document.getElementById('mockSubjectNav');
+  if (!nav || !_mockState) return;
+  const active = mockCurrentSection();
+  _mockState.activeSection = active;
+  nav.innerHTML = '';
+  _mockState.sections.forEach((sec, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'exam-subject' + (i === active ? ' active' : '');
+    b.textContent = sec.name;
+    b.addEventListener('click', () => mockSwitchSection(i));
+    nav.appendChild(b);
+  });
+}
+
+function mockSwitchSection(i) {
+  if (!_mockState || _mockState.submitted) return;
+  const sec = _mockState.sections[i];
+  if (!sec || !sec.ids.length) return;
+  commitMockPending();
+  const gi = _mockState.questions.findIndex(q => q.id === sec.ids[0]);
+  if (gi >= 0) _mockState.idx = gi;
+  renderMockQuestion();
+}
+
+// Move the tentative selection into the committed answers.
+function commitMockPending() {
+  if (!_mockState) return false;
+  const q = _mockState.questions[_mockState.idx];
+  if (!q) return false;
+  if (_mockState.pending[q.id] !== undefined) {
+    _mockState.answers[q.id] = _mockState.pending[q.id];
+    delete _mockState.pending[q.id];
+    return true;
+  }
+  return false;
 }
 
 function renderMockQuestion() {
   if (!_mockState || _mockState.submitted) return;
   const s = _mockState;
   const q = s.questions[s.idx];
-  document.getElementById('mockQNumber').textContent = 'Question ' + (s.idx + 1) + ' of ' + s.questions.length;
-  document.getElementById('mockQText').textContent = q.question;
-  const mockQImg = document.getElementById('mockQImg');
-  if (q.image) { mockQImg.src = imgUrl(q.image); mockQImg.classList.remove('hidden'); }
-  else mockQImg.classList.add('hidden');
+  if (!q) return;
 
-  const answered = s.answers[q.id] !== undefined;
+  const sec = s.sections[mockCurrentSection()];
+  const localNo = sec ? sec.ids.indexOf(q.id) + 1 : s.idx + 1;
+  const lang = localStorage.getItem('studyhub_exam_lang') || 'en';
+
+  s.visited[q.id] = true;
+
+  document.getElementById('mockQNumber').textContent = localNo;
+  document.getElementById('mockQText').textContent =
+    (lang === 'hi' && q.question_hi) ? q.question_hi : q.question;
+
+  const qImg = document.getElementById('mockQImg');
+  if (q.image) { qImg.src = imgUrl(q.image); qImg.classList.remove('hidden'); }
+  else { qImg.removeAttribute('src'); qImg.classList.add('hidden'); }
+
   const opts = document.getElementById('mockQOpts');
   opts.innerHTML = '';
-  (q.options || []).forEach((o, i) => {
-    const label = document.createElement('label'); label.className = 'option';
-    const radio = document.createElement('input'); radio.type = 'radio'; radio.name = 'mockq';
-    if (answered) radio.disabled = true;
-    if (!answered) radio.addEventListener('change', () => selectMockAnswer(i));
-    label.appendChild(radio);
-    label.appendChild(document.createTextNode(String.fromCharCode(97 + i) + ') ' + o));
-    if (answered) {
-      if (i === q.answer) label.classList.add('correct');
-      if (i === s.answers[q.id] && i !== q.answer) label.classList.add('wrong');
-    }
-    opts.appendChild(label);
-  });
+  const optionList = (lang === 'hi' && Array.isArray(q.options_hi) && q.options_hi.length)
+    ? q.options_hi
+    : (q.options || []);
+  const chosen = s.pending[q.id] !== undefined ? s.pending[q.id] : s.answers[q.id];
 
-  const exp = document.getElementById('mockQExp');
-  const expImg = document.getElementById('mockQExpImg');
-  if (answered && (q.explanation || q.expImage)) {
-    document.getElementById('mockQExpText').textContent = q.explanation || '';
-    exp.classList.remove('hidden');
-    if (q.expImage) { expImg.src = imgUrl(q.expImage); expImg.classList.remove('hidden'); }
-    else expImg.classList.add('hidden');
-  } else {
-    exp.classList.add('hidden');
+  if (!optionList.length) {
+    const empty = document.createElement('p');
+    empty.className = 'exam-palette-empty';
+    empty.textContent = 'This question has no options.';
+    opts.appendChild(empty);
   }
 
-  document.getElementById('mockPrevBtn').style.visibility = s.idx === 0 ? 'hidden' : 'visible';
-  document.getElementById('mockNextBtn').style.display = s.idx < s.questions.length - 1 ? '' : 'none';
-  document.getElementById('mockSubmitBtn').classList.toggle('hidden', s.idx !== s.questions.length - 1);
+  optionList.forEach((opt, i) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'exam-option' + (chosen === i ? ' selected' : '');
+    btn.setAttribute('aria-pressed', chosen === i ? 'true' : 'false');
+
+    const radio = document.createElement('span');
+    radio.className = 'radio';
+    radio.setAttribute('aria-hidden', 'true');
+
+    const label = document.createElement('span');
+    label.className = 'opt-label';
+    label.textContent = String.fromCharCode(65 + i) + '.';
+
+    const text = document.createElement('span');
+    text.className = 'opt-text';
+    text.textContent = opt;
+
+    btn.appendChild(radio);
+    btn.appendChild(label);
+    btn.appendChild(text);
+    btn.addEventListener('click', () => selectMockAnswer(i));
+    opts.appendChild(btn);
+  });
+
+  document.getElementById('mockQExp').classList.add('hidden');
+
+  const prev = document.getElementById('mockPrevBtn');
+  if (prev) prev.disabled = s.idx === 0;
+
+  const next = document.getElementById('mockNextBtn');
+  if (next) {
+    const last = s.idx === s.questions.length - 1;
+    next.innerHTML = last
+      ? 'Save &amp; Submit <i class="fas fa-check"></i>'
+      : 'Save &amp; Next <i class="fas fa-chevron-right"></i>';
+  }
+
+  renderMockSubjects();
   renderMockPalette();
 }
 
-function selectMockAnswer(idx) {
-  if (!_mockState) return;
+function selectMockAnswer(i) {
+  if (!_mockState || _mockState.submitted || _mockState.paused) return;
   const q = _mockState.questions[_mockState.idx];
-  _mockState.answers[q.id] = idx;
+  _mockState.pending[q.id] = i;
   renderMockQuestion();
 }
 
-function mockNext() { if (_mockState && _mockState.idx < _mockState.questions.length - 1) { _mockState.idx++; renderMockQuestion(); } }
-function mockPrev() { if (_mockState && _mockState.idx > 0) { _mockState.idx--; renderMockQuestion(); } }
+function mockSaveCurrent() {
+  if (!_mockState || _mockState.submitted) return;
+  const saved = commitMockPending();
+  renderMockQuestion();
+  showExamToast(saved ? 'Response saved' : 'No new response to save');
+}
+
+function mockNext() {
+  if (!_mockState || _mockState.submitted) return;
+  commitMockPending();
+  if (_mockState.idx >= _mockState.questions.length - 1) {
+    openMockSubmit();
+    return;
+  }
+  _mockState.idx++;
+  renderMockQuestion();
+}
+
+function mockPrev() {
+  if (!_mockState || _mockState.submitted) return;
+  commitMockPending();
+  if (_mockState.idx > 0) {
+    _mockState.idx--;
+    renderMockQuestion();
+  }
+}
 
 function mockMarkForReview() {
-  if (!_mockState) return;
-  _mockState.marked[_mockState.questions[_mockState.idx].id] = true;
-  if (_mockState.idx < _mockState.questions.length - 1) { _mockState.idx++; renderMockQuestion(); }
-  else renderMockPalette();
+  if (!_mockState || _mockState.submitted) return;
+  const q = _mockState.questions[_mockState.idx];
+  commitMockPending();
+  _mockState.marked[q.id] = true;
+  renderMockQuestion();
+  showExamToast('Marked for review');
 }
 
 function mockClearResponse() {
-  if (!_mockState) return;
+  if (!_mockState || _mockState.submitted) return;
   const q = _mockState.questions[_mockState.idx];
   delete _mockState.answers[q.id];
+  delete _mockState.pending[q.id];
   renderMockQuestion();
+  showExamToast('Response cleared');
+}
+
+function mockReportQuestion() {
+  if (!_mockState || _mockState.submitted) return;
+  const q = _mockState.questions[_mockState.idx];
+  _mockState.marked[q.id] = true;
+  renderMockPalette();
+  showExamToast('Question flagged for review');
+}
+
+function mockQuestionStatus(qid) {
+  const s = _mockState;
+  const answered = s.answers[qid] !== undefined;
+  const marked = !!s.marked[qid];
+  const visited = !!s.visited[qid];
+  if (marked && answered) return 'marked-answered';
+  if (marked) return 'marked';
+  if (answered) return 'answered';
+  if (visited) return 'not-answered';
+  return 'not-visited';
+}
+
+function mockSummaryCounts() {
+  const counts = { answered: 0, notAnswered: 0, notVisited: 0, marked: 0, markedAnswered: 0 };
+  if (!_mockState) return counts;
+  _mockState.questions.forEach(q => {
+    const st = mockQuestionStatus(q.id);
+    if (st === 'answered') counts.answered++;
+    else if (st === 'not-answered') counts.notAnswered++;
+    else if (st === 'not-visited') counts.notVisited++;
+    else if (st === 'marked') counts.marked++;
+    else if (st === 'marked-answered') counts.markedAnswered++;
+  });
+  return counts;
 }
 
 function renderMockPalette() {
   if (!_mockState) return;
+  const s = _mockState;
+  const secIdx = mockCurrentSection();
+  s.activeSection = secIdx;
+  const sec = s.sections[secIdx] || { name: '—', ids: [] };
   const grid = document.getElementById('mockPaletteGrid');
   grid.innerHTML = '';
-  let answered = 0, marked = 0, notVisited = 0;
-  _mockState.questions.forEach((q, i) => {
-    const b = document.createElement('button'); b.className = 'palette-btn';
+
+  const currentId = s.questions[s.idx] ? s.questions[s.idx].id : null;
+
+  if (!sec.ids.length) {
+    const empty = document.createElement('p');
+    empty.className = 'exam-palette-empty';
+    empty.textContent = 'No questions in this section.';
+    grid.appendChild(empty);
+  }
+
+  sec.ids.forEach((qid, i) => {
+    const status = mockQuestionStatus(qid);
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = status;
     b.textContent = i + 1;
-    if (i === _mockState.idx) b.classList.add('current');
-    if (_mockState.answers[q.id] !== undefined) { b.classList.add('answered'); answered++; }
-    if (_mockState.marked[q.id]) { b.classList.add('marked'); marked++; }
-    b.addEventListener('click', () => { _mockState.idx = i; renderMockQuestion(); });
+    if (qid === currentId) b.classList.add('current');
+    b.title = 'Question ' + (i + 1) + ' — ' + status.replace(/-/g, ' ');
+    b.addEventListener('click', () => {
+      if (!_mockState || _mockState.submitted) return;
+      commitMockPending();
+      const gi = _mockState.questions.findIndex(x => x.id === qid);
+      if (gi >= 0) { _mockState.idx = gi; renderMockQuestion(); }
+    });
     grid.appendChild(b);
   });
-  notVisited = _mockState.questions.length - answered - marked;
-  document.getElementById('legendAnswered').textContent = answered;
-  document.getElementById('legendNotAnswered').textContent = _mockState.questions.length - answered;
-  document.getElementById('legendMarked').textContent = marked;
-  document.getElementById('legendNotVisited').textContent = notVisited;
+
+  document.getElementById('mockSectionName').textContent = sec.name;
+
+  const c = mockSummaryCounts();
+  setText('legendAnswered', c.answered);
+  setText('legendNotAnswered', c.notAnswered);
+  setText('legendNotVisited', c.notVisited);
+  setText('legendMarked', c.marked);
+  setText('legendMarkedAnswered', c.markedAnswered);
+}
+
+function setText(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = value;
+}
+
+function updateMockTimerUI() {
+  if (!_mockState) return;
+  const rem = Math.max(0, _mockState.remaining);
+  setText('mockTimerHours', String(Math.floor(rem / 3600)).padStart(2, '0'));
+  setText('mockTimerMinutes', String(Math.floor((rem % 3600) / 60)).padStart(2, '0'));
+  setText('mockTimerSeconds', String(rem % 60).padStart(2, '0'));
+  const clock = document.getElementById('examClock');
+  if (clock) {
+    clock.classList.toggle('warning', rem <= 300 && rem > 60);
+    clock.classList.toggle('danger', rem <= 60);
+  }
 }
 
 function startMockTimer(duration) {
-  if (_mockState._timer) clearInterval(_mockState._timer);
-  _mockState._remaining = duration * 60;
+  stopMockTimer();
+  if (!_mockState) return;
+  if (duration) _mockState.remaining = duration * 60;
+  updateMockTimerUI();
   _mockState._timer = setInterval(() => {
-    _mockState._remaining--;
-    const m = Math.floor(_mockState._remaining / 60);
-    const s = _mockState._remaining % 60;
-    document.getElementById('mockTimerDisplay').textContent = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
-    if (_mockState._remaining <= 0) submitMockTest();
+    if (!_mockState || _mockState.submitted || _mockState.paused) return;
+    _mockState.remaining--;
+    updateMockTimerUI();
+    if (_mockState.remaining <= 0) {
+      stopMockTimer();
+      showExamToast('Time is up — submitting your test');
+      setTimeout(() => submitMockTest(), 800);
+    }
   }, 1000);
+}
+
+function stopMockTimer() {
+  if (_mockState && _mockState._timer) {
+    clearInterval(_mockState._timer);
+    _mockState._timer = null;
+  }
+}
+
+function setMockPauseUI(paused) {
+  const btn = document.getElementById('mockPauseBtn');
+  if (btn) {
+    btn.innerHTML = paused
+      ? '<i class="fas fa-play"></i><span>Resume</span>'
+      : '<i class="fas fa-pause"></i><span>Pause</span>';
+  }
+  const overlay = document.getElementById('mockPauseOverlay');
+  if (overlay) overlay.classList.toggle('hidden', !paused);
+}
+
+function toggleMockPause() {
+  if (!_mockState || _mockState.submitted) return;
+  _mockState.paused = !_mockState.paused;
+  setMockPauseUI(_mockState.paused);
+  showExamToast(_mockState.paused ? 'Test paused' : 'Test resumed');
+}
+
+function toggleMockFullscreen() {
+  const el = document.documentElement;
+  if (!document.fullscreenElement) {
+    if (el.requestFullscreen) {
+      el.requestFullscreen().catch(() => showExamToast('Fullscreen is not available in this browser'));
+    }
+  } else if (document.exitFullscreen) {
+    document.exitFullscreen().catch(() => {});
+  }
+}
+
+function updateMockFullscreenIcon() {
+  const btn = document.getElementById('mockFullscreenBtn');
+  if (!btn) return;
+  btn.innerHTML = document.fullscreenElement
+    ? '<i class="fas fa-compress"></i><span>Exit</span>'
+    : '<i class="fas fa-expand"></i><span>Fullscreen</span>';
+}
+
+function setExamThemeIcon() {
+  const btn = document.getElementById('examThemeToggle');
+  if (!btn) return;
+  btn.innerHTML = document.body.classList.contains('dark')
+    ? '<i class="fas fa-sun"></i>'
+    : '<i class="fas fa-moon"></i>';
+}
+
+function toggleExamTheme() {
+  toggleTheme();
+  setExamThemeIcon();
+}
+
+function closeMockModal(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.add('hidden');
+}
+
+function showMockInstructions() {
+  if (!_mockState || _mockState.paused) return;
+  document.getElementById('mockInstructionsModal').classList.remove('hidden');
+}
+
+function showMockQuestionPaper() {
+  if (!_mockState || _mockState.paused) return;
+  const s = _mockState;
+  const body = document.getElementById('mockPaperBody');
+  const statusLabel = {
+    'answered': 'Answered',
+    'not-answered': 'Not answered',
+    'not-visited': 'Not visited',
+    'marked': 'Marked',
+    'marked-answered': 'Marked & answered'
+  };
+  let html = '';
+  s.sections.forEach(sec => {
+    html += '<div class="exam-paper-section"><h3>' + esc(sec.name) + '</h3>';
+    sec.ids.forEach(qid => {
+      const q = s.questions.find(x => x.id === qid);
+      if (!q) return;
+      const st = mockQuestionStatus(qid);
+      const localNo = sec.ids.indexOf(qid) + 1;
+      html += '<div class="exam-paper-row">' +
+        '<span class="exam-paper-num ' + st + '">' + localNo + '</span>' +
+        '<span class="exam-paper-text">' + esc(q.question) + '</span>' +
+        '<span class="exam-paper-status">' + statusLabel[st] + '</span>' +
+        '</div>';
+    });
+    html += '</div>';
+  });
+  body.innerHTML = html || '<p>No questions available.</p>';
+  document.getElementById('mockPaperModal').classList.remove('hidden');
+}
+
+function openMockSubmit() {
+  if (!_mockState || _mockState.submitted) return;
+  commitMockPending();
+  renderMockPalette();
+  const c = mockSummaryCounts();
+  document.getElementById('mockSubmitSummary').innerHTML =
+    '<div>Answered <b>' + (c.answered + c.markedAnswered) + '</b></div>' +
+    '<div>Not answered <b>' + c.notAnswered + '</b></div>' +
+    '<div>Marked <b>' + (c.marked + c.markedAnswered) + '</b></div>' +
+    '<div>Not visited <b>' + c.notVisited + '</b></div>';
+  document.getElementById('mockSubmitModal').classList.remove('hidden');
 }
 
 function submitMockTest() {
   if (!_mockState || _mockState.submitted) return;
+  commitMockPending();
   _mockState.submitted = true;
-  if (_mockState._timer) clearInterval(_mockState._timer);
+  _mockState.paused = false;
+  stopMockTimer();
+  closeMockModal('mockSubmitModal');
+  closeMockModal('mockPauseOverlay');
+
   const total = _mockState.questions.length;
   let correct = 0;
-  let details = [];
-  _mockState.questions.forEach((q, i) => {
+  const details = [];
+  _mockState.questions.forEach(q => {
     const userAns = _mockState.answers[q.id];
     const isCorrect = userAns === q.answer;
     if (isCorrect) correct++;
     details.push({ q, userAns, isCorrect });
   });
-  const pct = Math.round(correct / total * 100);
+
+  const pct = total ? Math.round(correct / total * 100) : 0;
   const circle = document.getElementById('mockResultCircle');
-  circle.style.background = pct >= 80 ? 'var(--success)' : pct >= 50 ? 'var(--warning)' : 'var(--danger)';
+  circle.style.background = pct >= 80 ? 'var(--exam-green)' : pct >= 50 ? 'var(--exam-orange)' : 'var(--exam-red)';
   document.getElementById('mockResultPct').textContent = pct + '%';
-  document.getElementById('mockResultSummary').innerHTML = '<strong>Score:</strong> ' + correct + '/' + total + ' (' + pct + '%)';
+  document.getElementById('mockResultSummary').innerHTML =
+    '<strong>Score:</strong> ' + correct + '/' + total + ' (' + pct + '%)';
+
+  const c = mockSummaryCounts();
+  const stats = document.getElementById('mockResultStats');
+  if (stats) {
+    stats.innerHTML =
+      '<span>Answered <b>' + (c.answered + c.markedAnswered) + '</b></span>' +
+      '<span>Not answered <b>' + c.notAnswered + '</b></span>' +
+      '<span>Marked <b>' + (c.marked + c.markedAnswered) + '</b></span>' +
+      '<span>Not visited <b>' + c.notVisited + '</b></span>' +
+      '<span>Correct <b>' + correct + '</b></span>' +
+      '<span>Wrong <b>' + (total - correct) + '</b></span>';
+  }
+
   let detailHtml = '';
   details.forEach((d, i) => {
     const q = d.q;
@@ -1543,23 +1915,58 @@ function submitMockTest() {
       if (oi === d.userAns && oi !== q.answer) cls += ' wrong';
       return '<div class="' + cls + '">' + String.fromCharCode(65 + oi) + '. ' + esc(o) + '</div>';
     }).join('') + '</div>';
-    detailHtml += '<div class="q-exp"><strong>Explanation:</strong> ' + esc(q.explanation || '') + (q.expImage ? '<br><img class="q-img" src="' + imgUrl(q.expImage) + '" alt="Explanation image">' : '') + '</div></div>';
+    if (q.explanation || q.expImage) {
+      detailHtml += '<div class="q-exp"><strong>Explanation:</strong> ' + esc(q.explanation || '') + (q.expImage ? '<br><img class="q-img" src="' + imgUrl(q.expImage) + '" alt="Explanation image">' : '') + '</div>';
+    }
+    detailHtml += '</div>';
   });
+
   document.getElementById('mockResultDetails').innerHTML = detailHtml;
-  document.getElementById('mockResultContainer').classList.remove('hidden');
+  const result = document.getElementById('mockResultContainer');
+  result.classList.remove('hidden');
+  result.scrollTop = 0;
 }
 
 function retryMockTest() {
   if (!_mockState) return;
-  if (confirm('Restart this test? Your current answers will be cleared.')) startMockTest(_mockState.testIdx);
+  const idx = _mockState.testIdx;
+  if (confirm('Restart this test? Your current answers will be cleared.')) startMockTest(idx);
 }
 
 function quitMockTest() {
-  if (_mockState && _mockState._timer) clearInterval(_mockState._timer);
+  stopMockTimer();
   _mockState = null;
+  document.body.classList.remove('exam-active');
+  const shell = document.getElementById('mockTestContainer');
+  if (shell) shell.classList.add('hidden');
   document.getElementById('mockListContainer').classList.remove('hidden');
-  document.getElementById('mockTestContainer').classList.add('hidden');
+  document.getElementById('mockResultContainer').classList.add('hidden');
+  if (document.fullscreenElement && document.exitFullscreen) {
+    document.exitFullscreen().catch(() => {});
+  }
+  updateMockFullscreenIcon();
   renderMockList();
+}
+
+function showExamToast(message) {
+  const shell = document.getElementById('mockTestContainer');
+  if (!shell) return;
+  let toast = shell.querySelector('.exam-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.className = 'exam-toast';
+    shell.appendChild(toast);
+  }
+  toast.textContent = message;
+  toast.classList.add('show');
+  clearTimeout(_examToastTimer);
+  _examToastTimer = setTimeout(() => toast.classList.remove('show'), 1800);
+}
+
+function onMockLanguageChange(e) {
+  const val = e.target.value === 'hi' ? 'hi' : 'en';
+  localStorage.setItem('studyhub_exam_lang', val);
+  renderMockQuestion();
 }
 
 // ======================== THEME ========================
@@ -1609,15 +2016,25 @@ async function init() {
   document.getElementById('hamburger').addEventListener('click', () => document.getElementById('sidebar').classList.toggle('open'));
 
   // Mock test controls
-  document.getElementById('mockNextBtn').addEventListener('click', mockNext);
-  document.getElementById('mockPrevBtn').addEventListener('click', mockPrev);
-  document.getElementById('mockSubmitBtn').addEventListener('click', submitMockTest);
-  document.getElementById('mockMarkBtn').addEventListener('click', mockMarkForReview);
-  document.getElementById('mockClearBtn').addEventListener('click', mockClearResponse);
-  document.getElementById('mockSubmitPaletteBtn').addEventListener('click', () => { if (confirm('Submit test?')) submitMockTest(); });
-  document.getElementById('mockQuitBtn').addEventListener('click', () => { if (confirm('Quit test?')) quitMockTest(); });
-  document.getElementById('mockResultBackBtn').addEventListener('click', quitMockTest);
-  document.getElementById('mockRetryBtn').addEventListener('click', retryMockTest);
+  const bindMock = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
+  bindMock('mockNextBtn', 'click', mockNext);
+  bindMock('mockPrevBtn', 'click', mockPrev);
+  bindMock('mockMarkBtn', 'click', mockMarkForReview);
+  bindMock('mockClearBtn', 'click', mockClearResponse);
+  bindMock('mockSaveBtn', 'click', mockSaveCurrent);
+  bindMock('mockReportBtn', 'click', mockReportQuestion);
+  bindMock('mockSubmitPaletteBtn', 'click', openMockSubmit);
+  bindMock('mockQuestionPaperBtn', 'click', showMockQuestionPaper);
+  bindMock('mockInstructionsBtn', 'click', showMockInstructions);
+  bindMock('mockConfirmSubmitBtn', 'click', () => { closeMockModal('mockSubmitModal'); submitMockTest(); });
+  bindMock('mockPauseBtn', 'click', toggleMockPause);
+  bindMock('mockResumeBtn', 'click', toggleMockPause);
+  bindMock('mockFullscreenBtn', 'click', toggleMockFullscreen);
+  bindMock('examThemeToggle', 'click', toggleExamTheme);
+  bindMock('mockResultBackBtn', 'click', quitMockTest);
+  bindMock('mockRetryBtn', 'click', retryMockTest);
+  bindMock('mockLanguage', 'change', onMockLanguageChange);
+  document.addEventListener('fullscreenchange', updateMockFullscreenIcon);
 
   // Admin tabs
   document.querySelectorAll('.admin-tab').forEach(t => t.addEventListener('click', function () {
