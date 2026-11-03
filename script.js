@@ -1811,6 +1811,14 @@ function toggleExamTheme() {
   setExamThemeIcon();
 }
 
+// Leave the exam (with confirmation) and return to the dashboard.
+function examGoHome() {
+  if (!_mockState) { switchPage('dashboard'); return; }
+  if (!_mockState.submitted && !confirm('Leave the test and go to Home? Your current answers will be lost.')) return;
+  quitMockTest();
+  switchPage('dashboard');
+}
+
 function closeMockModal(id) {
   const el = document.getElementById(id);
   if (el) el.classList.add('hidden');
@@ -2031,6 +2039,7 @@ async function init() {
   bindMock('mockResumeBtn', 'click', toggleMockPause);
   bindMock('mockFullscreenBtn', 'click', toggleMockFullscreen);
   bindMock('examThemeToggle', 'click', toggleExamTheme);
+  bindMock('examHomeBtn', 'click', examGoHome);
   bindMock('mockResultBackBtn', 'click', quitMockTest);
   bindMock('mockRetryBtn', 'click', retryMockTest);
   bindMock('mockLanguage', 'change', onMockLanguageChange);
