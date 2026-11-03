@@ -1281,58 +1281,224 @@ async function delAdminQ(catId, subId, topicId, qId) {
 }
 
 // ======================== MOCK TEST BUILDER ========================
+let _builderFilterRows = [];
+let _builderSelected = new Set();
+let _builderQMeta = new Map();
+
 function renderBuilder() {
   document.getElementById('builderName').value = '';
   document.getElementById('builderDuration').value = '20';
   document.getElementById('builderMarks').value = '25';
-  populateBuilderFilters();
+  _builderSelected = new Set();
+  _builderQMeta = new Map();
+  forEachQ((q, i, catId, subId, topicId, cat, sub, topic) => {
+    _builderQMeta.set(q.id, {
+      q,
+      catId,
+      subId,
+      topicId,
+      catName: cat ? cat.name : 'General'
+    });
+  });
+  _builderFilterRows = [{ cat: '', sub: '', topic: '' }];
+  renderBuilderFilterRows();
   renderBuilderQList();
   renderExistingTests();
 }
 
-function populateBuilderFilters() {
-  const catSel = document.getElementById('builderCatFilter');
-  const subSel = document.getElementById('builderSubFilter');
-  const topicSel = document.getElementById('builderTopicFilter');
-  catSel.innerHTML = '<option value="">Select Category</option>';
-  sortedKeys(data.categories).forEach(catId => { catSel.innerHTML += '<option value="' + catId + '">' + data.categories[catId].name + '</option>'; });
+function builderCatOptions(selected) {
+  let html = '<option value="">Select Category</option>';
+  sortedKeys(data.categories).forEach(catId => {
+    html += '<option value="' + catId + '"' + (catId === selected ? ' selected' : '') + '>' + esc(data.categories[catId].name) + '</option>';
+  });
+  return html;
+}
+
+function builderSubOptions(state) {
+  let html = '<option value="">Select Subcategory</option>';
+  const cat = data.categories[state.cat];
+  if (cat) {
+    html += '<option value="__all__"' + (state.sub === '__all__' ? ' selected' : '') + '>All Subcategories</option>';
+    sortedKeys(cat.subcategories || {}).forEach(sid => {
+      html += '<option value="' + sid + '"' + (sid === state.sub ? ' selected' : '') + '>' + esc(cat.subcategories[sid].name) + '</option>';
+    });
+  }
+  return html;
+}
+
+function builderTopicOptions(state) {
+  let html = '<option value="">Select Topic</option>';
+  const sub = state.cat && state.sub && state.sub !== '__all__'
+    ? (data.categories[state.cat]?.subcategories || {})[state.sub]
+    : null;
+  if (sub) {
+    html += '<option value="__all__"' + (state.topic === '__all__' ? ' selected' : '') + '>All Topics</option>';
+    sortedKeys(sub.topics || {}).forEach(tid => {
+      html += '<option value="' + tid + '"' + (tid === state.topic ? ' selected' : '') + '>' + esc(sub.topics[tid].name) + '</option>';
+    });
+  }
+  return html;
+}
+
+function createBuilderFilterRow(state) {
+  const row = document.createElement('div');
+  row.className = 'builder-filter-row';
+
+  const catSel = document.createElement('select');
+  catSel.className = 'bf-cat';
+  catSel.setAttribute('aria-label', 'Category');
+  catSel.innerHTML = builderCatOptions(state.cat);
+
+  const subSel = document.createElement('select');
+  subSel.className = 'bf-sub';
+  subSel.setAttribute('aria-label', 'Subcategory');
+  subSel.innerHTML = builderSubOptions(state);
+  subSel.disabled = !state.cat;
+
+  const topicSel = document.createElement('select');
+  topicSel.className = 'bf-topic';
+  topicSel.setAttribute('aria-label', 'Topic');
+  topicSel.innerHTML = builderTopicOptions(state);
+  topicSel.disabled = !(state.cat && state.sub && state.sub !== '__all__');
+
   catSel.onchange = function () {
-    subSel.innerHTML = '<option value="">Select Subcategory</option><option value="__all__">All Subcategories</option>';
-    topicSel.innerHTML = '<option value="">Select Topic</option>';
-    const cat = data.categories[this.value];
-    if (cat) sortedKeys(cat.subcategories || {}).forEach(sid => { subSel.innerHTML += '<option value="' + sid + '">' + cat.subcategories[sid].name + '</option>'; });
+    state.cat = this.value;
+    state.sub = '';
+    state.topic = '';
+    subSel.innerHTML = builderSubOptions(state);
+    subSel.disabled = !state.cat;
+    topicSel.innerHTML = builderTopicOptions(state);
+    topicSel.disabled = true;
     renderBuilderQList();
   };
+
   subSel.onchange = function () {
-    topicSel.innerHTML = '<option value="">Select Topic</option><option value="__all__">All Topics</option>';
-    const catId = catSel.value;
-    if (catId && this.value && this.value !== '__all__' && data.categories[catId]?.subcategories[this.value]) {
-      sortedKeys(data.categories[catId].subcategories[this.value].topics || {}).forEach(tid => {
-        topicSel.innerHTML += '<option value="' + tid + '">' + data.categories[catId].subcategories[this.value].topics[tid].name + '</option>';
-      });
-    }
+    state.sub = this.value;
+    state.topic = '';
+    topicSel.innerHTML = builderTopicOptions(state);
+    topicSel.disabled = !(state.cat && state.sub && state.sub !== '__all__');
     renderBuilderQList();
   };
-  topicSel.onchange = renderBuilderQList;
-  topicSel.innerHTML = '<option value="">Select Topic</option>';
+
+  topicSel.onchange = function () {
+    state.topic = this.value;
+    renderBuilderQList();
+  };
+
+  const remove = document.createElement('button');
+  remove.type = 'button';
+  remove.className = 'bf-remove';
+  remove.title = 'Remove this category';
+  remove.setAttribute('aria-label', 'Remove this category');
+  remove.innerHTML = '<i class="fas fa-xmark"></i>';
+  remove.disabled = _builderFilterRows.length <= 1;
+  remove.addEventListener('click', function () { removeBuilderFilterRow(state); });
+
+  row.appendChild(catSel);
+  row.appendChild(subSel);
+  row.appendChild(topicSel);
+  row.appendChild(remove);
+  return row;
+}
+
+function renderBuilderFilterRows() {
+  const wrap = document.getElementById('builderFilterRows');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  _builderFilterRows.forEach(state => wrap.appendChild(createBuilderFilterRow(state)));
+}
+
+function addBuilderFilterRow() {
+  _builderFilterRows.push({ cat: '', sub: '', topic: '' });
+  renderBuilderFilterRows();
+  renderBuilderQList();
+}
+
+function removeBuilderFilterRow(state) {
+  if (_builderFilterRows.length <= 1) return;
+  _builderFilterRows = _builderFilterRows.filter(s => s !== state);
+  renderBuilderFilterRows();
+  renderBuilderQList();
+}
+
+function builderMatches(state, meta) {
+  if (!state.cat || state.cat !== meta.catId) return false;
+  if (state.sub && state.sub !== '__all__' && state.sub !== meta.subId) return false;
+  if (state.topic && state.topic !== '__all__' && state.topic !== meta.topicId) return false;
+  return true;
+}
+
+function pruneBuilderSelection() {
+  _builderSelected.forEach(id => {
+    const meta = _builderQMeta.get(id);
+    if (!meta || !_builderFilterRows.some(state => builderMatches(state, meta))) _builderSelected.delete(id);
+  });
 }
 
 function renderBuilderQList() {
-  const catF = document.getElementById('builderCatFilter').value;
-  const subF = document.getElementById('builderSubFilter').value;
-  const topicF = document.getElementById('builderTopicFilter').value;
   const container = document.getElementById('builderQList');
+  if (!container) return;
   container.innerHTML = '';
-  if (!catF) { container.innerHTML = '<p style="text-align:center;padding:20px;color:var(--text2);">Select a category to see questions.</p>'; return; }
+  pruneBuilderSelection();
+
+  if (!_builderFilterRows.some(state => state.cat)) {
+    container.innerHTML = '<p class="builder-empty">Select a category to see its questions. Use “Add Category” to include another subject in the same test.</p>';
+    updateBuilderSelectAll();
+    return;
+  }
+
+  let shown = 0;
   forEachQ((q, i, catId, subId, topicId, cat, sub, topic) => {
-    if (catF && catF !== catId) return;
-    if (subF && subF !== '__all__' && subF !== subId) return;
-    if (topicF && topicF !== '__all__' && topicF !== topicId) return;
-    const div = document.createElement('div'); div.className = 'builder-qitem';
-    div.innerHTML = '<input type="checkbox" class="bq-check" value="' + q.id + '"><div class="bq-text">' + esc(q.question) + '</div><div class="bq-meta">' + cat.name + ' → ' + sub.name + ' → ' + topic.name + '</div>';
+    const meta = _builderQMeta.get(q.id);
+    if (!meta) return;
+    if (!_builderFilterRows.some(state => builderMatches(state, meta))) return;
+    shown++;
+
+    const div = document.createElement('div');
+    div.className = 'builder-qitem';
+
+    const check = document.createElement('input');
+    check.type = 'checkbox';
+    check.className = 'bq-check';
+    check.value = q.id;
+    check.checked = _builderSelected.has(q.id);
+    check.addEventListener('change', function () {
+      if (this.checked) _builderSelected.add(q.id);
+      else _builderSelected.delete(q.id);
+      updateBuilderSelectAll();
+    });
+
+    const text = document.createElement('div');
+    text.className = 'bq-text';
+    text.textContent = q.question;
+
+    const metaEl = document.createElement('div');
+    metaEl.className = 'bq-meta';
+    metaEl.textContent = cat.name + ' → ' + sub.name + ' → ' + topic.name;
+
+    div.appendChild(check);
+    div.appendChild(text);
+    div.appendChild(metaEl);
     container.appendChild(div);
   });
-  if (!container.children.length) container.innerHTML = '<p style="text-align:center;padding:20px;color:var(--text2);">No questions match your filters.</p>';
+
+  if (!shown) container.innerHTML = '<p class="builder-empty">No questions match your filters.</p>';
+  updateBuilderSelectAll();
+}
+
+function updateBuilderSelectAll() {
+  const all = document.getElementById('builderSelectAll');
+  const checks = Array.from(document.querySelectorAll('#builderQList .bq-check'));
+  const selected = checks.filter(c => c.checked).length;
+  if (all) {
+    all.checked = checks.length > 0 && selected === checks.length;
+    all.indeterminate = selected > 0 && selected < checks.length;
+    all.disabled = checks.length === 0;
+  }
+  const shown = document.getElementById('builderShownCount');
+  if (shown) shown.textContent = checks.length ? selected + ' of ' + checks.length + ' shown selected' : '';
+  const total = document.getElementById('builderTotalSelected');
+  if (total) total.textContent = _builderSelected.size + ' selected';
 }
 
 function renderExistingTests() {
@@ -1350,14 +1516,27 @@ document.getElementById('builderSaveBtn').addEventListener('click', function () 
   const name = document.getElementById('builderName').value.trim();
   const duration = parseInt(document.getElementById('builderDuration').value);
   const totalMarks = parseInt(document.getElementById('builderMarks').value);
-  const checked = document.querySelectorAll('#builderQList .bq-check:checked');
-  const ids = Array.from(checked).map(c => parseInt(c.value));
+  const ids = Array.from(_builderSelected);
   if (!name) { alert('Enter a test name.'); return; }
   if (!ids.length) { alert('Select at least one question.'); return; }
+  const catCount = new Set(ids.map(id => (_builderQMeta.get(id) || {}).catId).filter(Boolean)).size;
   mockTests.push({ id: Date.now(), name, duration: duration || 20, totalMarks: totalMarks || ids.length, questionIds: ids });
   saveData();
   renderBuilder();
-  alert('Mock test "' + name + '" created with ' + ids.length + ' questions!');
+  alert('Mock test "' + name + '" created with ' + ids.length + ' questions' + (catCount > 1 ? ' from ' + catCount + ' categories' : '') + '!');
+});
+
+document.getElementById('builderAddCatBtn').addEventListener('click', addBuilderFilterRow);
+
+document.getElementById('builderSelectAll').addEventListener('change', function () {
+  const checks = document.querySelectorAll('#builderQList .bq-check');
+  checks.forEach(cb => {
+    cb.checked = this.checked;
+    const id = Number(cb.value);
+    if (this.checked) _builderSelected.add(id);
+    else _builderSelected.delete(id);
+  });
+  updateBuilderSelectAll();
 });
 
 function editMockTest(idx) {

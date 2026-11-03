@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-<link rel="stylesheet" href="style.css?v=6">
+<link rel="stylesheet" href="style.css?v=7">
 </head>
 <body>
 
@@ -476,11 +476,17 @@
             <input type="number" id="builderMarks" placeholder="Total marks" value="25" min="1">
           </div>
           <div class="builder-browse">
-            <h3>Select Questions</h3>
-            <div class="builder-filters">
-              <select id="builderCatFilter"><option value="">Select Category</option></select>
-              <select id="builderSubFilter"><option value="">Select Subcategory</option></select>
-              <select id="builderTopicFilter"><option value="">Select Topic</option></select>
+            <div class="builder-browse-head">
+              <h3>Select Questions</h3>
+              <div class="builder-browse-tools">
+                <span class="builder-total" id="builderTotalSelected">0 selected</span>
+                <button type="button" class="builder-add-cat" id="builderAddCatBtn" title="Add another category"><i class="fas fa-plus"></i> Add Category</button>
+              </div>
+            </div>
+            <div class="builder-filter-rows" id="builderFilterRows"></div>
+            <div class="builder-list-head">
+              <label class="builder-selectall"><input type="checkbox" id="builderSelectAll"> Select all shown</label>
+              <span class="builder-shown" id="builderShownCount"></span>
             </div>
             <div id="builderQList" class="builder-qlist"></div>
           </div>
@@ -523,6 +529,6 @@
   </main>
 </div>
 
-<script src="script.js?v=6"></script>
+<script src="script.js?v=7"></script>
 </body>
 </html>
