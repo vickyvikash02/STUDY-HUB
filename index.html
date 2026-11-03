@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-<link rel="stylesheet" href="style.css?v=7">
+<link rel="stylesheet" href="style.css?v=6">
 </head>
 <body>
 
@@ -477,25 +477,12 @@
           </div>
           <div class="builder-browse">
             <h3>Select Questions</h3>
-            <p class="builder-hint">Pick questions from any category — your selections are kept when you change the filters.</p>
             <div class="builder-filters">
               <select id="builderCatFilter"><option value="">Select Category</option></select>
               <select id="builderSubFilter"><option value="">Select Subcategory</option></select>
               <select id="builderTopicFilter"><option value="">Select Topic</option></select>
             </div>
-            <div class="builder-list-head">
-              <label class="builder-selectall"><input type="checkbox" id="builderSelectAll"> Select all shown</label>
-              <span class="builder-shown" id="builderShownCount"></span>
-            </div>
             <div id="builderQList" class="builder-qlist"></div>
-
-            <div class="builder-selected">
-              <div class="builder-selected-head">
-                <h4>Selected Questions <span class="builder-sel-count" id="builderSelCount">0</span></h4>
-                <button type="button" class="builder-clear-btn" id="builderClearSel">Clear all</button>
-              </div>
-              <div id="builderSelectedList" class="builder-selected-list"></div>
-            </div>
           </div>
           <button class="btn-success" id="builderSaveBtn"><i class="fas fa-save"></i> Save Mock Test</button>
         </div>
@@ -536,6 +523,6 @@
   </main>
 </div>
 
-<script src="script.js?v=7"></script>
+<script src="script.js?v=6"></script>
 </body>
 </html>
