@@ -729,6 +729,22 @@ function renameEbook(idx) {
 }
 
 // ======================== ADMIN ========================
+const QUESTION_TYPES = ['MCQ', 'True / False', 'Fill in the Blank', 'Assertion & Reason', 'Match the Following', 'Numerical'];
+const DEFAULT_QUESTION_TYPE = 'MCQ';
+
+function getQuestionType(q) {
+  return (q && q.type) || DEFAULT_QUESTION_TYPE;
+}
+
+function questionTypeCounts(questions) {
+  const counts = {};
+  (questions || []).forEach(q => {
+    const t = getQuestionType(q);
+    counts[t] = (counts[t] || 0) + 1;
+  });
+  return counts;
+}
+
 function renderAdmin() {
   const container = document.getElementById('adminContent');
   const activeTab = document.querySelector('.admin-tab.active');
@@ -934,7 +950,11 @@ function renderAdminTopics(container) {
         if (prevSearch && !t.name.toLowerCase().includes(prevSearch.toLowerCase())) return;
         topicNum++;
         hasAny = true;
-        html += '<div class="admin-item" data-id="' + topicId + '" data-cat="' + catId + '" data-sub="' + subId + '"><span>' + topicNum + '. ' + c.icon + ' ' + c.name + ' → ' + s.name + ' → ' + t.name + ' (' + (t.questions || []).length + ' Q)</span><span><button class="act-btn edit" onclick="editTopic(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-pen"></i> Edit</button><button class="act-btn del" onclick="delTopic(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-trash"></i> Del</button><span class="drag-handle" draggable="true"><i class="fas fa-grip-vertical"></i></span></span></div>';
+        const topicQs = t.questions || [];
+        const typeCounts = questionTypeCounts(topicQs);
+        const typeSummary = Object.keys(typeCounts).map(k => k + ': ' + typeCounts[k]).join(' · ');
+        const countLabel = topicQs.length + ' Q' + (typeSummary ? ' · ' + typeSummary : '');
+        html += '<div class="admin-item" data-id="' + topicId + '" data-cat="' + catId + '" data-sub="' + subId + '"><span>' + topicNum + '. ' + c.icon + ' ' + c.name + ' → ' + s.name + ' → ' + t.name + ' (' + countLabel + ')</span><span><button class="act-btn edit" onclick="editTopic(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-pen"></i> Edit</button><button class="act-btn del" onclick="delTopic(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-trash"></i> Del</button><span class="drag-handle" draggable="true"><i class="fas fa-grip-vertical"></i></span></span></div>';
       });
     });
   });
@@ -1002,6 +1022,7 @@ function renderAdminQuestions(container) {
   const prevFilterCat = document.getElementById('aqFilterCat')?.value || '';
   const prevFilterSub = document.getElementById('aqFilterSub')?.value || '';
   const prevFilterTopic = document.getElementById('aqFilterTopic')?.value || '';
+  const prevFilterType = document.getElementById('aqFilterType')?.value || '';
   const prevFilterSearch = document.getElementById('aqFilterSearch')?.value || '';
   let html = '<div class="admin-section"><h3>Add Question</h3>';
   html += '<div class="admin-row"><select id="adminQCat"><option value="">Select Category</option>';
@@ -1010,7 +1031,10 @@ function renderAdminQuestions(container) {
   });
   html += '</select>';
   html += '<select id="adminQSub"><option value="">Select Subcategory</option></select>';
-  html += '<select id="adminQTopic"><option value="">Select Topic</option></select></div>';
+  html += '<select id="adminQTopic"><option value="">Select Topic</option></select>';
+  html += '<select id="adminQType" title="Question type">';
+  QUESTION_TYPES.forEach(t => { html += '<option value="' + t + '">Type: ' + t + '</option>'; });
+  html += '</select></div>';
   html += '<div class="admin-row"><input type="text" id="adminQQ" placeholder="Question text"></div>';
   html += '<div class="admin-row"><input type="file" id="adminQImg" accept="image/*" style="flex:1;"><span id="adminQImgName" style="font-size:12px;color:var(--text2);"></span></div>';
   html += '<div class="admin-row"><input type="text" id="adminQO0" placeholder="Option A"><input type="text" id="adminQO1" placeholder="Option B"></div>';
@@ -1036,6 +1060,9 @@ function renderAdminQuestions(container) {
   if (prevFilterCat && prevFilterSub && data.categories[prevFilterCat]?.subcategories[prevFilterSub]) {
     sortedKeys(data.categories[prevFilterCat].subcategories[prevFilterSub].topics || {}).forEach(tid => { html += '<option value="' + tid + '"' + (tid === prevFilterTopic ? ' selected' : '') + '>' + data.categories[prevFilterCat].subcategories[prevFilterSub].topics[tid].name + '</option>'; });
   }
+  html += '</select>';
+  html += '<select id="aqFilterType" style="flex:1;min-width:120px;" title="Filter by question type"><option value="">All Types</option>';
+  QUESTION_TYPES.forEach(t => { html += '<option value="' + t + '"' + (t === prevFilterType ? ' selected' : '') + '>' + t + '</option>'; });
   html += '</select>';
   html += '<input type="text" id="aqFilterSearch" placeholder="Search questions..." value="' + esc(prevFilterSearch) + '" style="flex:2;min-width:180px;"></div>';
   html += '<div id="aqList"><p class="empty-state" style="padding:20px;">Select a filter to find questions.</p></div></div>';
@@ -1089,7 +1116,8 @@ function renderAdminQuestions(container) {
     syncFilterToAddForm();
   });
   document.getElementById('aqFilterSearch').addEventListener('input', applyAQFilters);
-  if (prevFilterCat || prevFilterSub || prevFilterTopic || prevFilterSearch) applyAQFilters();
+  document.getElementById('aqFilterType').addEventListener('change', applyAQFilters);
+  if (prevFilterCat || prevFilterSub || prevFilterTopic || prevFilterType || prevFilterSearch) applyAQFilters();
 }
 
 function populateAdminQSub(catId) {
@@ -1130,10 +1158,11 @@ function applyAQFilters() {
   const cat = document.getElementById('aqFilterCat').value;
   const sub = document.getElementById('aqFilterSub').value;
   const topic = document.getElementById('aqFilterTopic').value;
+  const type = document.getElementById('aqFilterType').value;
   const search = document.getElementById('aqFilterSearch').value.toLowerCase().trim();
 
   const container = document.getElementById('aqList');
-  if (!cat && !sub && !topic && !search) { container.innerHTML = '<p class="empty-state" style="padding:20px;">Select a filter or type to search.</p>'; return; }
+  if (!cat && !sub && !topic && !type && !search) { container.innerHTML = '<p class="empty-state" style="padding:20px;">Select a filter or type to search.</p>'; return; }
   let html = '';
   let prevTopicKey = null;
   let topicCount = 0;
@@ -1141,22 +1170,27 @@ function applyAQFilters() {
     const matchCat = !cat || catId === cat;
     const matchSub = !sub || subId === sub;
     const matchTopic = !topic || topicId === topic;
+    const matchType = !type || getQuestionType(q) === type;
     const matchSearch = !search || (q.question || '').toLowerCase().includes(search);
-    if (!matchCat || !matchSub || !matchTopic || !matchSearch) return;
+    if (!matchCat || !matchSub || !matchTopic || !matchType || !matchSearch) return;
 
     const topicKey = catId + '/' + subId + '/' + topicId;
     if (topicKey !== prevTopicKey) {
       if (prevTopicKey !== null) html += '</div></div>';
       html += '<div class="aq-topic-group" data-topic="' + topicKey + '">';
       html += '<div class="aq-topic-head" onclick="this.nextElementSibling.classList.toggle(\'aq-hidden\');this.querySelector(\'.aq-toggle\').classList.toggle(\'aq-open\');">';
-      html += '<span class="aq-toggle">▶</span> <strong>' + esc(catObj.name) + ' › ' + esc(subObj.name) + ' › ' + esc(topicObj.name) + '</strong> <span class="aq-count">(' + (topicObj.questions || []).length + ' Q)</span>';
+      html += '<span class="aq-toggle">▶</span> <strong>' + esc(catObj.name) + ' › ' + esc(subObj.name) + ' › ' + esc(topicObj.name) + '</strong> <span class="aq-count">(' + (topicObj.questions || []).length + ' Q' + (function () {
+        const tc = questionTypeCounts(topicObj.questions);
+        const ks = Object.keys(tc);
+        return ks.length ? ' · ' + ks.map(k => k + ': ' + tc[k]).join(' · ') : '';
+      })() + ')</span>';
       html += '</div><div class="aq-topic-body">';
       prevTopicKey = topicKey;
       topicCount = 0;
     }
     topicCount++;
     html += '<div class="admin-question-item" data-cat="' + catId + '" data-sub="' + subId + '" data-topic="' + topicId + '">';
-    html += '<div class="aq-text">' + topicCount + '. ' + esc(q.question || '') + '</div>' + (q.image ? '<img class="aq-img" src="' + imgUrl(q.image) + '" alt="Question image">' : '');
+    html += '<div class="aq-text">' + topicCount + '. ' + esc(q.question || '') + ' <span class="aq-type">' + esc(getQuestionType(q)) + '</span></div>' + (q.image ? '<img class="aq-img" src="' + imgUrl(q.image) + '" alt="Question image">' : '');
     html += '<div class="aq-opts">' + (q.options || []).map((o, oi) => (oi === q.answer ? '✅ ' : '') + String.fromCharCode(65 + oi) + '. ' + esc(o)).join(' | ') + '</div>';
     html += '<div class="aq-ans">Answer: ' + String.fromCharCode(65 + q.answer) + ' | ' + esc(q.explanation || '') + '</div>' + (q.expImage ? '<img class="aq-img" src="' + imgUrl(q.expImage) + '" alt="Explanation image">' : '');
     html += '<div class="aq-actions"><button class="btn-secondary" onclick="event.stopPropagation();editAdminQ(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\',' + q.id + ')"><i class="fas fa-pen"></i> Edit</button>';
@@ -1175,6 +1209,7 @@ async function addAdminQ() {
   const opts = [0, 1, 2, 3].map(i => document.getElementById('adminQO' + i).value.trim());
   const ans = parseInt(document.getElementById('adminQAns').value);
   const exp = document.getElementById('adminQExp').value.trim();
+  const qType = document.getElementById('adminQType').value || DEFAULT_QUESTION_TYPE;
   const editId = document.getElementById('adminQEditId').value;
   const imgFile = document.getElementById('adminQImg').files[0];
   const expImgFile = document.getElementById('adminQExpImg').files[0];
@@ -1204,12 +1239,12 @@ async function addAdminQ() {
         editQ = (data.categories[catId]?.subcategories[subId]?.topics[topicId]?.questions || []).find(q => q.id == editId);
       }
       if (editQ) {
-        editQ.question = qText; editQ.options = opts; editQ.answer = ans; editQ.explanation = exp;
+        editQ.question = qText; editQ.options = opts; editQ.answer = ans; editQ.explanation = exp; editQ.type = qType;
         if (imgFile) { await deleteUploadedFile(editQ.image); editQ.image = await uploadFile(imgFile, 'questions').catch(e => { alert('Image upload failed: ' + e.message); return editQ.image; }); }
         if (expImgFile) { await deleteUploadedFile(editQ.expImage); editQ.expImage = await uploadFile(expImgFile, 'explanations').catch(e => { alert('Image upload failed: ' + e.message); return editQ.expImage; }); }
       }
     } else {
-      const q = { id: genId(), question: qText, options: opts, answer: ans, explanation: exp, image: '', expImage: '' };
+      const q = { id: genId(), question: qText, options: opts, answer: ans, explanation: exp, type: qType, image: '', expImage: '' };
       data.categories[catId].subcategories[subId].topics[topicId].questions.push(q);
       if (imgFile) {
         try { q.image = await uploadFile(imgFile, 'questions'); } catch (e) { alert('Image upload failed: ' + e.message); }
@@ -1234,6 +1269,7 @@ function clearAdminQForm() {
   [0, 1, 2, 3].forEach(i => document.getElementById('adminQO' + i).value = '');
   document.getElementById('adminQExp').value = '';
   document.getElementById('adminQAns').value = '0';
+  document.getElementById('adminQType').value = DEFAULT_QUESTION_TYPE;
   document.getElementById('adminQImg').value = '';
   document.getElementById('adminQImgName').innerHTML = '';
   document.getElementById('adminQExpImg').value = '';
@@ -1264,6 +1300,7 @@ function editAdminQ(catId, subId, topicId, qId) {
   (q.options || []).forEach((o, oi) => document.getElementById('adminQO' + oi).value = o);
   document.getElementById('adminQAns').value = q.answer;
   document.getElementById('adminQExp').value = q.explanation || '';
+  document.getElementById('adminQType').value = getQuestionType(q);
   document.getElementById('adminQEditId').value = q.id;
   document.getElementById('adminAddQBtn').textContent = 'Update Question';
   document.getElementById('adminQImg').value = '';
