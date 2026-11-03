@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-<link rel="stylesheet" href="style.css?v=11">
+<link rel="stylesheet" href="style.css?v=12">
 </head>
 <body>
 
@@ -28,6 +28,7 @@
       <a class="nav-item active" data-page="dashboard"><i class="fas fa-house"></i> Dashboard</a>
       <a class="nav-item" data-page="questions"><i class="fas fa-layer-group"></i> Question Bank</a>
       <a class="nav-item" data-page="mocks"><i class="fas fa-stopwatch"></i> Mock Tests</a>
+      <a class="nav-item" data-page="topics"><i class="fas fa-list-check"></i> Topic Tests</a>
       <a class="nav-item" data-page="builder"><i class="fas fa-wand-magic-sparkles"></i> Test Builder</a>
       <a class="nav-item" data-page="ebook"><i class="fas fa-book-open"></i> E-Book</a>
       <a class="nav-item" data-page="admin"><i class="fas fa-sliders"></i> Admin</a>
@@ -462,6 +463,22 @@
         </div>
       </section>
 
+      <!-- ===================== TOPIC TESTS ===================== -->
+      <section id="page-topics" class="page">
+        <div class="page-head">
+          <span class="section-kicker">Focused practice</span>
+          <h1>Topic Tests</h1>
+          <p>Take a short timed test on any single topic and see how well you know it.</p>
+        </div>
+        <div class="topic-test-tools">
+          <select id="topicTestCat" aria-label="Filter by category"><option value="">All Categories</option></select>
+          <select id="topicTestSub" aria-label="Filter by subcategory"><option value="">All Subcategories</option></select>
+          <input type="text" id="topicTestSearch" placeholder="Search topics...">
+          <span class="topic-test-count" id="topicTestCount"></span>
+        </div>
+        <div id="topicTestList" class="mock-grid"></div>
+      </section>
+
       <!-- ===================== TEST BUILDER ===================== -->
       <section id="page-builder" class="page">
         <div class="page-head">
@@ -533,6 +550,6 @@
   </main>
 </div>
 
-<script src="script.js?v=11"></script>
+<script src="script.js?v=12"></script>
 </body>
 </html>

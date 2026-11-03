@@ -201,12 +201,13 @@ function switchPage(page) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.page === page));
-  const titles = { dashboard: 'Dashboard', questions: 'Question Bank', mocks: 'Mock Tests', builder: 'Test Builder', ebook: 'E-Book', admin: 'Admin' };
+  const titles = { dashboard: 'Dashboard', questions: 'Question Bank', mocks: 'Mock Tests', topics: 'Topic Tests', builder: 'Test Builder', ebook: 'E-Book', admin: 'Admin' };
   document.getElementById('pageTitle').textContent = titles[page] || 'Dashboard';
   document.getElementById('statsBadge').textContent = countQuestions() + ' questions';
   if (page === 'questions' && !_qbContext) renderQBTopics();
   if (page === 'dashboard') { _qbContext = null; renderDashboard(); }
   if (page === 'mocks') renderMockList();
+  if (page === 'topics') renderTopicTests();
   if (page === 'builder') renderBuilder();
   if (page === 'ebook') renderEbook();
   if (page === 'admin') renderAdmin();
@@ -1902,11 +1903,162 @@ function clearExamSession(testId) {
 function pruneExamSessions() {
   const all = loadExamSessions();
   const validIds = new Set(mockTests.map(t => String(t.id)));
+  // Topic tests are generated from the current data, so include their ids too.
+  forEachQ((q, i, catId, subId, topicId) => {
+    validIds.add(topicTestId(catId, subId, topicId));
+  });
   let changed = false;
   Object.keys(all).forEach(id => {
     if (!validIds.has(id)) { delete all[id]; changed = true; }
   });
   if (changed) persistExamSessions(all);
+}
+
+// Stable id for the auto-generated test of a single topic.
+function topicTestId(catId, subId, topicId) {
+  return 'topic:' + catId + '/' + subId + '/' + topicId;
+}
+
+function buildTopicTest(catId, subId, topicId) {
+  const cat = data.categories[catId];
+  const sub = cat && cat.subcategories[subId];
+  const topic = sub && sub.topics[topicId];
+  if (!topic) return null;
+  const ids = (topic.questions || []).map(q => q.id);
+  return {
+    id: topicTestId(catId, subId, topicId),
+    name: topic.name + ' — Topic Test',
+    subtitle: 'Topic-wise Test · ' + cat.name + ' › ' + sub.name,
+    duration: Math.max(5, ids.length),
+    totalMarks: ids.length,
+    questionIds: ids,
+    topicRef: { catId, subId, topicId }
+  };
+}
+
+function renderTopicTests() {
+  populateTopicTestFilters();
+  pruneExamSessions();
+  renderTopicTestList();
+}
+
+function populateTopicTestFilters() {
+  const catSel = document.getElementById('topicTestCat');
+  const subSel = document.getElementById('topicTestSub');
+  if (!catSel || !subSel) return;
+  const prevCat = catSel.value;
+  const prevSub = subSel.value;
+
+  catSel.innerHTML = '<option value="">All Categories</option>';
+  sortedKeys(data.categories).forEach(catId => {
+    catSel.innerHTML += '<option value="' + catId + '">' + esc(data.categories[catId].name) + '</option>';
+  });
+  if (data.categories[prevCat]) catSel.value = prevCat;
+
+  subSel.innerHTML = '<option value="">All Subcategories</option>';
+  const cat = data.categories[catSel.value];
+  if (cat) {
+    sortedKeys(cat.subcategories || {}).forEach(subId => {
+      subSel.innerHTML += '<option value="' + subId + '">' + esc(cat.subcategories[subId].name) + '</option>';
+    });
+  }
+  if (Array.prototype.some.call(subSel.options, o => o.value === prevSub)) subSel.value = prevSub;
+}
+
+function populateTopicTestSubs() {
+  const catSel = document.getElementById('topicTestCat');
+  const subSel = document.getElementById('topicTestSub');
+  if (!catSel || !subSel) return;
+  const prevSub = subSel.value;
+  subSel.innerHTML = '<option value="">All Subcategories</option>';
+  const cat = data.categories[catSel.value];
+  if (cat) {
+    sortedKeys(cat.subcategories || {}).forEach(subId => {
+      subSel.innerHTML += '<option value="' + subId + '">' + esc(cat.subcategories[subId].name) + '</option>';
+    });
+  }
+  if (Array.prototype.some.call(subSel.options, o => o.value === prevSub)) subSel.value = prevSub;
+}
+
+function renderTopicTestList() {
+  const container = document.getElementById('topicTestList');
+  if (!container) return;
+  const catId = document.getElementById('topicTestCat')?.value || '';
+  const subId = document.getElementById('topicTestSub')?.value || '';
+  const search = (document.getElementById('topicTestSearch')?.value || '').toLowerCase().trim();
+
+  container.innerHTML = '';
+  let shown = 0;
+  let total = 0;
+
+  sortedKeys(data.categories).forEach(c => {
+    if (catId && c !== catId) return;
+    const cat = data.categories[c];
+    sortedKeys(cat.subcategories || {}).forEach(s => {
+      if (subId && s !== subId) return;
+      const sub = cat.subcategories[s];
+      sortedKeys(sub.topics || {}).forEach(t => {
+        total++;
+        const topic = sub.topics[t];
+        if (search && !(topic.name + ' ' + sub.name + ' ' + cat.name).toLowerCase().includes(search)) return;
+        shown++;
+
+        const test = buildTopicTest(c, s, t);
+        const count = test.questionIds.length;
+        const saved = count ? getExamSession(test.id) : null;
+        const answered = saved ? Object.keys(saved.answers || {}).length : 0;
+        const typeCounts = questionTypeCounts(topic.questions, topic);
+        const typeSummary = Object.keys(typeCounts).map(k => k + ': ' + typeCounts[k]).join(' · ');
+
+        const div = document.createElement('div');
+        div.className = 'mock-card topic-card' + (count ? '' : ' disabled');
+        div.innerHTML =
+          '<span class="topic-card-path">' + (cat.iconImage ? '' : esc(cat.icon || '📂')) + ' ' + esc(cat.name) + ' › ' + esc(sub.name) + '</span>' +
+          '<h3>' + esc(topic.name) + '</h3>' +
+          '<p><i class="fas fa-circle-question"></i> ' + count + ' question' + (count === 1 ? '' : 's') + '</p>' +
+          '<p><i class="far fa-clock"></i> ' + (count ? test.duration + ' min' : '—') + '</p>' +
+          (typeSummary ? '<p class="topic-card-types">' + esc(typeSummary) + '</p>' : '') +
+          '<p class="mock-start">' + (count
+            ? (saved
+              ? '<i class="fas fa-rotate-left"></i> Resume saved attempt' + (answered ? ' · ' + answered + ' answered' : '')
+              : '<i class="fas fa-play"></i> Start test')
+            : '<i class="fas fa-circle-info"></i> No questions yet') + '</p>';
+
+        if (count) {
+          div.addEventListener('click', () => startTopicTest(c, s, t));
+        }
+        if (saved) {
+          const reset = document.createElement('button');
+          reset.type = 'button';
+          reset.className = 'mock-restart';
+          reset.textContent = 'Start over';
+          reset.addEventListener('click', ev => {
+            ev.stopPropagation();
+            if (!confirm('Discard the saved answers for "' + topic.name + '" and start again?')) return;
+            clearExamSession(test.id);
+            startTopicTest(c, s, t);
+          });
+          div.appendChild(reset);
+        }
+        container.appendChild(div);
+      });
+    });
+  });
+
+  if (!shown) {
+    container.innerHTML = '<div class="empty-state"><i class="fas fa-list-check"></i><p>' +
+      (total ? 'No topics match your filters.' : 'No topics with questions yet. Add questions in the Admin panel.') +
+      '</p></div>';
+  }
+  const countEl = document.getElementById('topicTestCount');
+  if (countEl) countEl.textContent = shown + ' of ' + total + ' topic' + (total === 1 ? '' : 's');
+}
+
+function startTopicTest(catId, subId, topicId) {
+  const t = buildTopicTest(catId, subId, topicId);
+  if (!t) return;
+  if (!t.questionIds.length) { alert('This topic has no questions yet.'); return; }
+  startExam(t, -1, 'topics');
 }
 
 function renderMockList() {
@@ -1958,8 +2110,11 @@ function buildMockSections(questions) {
 }
 
 function startMockTest(idx) {
+  startExam(mockTests[idx], idx, 'mocks');
+}
+
+function startExam(t, idx, returnPage) {
   stopMockTimer();
-  const t = mockTests[idx];
   if (!t) return;
 
   const qMap = new Map();
@@ -1973,6 +2128,8 @@ function startMockTest(idx) {
   _mockState = {
     testIdx: idx,
     test: t,
+    returnPage: returnPage || 'mocks',
+    topicRef: t.topicRef || null,
     questions: allQs,
     idx: 0,
     answers: {},
@@ -2015,6 +2172,9 @@ function startMockTest(idx) {
     now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) +
     ' · Shift 1';
   document.getElementById('mockTestSubtitle').textContent = (t.subtitle || '').trim() || defaultSubtitle;
+
+  const backBtn = document.getElementById('mockResultBackBtn');
+  if (backBtn) backBtn.textContent = _mockState.returnPage === 'topics' ? 'Back to Topic Tests' : 'Back to Mock Tests';
 
   const langSel = document.getElementById('mockLanguage');
   if (langSel) langSel.value = localStorage.getItem('studyhub_exam_lang') || 'en';
@@ -2516,13 +2676,17 @@ function submitMockTest() {
 function retryMockTest() {
   if (!_mockState) return;
   const idx = _mockState.testIdx;
+  const ref = _mockState.topicRef;
+  const testId = _mockState.test.id;
   if (confirm('Restart this test? Your current answers will be cleared.')) {
-    clearExamSession(mockTests[idx] ? mockTests[idx].id : null);
-    startMockTest(idx);
+    clearExamSession(testId);
+    if (ref) startTopicTest(ref.catId, ref.subId, ref.topicId);
+    else startMockTest(idx);
   }
 }
 
 function quitMockTest() {
+  const returnPage = _mockState ? (_mockState.returnPage || 'mocks') : 'mocks';
   stopMockTimer();
   _mockState = null;
   document.body.classList.remove('exam-active');
@@ -2534,7 +2698,8 @@ function quitMockTest() {
     document.exitFullscreen().catch(() => {});
   }
   updateMockFullscreenIcon();
-  renderMockList();
+  if (returnPage === 'topics') switchPage('topics');
+  else renderMockList();
 }
 
 function showExamToast(message) {
@@ -2625,6 +2790,11 @@ async function init() {
   bindMock('mockRetryBtn', 'click', retryMockTest);
   bindMock('mockLanguage', 'change', onMockLanguageChange);
   document.addEventListener('fullscreenchange', updateMockFullscreenIcon);
+
+  // Topic Tests filters
+  bindMock('topicTestCat', 'change', function () { populateTopicTestSubs(); renderTopicTestList(); });
+  bindMock('topicTestSub', 'change', renderTopicTestList);
+  bindMock('topicTestSearch', 'input', renderTopicTestList);
 
   // Admin tabs
   document.querySelectorAll('.admin-tab').forEach(t => t.addEventListener('click', function () {

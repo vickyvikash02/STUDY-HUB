@@ -1178,6 +1178,47 @@ input, select, textarea, button { font-family: inherit; }
 }
 .mock-restart:hover { border-color: var(--danger); color: var(--danger); }
 
+/* ===== TOPIC TESTS ===== */
+.topic-test-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.topic-test-tools select,
+.topic-test-tools input {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12.5px;
+}
+.topic-test-tools select:focus,
+.topic-test-tools input:focus { outline: none; border-color: var(--primary); }
+.topic-test-tools input { flex: 1; min-width: 180px; }
+.topic-test-count { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--text2); }
+.topic-card .topic-card-path {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text2);
+  text-transform: uppercase;
+}
+.topic-card .topic-card-types {
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--primary);
+  font-weight: 600;
+}
+.topic-card.disabled { opacity: 0.6; cursor: default; }
+.topic-card.disabled:hover { transform: none; box-shadow: none; border-color: var(--border); }
+.topic-card.disabled .mock-start { color: var(--text2) !important; }
+
 .mock-result { text-align: center; padding: 40px 0; animation: fadeUp 0.5s ease; }
 .mock-result h2 { font-size: 26px; font-weight: 800; margin-bottom: 20px; }
 .result-circle {
