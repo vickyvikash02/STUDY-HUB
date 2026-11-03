@@ -1287,6 +1287,7 @@ let _builderQMeta = new Map();
 
 function renderBuilder() {
   document.getElementById('builderName').value = '';
+  document.getElementById('builderSubtitle').value = '';
   document.getElementById('builderDuration').value = '20';
   document.getElementById('builderMarks').value = '25';
   _builderSelected = new Set();
@@ -1514,13 +1515,14 @@ function renderExistingTests() {
 
 document.getElementById('builderSaveBtn').addEventListener('click', function () {
   const name = document.getElementById('builderName').value.trim();
+  const subtitle = document.getElementById('builderSubtitle').value.trim();
   const duration = parseInt(document.getElementById('builderDuration').value);
   const totalMarks = parseInt(document.getElementById('builderMarks').value);
   const ids = Array.from(_builderSelected);
   if (!name) { alert('Enter a test name.'); return; }
   if (!ids.length) { alert('Select at least one question.'); return; }
   const catCount = new Set(ids.map(id => (_builderQMeta.get(id) || {}).catId).filter(Boolean)).size;
-  mockTests.push({ id: Date.now(), name, duration: duration || 20, totalMarks: totalMarks || ids.length, questionIds: ids });
+  mockTests.push({ id: Date.now(), name, subtitle, duration: duration || 20, totalMarks: totalMarks || ids.length, questionIds: ids });
   saveData();
   renderBuilder();
   alert('Mock test "' + name + '" created with ' + ids.length + ' questions' + (catCount > 1 ? ' from ' + catCount + ' categories' : '') + '!');
@@ -1714,10 +1716,11 @@ function startMockTest(idx) {
 
   document.getElementById('mockTestTitle').textContent = t.name;
   const now = new Date();
-  document.getElementById('mockTestSubtitle').textContent =
+  const defaultSubtitle =
     'Computer Based Test · ' +
     now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) +
     ' · Shift 1';
+  document.getElementById('mockTestSubtitle').textContent = (t.subtitle || '').trim() || defaultSubtitle;
 
   const langSel = document.getElementById('mockLanguage');
   if (langSel) langSel.value = localStorage.getItem('studyhub_exam_lang') || 'en';
