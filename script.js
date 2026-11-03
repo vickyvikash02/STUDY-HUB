@@ -1549,6 +1549,7 @@ function editMockTest(idx) {
 
 function delMockTest(idx) {
   if (!confirm('Delete "' + mockTests[idx].name + '"?')) return;
+  clearExamSession(mockTests[idx].id);
   mockTests.splice(idx, 1);
   saveData(); renderBuilder(); renderMockList();
 }
@@ -1557,6 +1558,61 @@ function delMockTest(idx) {
 let _mockState = null;
 let _examToastTimer = null;
 
+// In-progress attempts are saved so leaving the exam (e.g. going Home) does
+// not lose answers. Keyed by mock test id.
+const EXAM_SESSION_KEY = 'studyhub_exam_session';
+
+function loadExamSessions() {
+  try {
+    const raw = localStorage.getItem(EXAM_SESSION_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (e) { return {}; }
+}
+
+function persistExamSessions(all) {
+  try { localStorage.setItem(EXAM_SESSION_KEY, JSON.stringify(all)); } catch (e) {}
+}
+
+function getExamSession(testId) {
+  if (testId === undefined || testId === null) return null;
+  return loadExamSessions()[testId] || null;
+}
+
+function saveExamSession() {
+  if (!_mockState || _mockState.submitted) return;
+  commitMockPending();
+  const all = loadExamSessions();
+  all[_mockState.test.id] = {
+    answers: _mockState.answers,
+    pending: _mockState.pending,
+    marked: _mockState.marked,
+    visited: _mockState.visited,
+    idx: _mockState.idx,
+    remaining: Math.max(0, _mockState.remaining),
+    updatedAt: Date.now()
+  };
+  persistExamSessions(all);
+}
+
+function clearExamSession(testId) {
+  const all = loadExamSessions();
+  if (all[testId] !== undefined) {
+    delete all[testId];
+    persistExamSessions(all);
+  }
+}
+
+function pruneExamSessions() {
+  const all = loadExamSessions();
+  const validIds = new Set(mockTests.map(t => String(t.id)));
+  let changed = false;
+  Object.keys(all).forEach(id => {
+    if (!validIds.has(id)) { delete all[id]; changed = true; }
+  });
+  if (changed) persistExamSessions(all);
+}
+
 function renderMockList() {
   const container = document.getElementById('mockList');
   container.innerHTML = '';
@@ -1564,10 +1620,28 @@ function renderMockList() {
     container.innerHTML = '<div class="empty-state"><i class="fas fa-tasks"></i><p>No mock tests yet. Create one in the Test Builder.</p></div>';
     return;
   }
+  pruneExamSessions();
   mockTests.forEach((t, i) => {
+    const saved = getExamSession(t.id);
+    const answered = saved ? Object.keys(saved.answers || {}).length : 0;
     const div = document.createElement('div'); div.className = 'mock-card';
-    div.innerHTML = '<h3>' + esc(t.name) + '</h3><p><i class="far fa-clock"></i> ' + t.duration + ' min</p><p><i class="fas fa-star"></i> ' + t.totalMarks + ' marks</p><p style="color:var(--text2);">' + (t.questionIds || []).length + ' questions</p><p class="mock-start"><i class="fas fa-play"></i> Start test</p>';
+    div.innerHTML = '<h3>' + esc(t.name) + '</h3><p><i class="far fa-clock"></i> ' + t.duration + ' min</p><p><i class="fas fa-star"></i> ' + t.totalMarks + ' marks</p><p style="color:var(--text2);">' + (t.questionIds || []).length + ' questions</p><p class="mock-start">' + (saved
+      ? '<i class="fas fa-rotate-left"></i> Resume saved attempt' + (answered ? ' · ' + answered + ' answered' : '')
+      : '<i class="fas fa-play"></i> Start test') + '</p>';
     div.addEventListener('click', () => startMockTest(i));
+    if (saved) {
+      const reset = document.createElement('button');
+      reset.type = 'button';
+      reset.className = 'mock-restart';
+      reset.textContent = 'Start over';
+      reset.addEventListener('click', ev => {
+        ev.stopPropagation();
+        if (!confirm('Discard the saved answers for "' + t.name + '" and start again?')) return;
+        clearExamSession(t.id);
+        startMockTest(i);
+      });
+      div.appendChild(reset);
+    }
     container.appendChild(div);
   });
 }
@@ -1599,6 +1673,7 @@ function startMockTest(idx) {
 
   switchPage('mocks');
 
+  const saved = getExamSession(t.id);
   _mockState = {
     testIdx: idx,
     test: t,
@@ -1612,9 +1687,26 @@ function startMockTest(idx) {
     activeSection: 0,
     submitted: false,
     paused: false,
-    remaining: (t.duration || 20) * 60,
+    remaining: saved && typeof saved.remaining === 'number'
+      ? Math.max(1, saved.remaining)
+      : (t.duration || 20) * 60,
     _timer: null
   };
+
+  if (saved) {
+    const idMap = new Map(allQs.map(q => [String(q.id), q.id]));
+    ['answers', 'pending', 'marked', 'visited'].forEach(key => {
+      const src = saved[key];
+      if (!src || typeof src !== 'object') return;
+      Object.keys(src).forEach(id => {
+        if (idMap.has(id)) _mockState[key][idMap.get(id)] = src[id];
+      });
+    });
+    const savedIdx = Number(saved.idx);
+    _mockState.idx = Number.isFinite(savedIdx)
+      ? Math.max(0, Math.min(savedIdx, allQs.length - 1))
+      : 0;
+  }
 
   document.getElementById('mockListContainer').classList.add('hidden');
   document.getElementById('mockTestContainer').classList.remove('hidden');
@@ -1641,7 +1733,8 @@ function startMockTest(idx) {
   updateMockFullscreenIcon();
 
   renderMockQuestion();
-  startMockTimer(t.duration);
+  startMockTimer(t.duration, !!saved);
+  if (saved) showExamToast('Resumed your saved attempt');
 }
 
 function mockCurrentSection() {
@@ -1916,10 +2009,10 @@ function updateMockTimerUI() {
   }
 }
 
-function startMockTimer(duration) {
+function startMockTimer(duration, keepRemaining) {
   stopMockTimer();
   if (!_mockState) return;
-  if (duration) _mockState.remaining = duration * 60;
+  if (!keepRemaining && duration) _mockState.remaining = duration * 60;
   updateMockTimerUI();
   _mockState._timer = setInterval(() => {
     if (!_mockState || _mockState.submitted || _mockState.paused) return;
@@ -1990,10 +2083,18 @@ function toggleExamTheme() {
   setExamThemeIcon();
 }
 
-// Leave the exam (with confirmation) and return to the dashboard.
+// Leave the exam and return to the dashboard. An unfinished attempt is saved
+// so it can be resumed from the Mock Tests page.
 function examGoHome() {
   if (!_mockState) { switchPage('dashboard'); return; }
-  if (!_mockState.submitted && !confirm('Leave the test and go to Home? Your current answers will be lost.')) return;
+  if (_mockState.submitted) {
+    clearExamSession(_mockState.test.id);
+    quitMockTest();
+    switchPage('dashboard');
+    return;
+  }
+  if (!confirm('Go to Home? Your answers will be saved, and you can resume this test later.')) return;
+  saveExamSession();
   quitMockTest();
   switchPage('dashboard');
 }
@@ -2055,6 +2156,7 @@ function openMockSubmit() {
 function submitMockTest() {
   if (!_mockState || _mockState.submitted) return;
   commitMockPending();
+  clearExamSession(_mockState.test.id);
   _mockState.submitted = true;
   _mockState.paused = false;
   stopMockTimer();
@@ -2117,7 +2219,10 @@ function submitMockTest() {
 function retryMockTest() {
   if (!_mockState) return;
   const idx = _mockState.testIdx;
-  if (confirm('Restart this test? Your current answers will be cleared.')) startMockTest(idx);
+  if (confirm('Restart this test? Your current answers will be cleared.')) {
+    clearExamSession(mockTests[idx] ? mockTests[idx].id : null);
+    startMockTest(idx);
+  }
 }
 
 function quitMockTest() {
@@ -2233,3 +2338,8 @@ async function init() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+// Keep the current attempt safe if the tab is closed or reloaded mid-test.
+window.addEventListener('pagehide', function () {
+  if (_mockState && !_mockState.submitted) saveExamSession();
+});
