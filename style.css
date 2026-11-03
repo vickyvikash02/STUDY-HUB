@@ -1084,6 +1084,84 @@ input, select, textarea, button { font-family: inherit; }
 .qb-topic-count { font-size: 11px; color: var(--text2); }
 .qb-empty { text-align: center; padding: 40px 20px; color: var(--text2); font-size: 13px; }
 
+.qb-select-bar {
+  position: sticky;
+  top: 12px;
+  z-index: 6;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-sm);
+}
+.qb-select-all { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.qb-select-all input { width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer; }
+.qb-selected-count { font-size: 12px; font-weight: 600; color: var(--text2); }
+.qb-select-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+.qb-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 13px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface2);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.qb-action-btn:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+.qb-action-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.qb-action-clear:hover:not(:disabled) { border-color: var(--danger); color: var(--danger); }
+.qb-action-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+.qb-action-primary:hover:not(:disabled) { background: var(--primary); color: #fff; filter: brightness(1.06); }
+
+.qb-picker {
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  animation: fadeUp 0.25s ease both;
+}
+.qb-picker-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; font-size: 13px; }
+.qb-picker-close { border: none; background: transparent; color: var(--text2); font-size: 15px; cursor: pointer; padding: 2px 6px; line-height: 1; }
+.qb-picker-close:hover { color: var(--danger); }
+.qb-picker select,
+.qb-picker input {
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12.5px;
+}
+.qb-picker select { width: 100%; margin-bottom: 10px; }
+.qb-picker select:focus,
+.qb-picker input:focus { outline: none; border-color: var(--primary); }
+.qb-picker-new { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.qb-picker-new input:first-child { flex: 1; min-width: 190px; }
+.qb-picker-new input[type="number"] { width: 120px; }
+.qb-picker-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.qb-q-check { flex-shrink: 0; width: 17px; height: 17px; accent-color: var(--primary); cursor: pointer; margin: 0; }
+.q-item.qb-selected { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-light); }
+
+@media (max-width: 640px) {
+  .qb-select-bar { position: static; }
+  .qb-select-actions { width: 100%; margin-left: 0; }
+  .qb-select-actions .qb-action-btn { flex: 1; justify-content: center; }
+  .qb-picker-new input:first-child { min-width: 100%; }
+  .qb-picker-new input[type="number"] { flex: 1; width: auto; }
+}
+
 .q-item {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -1096,7 +1174,7 @@ input, select, textarea, button { font-family: inherit; }
 }
 .q-item:hover { box-shadow: var(--shadow); }
 .q-item .q-num { font-size: 12.5px; font-weight: 700; color: var(--primary); margin-bottom: 10px; }
-.q-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.q-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .q-item .q-text { font-size: 15px; line-height: 1.7; font-weight: 500; margin-bottom: 14px; }
 .q-item .q-answer { font-size: 13px; color: #059669; font-weight: 600; margin-top: 10px; }
 .q-item .q-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }

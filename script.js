@@ -471,9 +471,13 @@ function toggleSubcat(catId, subId) {
 
 // ======================== QUESTION BANK ========================
 let _qbContext = null;
+let _qbSelected = new Set();
+let _qbPickerType = null;
 
 function openQuestionBank(catId, subId, topicId) {
   _qbContext = { catId, subId, topicId };
+  _qbSelected = new Set();
+  _qbPickerType = null;
   switchPage('questions');
   const cat = data.categories[catId];
   const sub = cat.subcategories[subId];
@@ -488,20 +492,58 @@ function openQuestionBank(catId, subId, topicId) {
   container.innerHTML = '';
   let searchHtml = '<div style="margin-bottom:12px;"><input type="text" id="qbSearch" placeholder="Search questions..." style="width:100%;padding:10px 14px;border:2px solid var(--border);border-radius:var(--radius-sm);font-size:14px;background:var(--surface);color:var(--text);outline:none;" oninput="filterQBQuestions(this.value)"></div>';
   container.insertAdjacentHTML('beforeend', searchHtml);
+
+  const bar = document.createElement('div');
+  bar.className = 'qb-select-bar';
+  bar.innerHTML =
+    '<label class="qb-select-all"><input type="checkbox" id="qbSelectAll"> Select all</label>' +
+    '<span class="qb-selected-count" id="qbSelectedCount">0 selected</span>' +
+    '<div class="qb-select-actions">' +
+      '<button type="button" class="qb-action-btn" id="qbAddMockBtn" disabled><i class="fas fa-stopwatch"></i> Add to Mock Test</button>' +
+      '<button type="button" class="qb-action-btn" id="qbAddTopicBtn" disabled><i class="fas fa-list-check"></i> Add to Topic Test</button>' +
+      '<button type="button" class="qb-action-btn qb-action-clear" id="qbClearSelBtn" disabled><i class="fas fa-xmark"></i> Clear</button>' +
+    '</div>';
+  container.appendChild(bar);
+
+  const picker = document.createElement('div');
+  picker.className = 'qb-picker hidden';
+  picker.id = 'qbPicker';
+  container.appendChild(picker);
+
   const list = document.createElement('div'); list.id = 'qbQuestionList';
   container.appendChild(list);
 
   window._qbAllQs = qs;
 
-  window.buildQBItem = function buildQBItem(q, i, ctxCatId, ctxSubId, ctxTopicId) {
+  document.getElementById('qbSelectAll').addEventListener('change', function () { toggleQBSelectAll(this.checked); });
+  document.getElementById('qbAddMockBtn').addEventListener('click', function () { openQBPicker('mock'); });
+  document.getElementById('qbAddTopicBtn').addEventListener('click', function () { openQBPicker('topic'); });
+  document.getElementById('qbClearSelBtn').addEventListener('click', clearQBSelection);
+
+  window.buildQBItem = function buildQBItem(q, i) {
     const item = document.createElement('div'); item.className = 'q-item';
     item.dataset.qid = q.id;
 
     const head = document.createElement('div'); head.className = 'q-head';
+    const check = document.createElement('input');
+    check.type = 'checkbox';
+    check.className = 'qb-q-check';
+    check.value = q.id;
+    check._qid = q.id;
+    check.title = 'Select this question for a test';
+    check.checked = _qbSelected.has(q.id);
+    check.addEventListener('change', function () {
+      if (this.checked) _qbSelected.add(this._qid);
+      else _qbSelected.delete(this._qid);
+      item.classList.toggle('qb-selected', this.checked);
+      updateQBSelection();
+    });
     const num = document.createElement('div'); num.className = 'q-num';
     num.textContent = 'Question ' + (i + 1);
+    head.appendChild(check);
     head.appendChild(num);
     item.appendChild(head);
+    item.classList.toggle('qb-selected', check.checked);
     if (q.image) {
       const img = document.createElement('img'); img.className = 'q-img'; img.src = imgUrl(q.image); img.alt = 'Question image';
       item.appendChild(img);
@@ -525,13 +567,204 @@ function openQuestionBank(catId, subId, topicId) {
   function renderQBList(qs) {
     list.innerHTML = '';
     qs.forEach((q, i) => {
-      const item = buildQBItem(q, i, _qbContext.catId, _qbContext.subId, _qbContext.topicId);
+      const item = buildQBItem(q, i);
       list.appendChild(item);
     });
     if (!qs.length) list.innerHTML = '<div class="empty-state"><i class="fas fa-search"></i><p>No questions match your search.</p></div>';
+    updateQBSelection();
   }
 
   renderQBList(qs);
+}
+
+function toggleQBSelectAll(checked) {
+  document.querySelectorAll('#qbQuestionList .qb-q-check').forEach(cb => {
+    cb.checked = checked;
+    if (checked) _qbSelected.add(cb._qid);
+    else _qbSelected.delete(cb._qid);
+    const item = cb.closest('.q-item');
+    if (item) item.classList.toggle('qb-selected', checked);
+  });
+  updateQBSelection();
+}
+
+function updateQBSelection() {
+  const checks = Array.from(document.querySelectorAll('#qbQuestionList .qb-q-check'));
+  const selectedVisible = checks.filter(c => c.checked).length;
+  const all = document.getElementById('qbSelectAll');
+  if (all) {
+    all.disabled = checks.length === 0;
+    all.checked = checks.length > 0 && selectedVisible === checks.length;
+    all.indeterminate = selectedVisible > 0 && selectedVisible < checks.length;
+  }
+  const count = document.getElementById('qbSelectedCount');
+  if (count) count.textContent = _qbSelected.size + ' selected';
+  const disabled = _qbSelected.size === 0;
+  ['qbAddMockBtn', 'qbAddTopicBtn', 'qbClearSelBtn'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = disabled;
+  });
+}
+
+function clearQBSelection() {
+  _qbSelected = new Set();
+  document.querySelectorAll('#qbQuestionList .qb-q-check').forEach(cb => {
+    cb.checked = false;
+    const item = cb.closest('.q-item');
+    if (item) item.classList.remove('qb-selected');
+  });
+  hideQBPicker();
+  updateQBSelection();
+}
+
+function hideQBPicker() {
+  const picker = document.getElementById('qbPicker');
+  if (picker) { picker.classList.add('hidden'); picker.innerHTML = ''; }
+  _qbPickerType = null;
+}
+
+function qbPickerTopicInfo() {
+  if (!_qbContext) return null;
+  const cat = data.categories[_qbContext.catId];
+  const sub = cat && cat.subcategories[_qbContext.subId];
+  const topic = sub && sub.topics[_qbContext.topicId];
+  return (cat && sub && topic) ? { cat, sub, topic } : null;
+}
+
+function openQBPicker(type) {
+  if (!_qbSelected.size) { alert('Select at least one question first.'); return; }
+  const picker = document.getElementById('qbPicker');
+  const info = qbPickerTopicInfo();
+  if (!picker || !info) return;
+  _qbPickerType = type;
+  const count = _qbSelected.size;
+  const defaultName = type === 'mock'
+    ? info.topic.name + ' — Custom Mock'
+    : info.topic.name + ' — Custom Topic Test';
+  const defaultDuration = Math.max(5, count);
+  const noun = type === 'mock' ? 'mock' : 'topic';
+
+  let html = '<div class="qb-picker-head"><strong>Add ' + count + ' selected question' + (count === 1 ? '' : 's') + ' to a ' + noun + ' test</strong>' +
+    '<button type="button" class="qb-picker-close" id="qbPickerClose" aria-label="Close"><i class="fas fa-times"></i></button></div>';
+
+  html += '<select id="qbPickTarget">';
+  html += '<option value="new">➕ Create a new ' + noun + ' test</option>';
+  if (type === 'mock') {
+    mockTests.forEach((t, i) => {
+      const n = (t.questionIds || []).length;
+      html += '<option value="' + i + '">' + esc(t.name) + ' — ' + n + ' question' + (n === 1 ? '' : 's') + '</option>';
+    });
+  } else {
+    topicTests.forEach((t, i) => {
+      if (t.catId !== _qbContext.catId || t.subId !== _qbContext.subId || t.topicId !== _qbContext.topicId) return;
+      const n = (t.questionIds || []).length;
+      html += '<option value="' + i + '">' + esc(t.name) + ' — ' + n + ' question' + (n === 1 ? '' : 's') + '</option>';
+    });
+  }
+  html += '</select>';
+
+  html += '<div class="qb-picker-new" id="qbPickerNewFields">';
+  html += '<input type="text" id="qbNewTestName" placeholder="Test name" value="' + esc(defaultName) + '">';
+  html += '<input type="number" id="qbNewTestDuration" placeholder="Minutes" value="' + defaultDuration + '" min="1">';
+  html += '<input type="number" id="qbNewTestMarks" placeholder="Marks" value="' + count + '" min="1">';
+  html += '</div>';
+
+  html += '<div class="qb-picker-actions">';
+  html += '<button type="button" class="qb-action-btn qb-action-primary" id="qbPickerConfirm"><i class="fas fa-plus"></i> Add selected</button>';
+  html += '<button type="button" class="qb-action-btn" id="qbPickerCancel">Cancel</button>';
+  html += '</div>';
+
+  picker.innerHTML = html;
+  picker.classList.remove('hidden');
+
+  const target = document.getElementById('qbPickTarget');
+  const newFields = document.getElementById('qbPickerNewFields');
+  target.addEventListener('change', function () {
+    newFields.classList.toggle('hidden', this.value !== 'new');
+  });
+  document.getElementById('qbPickerClose').addEventListener('click', hideQBPicker);
+  document.getElementById('qbPickerCancel').addEventListener('click', hideQBPicker);
+  document.getElementById('qbPickerConfirm').addEventListener('click', function () { confirmQBPicker(type); });
+  picker.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function confirmQBPicker(type) {
+  const info = qbPickerTopicInfo();
+  if (!info || !_qbSelected.size) return;
+  const ids = Array.from(_qbSelected);
+  const targetVal = document.getElementById('qbPickTarget').value;
+  let test = null;
+  let added = 0;
+  let created = false;
+
+  if (type === 'mock') {
+    if (targetVal === 'new') {
+      const name = (document.getElementById('qbNewTestName').value || '').trim();
+      if (!name) { alert('Enter a name for the new mock test.'); return; }
+      const duration = parseInt(document.getElementById('qbNewTestDuration').value, 10) || Math.max(5, ids.length);
+      const marks = parseInt(document.getElementById('qbNewTestMarks').value, 10) || ids.length;
+      test = {
+        id: Date.now(),
+        name,
+        subtitle: info.cat.name + ' › ' + info.sub.name + ' · Custom Mock',
+        duration,
+        totalMarks: marks,
+        questionIds: ids.slice()
+      };
+      mockTests.push(test);
+      added = ids.length;
+      created = true;
+    } else {
+      test = mockTests[parseInt(targetVal, 10)];
+      if (!test) return;
+      if (!Array.isArray(test.questionIds)) test.questionIds = [];
+      const existing = new Set(test.questionIds.map(String));
+      ids.forEach(id => {
+        if (!existing.has(String(id))) { test.questionIds.push(id); existing.add(String(id)); added++; }
+      });
+      if (!added) { alert('Those questions are already in "' + test.name + '".'); return; }
+      if (test.totalMarks === test.questionIds.length - added) test.totalMarks = test.questionIds.length;
+    }
+  } else {
+    if (targetVal === 'new') {
+      const name = (document.getElementById('qbNewTestName').value || '').trim();
+      if (!name) { alert('Enter a name for the new topic test.'); return; }
+      const duration = parseInt(document.getElementById('qbNewTestDuration').value, 10) || Math.max(5, ids.length);
+      const marks = parseInt(document.getElementById('qbNewTestMarks').value, 10) || ids.length;
+      test = {
+        id: 'topiccustom:' + Date.now() + ':' + Math.floor(Math.random() * 10000),
+        name,
+        duration,
+        totalMarks: marks,
+        catId: _qbContext.catId,
+        subId: _qbContext.subId,
+        topicId: _qbContext.topicId,
+        subtitle: 'Topic-wise Test · ' + info.cat.name + ' › ' + info.sub.name + ' › ' + info.topic.name,
+        questionIds: ids.slice(),
+        custom: true
+      };
+      topicTests.push(test);
+      added = ids.length;
+      created = true;
+    } else {
+      test = topicTests[parseInt(targetVal, 10)];
+      if (!test) return;
+      if (!Array.isArray(test.questionIds)) test.questionIds = [];
+      const existing = new Set(test.questionIds.map(String));
+      ids.forEach(id => {
+        if (!existing.has(String(id))) { test.questionIds.push(id); existing.add(String(id)); added++; }
+      });
+      if (!added) { alert('Those questions are already in "' + test.name + '".'); return; }
+      if (test.totalMarks === test.questionIds.length - added) test.totalMarks = test.questionIds.length;
+    }
+  }
+
+  saveData();
+  const message = created
+    ? 'Created "' + test.name + '" with ' + added + ' question' + (added === 1 ? '' : 's') + '.'
+    : 'Added ' + added + ' question' + (added === 1 ? '' : 's') + ' to "' + test.name + '".';
+  clearQBSelection();
+  alert(message);
 }
 
 function filterQBQuestions(val) {
@@ -541,12 +774,12 @@ function filterQBQuestions(val) {
   if (!list) return;
   list.innerHTML = '';
   const filtered = qs.filter(x => x.question.toLowerCase().includes(q) || (x.explanation || '').toLowerCase().includes(q));
-  const ctx = window._qbContext || {};
   filtered.forEach((x, i) => {
-    const item = buildQBItem(x, i, ctx.catId, ctx.subId, ctx.topicId);
+    const item = buildQBItem(x, i);
     list.appendChild(item);
   });
   if (!filtered.length) list.innerHTML = '<div class="empty-state"><i class="fas fa-search"></i><p>No questions match your search.</p></div>';
+  updateQBSelection();
 }
 
 // ======================== E-BOOK ========================
