@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-<link rel="stylesheet" href="style.css?v=12">
+<link rel="stylesheet" href="style.css?v=13">
 </head>
 <body>
 
@@ -30,6 +30,7 @@
       <a class="nav-item" data-page="mocks"><i class="fas fa-stopwatch"></i> Mock Tests</a>
       <a class="nav-item" data-page="topics"><i class="fas fa-list-check"></i> Topic Tests</a>
       <a class="nav-item" data-page="builder"><i class="fas fa-wand-magic-sparkles"></i> Test Builder</a>
+      <a class="nav-item" data-page="topicbuilder"><i class="fas fa-square-plus"></i> Topic Builder</a>
       <a class="nav-item" data-page="ebook"><i class="fas fa-book-open"></i> E-Book</a>
       <a class="nav-item" data-page="admin"><i class="fas fa-sliders"></i> Admin</a>
     </nav>
@@ -476,6 +477,11 @@
           <input type="text" id="topicTestSearch" placeholder="Search topics...">
           <span class="topic-test-count" id="topicTestCount"></span>
         </div>
+        <div id="topicTestCustomSection">
+          <h2 class="topic-test-heading hidden" id="topicTestCustomHeading">Your Topic Tests</h2>
+          <div id="topicTestCustomList" class="mock-grid"></div>
+        </div>
+        <h2 class="topic-test-heading">Quick Topic Tests</h2>
         <div id="topicTestList" class="mock-grid"></div>
       </section>
 
@@ -518,6 +524,42 @@
         </div>
       </section>
 
+      <!-- ===================== TOPIC TEST BUILDER ===================== -->
+      <section id="page-topicbuilder" class="page">
+        <div class="page-head">
+          <span class="section-kicker">Focused practice</span>
+          <h1>Topic Test Builder</h1>
+          <p>Build a custom timed test from a single topic's questions.</p>
+        </div>
+        <div class="builder-form">
+          <div class="form-row">
+            <input type="text" id="topicBuilderName" placeholder="Test name (e.g. Rivers Practice #1)">
+            <input type="number" id="topicBuilderDuration" placeholder="Duration (minutes)" value="10" min="1">
+            <input type="number" id="topicBuilderMarks" placeholder="Total marks" value="10" min="1">
+          </div>
+          <div class="builder-filter-row">
+            <select id="topicBuilderCat"><option value="">Category</option></select>
+            <select id="topicBuilderSub"><option value="">Subcategory</option></select>
+            <select id="topicBuilderTopic"><option value="">Topic</option></select>
+          </div>
+          <div class="builder-browse">
+            <div class="builder-browse-head">
+              <h3>Select Questions</h3>
+              <div class="builder-browse-tools">
+                <span class="builder-total" id="topicBuilderCount">0 selected</span>
+                <label class="builder-selectall"><input type="checkbox" id="topicBuilderSelectAll" disabled> Select all</label>
+              </div>
+            </div>
+            <div id="topicBuilderQList" class="builder-qlist"></div>
+          </div>
+          <button class="btn-success" id="topicBuilderSaveBtn"><i class="fas fa-save"></i> Save Topic Test</button>
+        </div>
+        <div id="topicBuilderExisting" class="builder-existing">
+          <h3>Your Topic Tests</h3>
+          <div id="topicBuilderTestList"></div>
+        </div>
+      </section>
+
       <!-- ===================== E-BOOK ===================== -->
       <section id="page-ebook" class="page">
         <div class="page-head">
@@ -550,6 +592,6 @@
   </main>
 </div>
 
-<script src="script.js?v=12"></script>
+<script src="script.js?v=13"></script>
 </body>
 </html>

@@ -1200,6 +1200,8 @@ input, select, textarea, button { font-family: inherit; }
 .topic-test-tools input:focus { outline: none; border-color: var(--primary); }
 .topic-test-tools input { flex: 1; min-width: 180px; }
 .topic-test-count { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--text2); }
+.topic-test-heading { font-size: 15px; font-weight: 700; margin: 4px 0 12px; }
+#page-topicbuilder .builder-filter-row { margin-bottom: 16px; }
 .topic-card .topic-card-path {
   display: block;
   margin-bottom: 7px;

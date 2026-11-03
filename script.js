@@ -3,23 +3,36 @@ const THEME_KEY = 'studyhub_theme';
 
 let data = { categories: {}, ebooks: [] };
 let mockTests = [];
+let topicTests = [];
 let qidCounter = 0;
 
 async function loadData() {
   try {
     const r = localStorage.getItem('studyhub_data');
-    if (r) { const d = JSON.parse(r); data = { categories: d.categories || {}, ebooks: d.ebooks || [] }; mockTests = d.mockTests || []; }
+    if (r) {
+      const d = JSON.parse(r);
+      data = { categories: d.categories || {}, ebooks: d.ebooks || [], driveFolders: d.driveFolders || [] };
+      mockTests = d.mockTests || [];
+      topicTests = d.topicTests || [];
+    }
   } catch {}
   if (!data.categories) data.categories = {};
   if (!Array.isArray(data.ebooks)) data.ebooks = [];
   if (!Array.isArray(mockTests)) mockTests = [];
+  if (!Array.isArray(topicTests)) topicTests = [];
   if (normalizeQuestionTypes()) saveData();
   syncIds();
 }
 
 async function saveData() {
   try {
-    localStorage.setItem('studyhub_data', JSON.stringify(data));
+    localStorage.setItem('studyhub_data', JSON.stringify({
+      categories: data.categories,
+      ebooks: data.ebooks,
+      driveFolders: data.driveFolders || [],
+      mockTests,
+      topicTests
+    }));
   } catch { }
 }
 
@@ -201,7 +214,7 @@ function switchPage(page) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.page === page));
-  const titles = { dashboard: 'Dashboard', questions: 'Question Bank', mocks: 'Mock Tests', topics: 'Topic Tests', builder: 'Test Builder', ebook: 'E-Book', admin: 'Admin' };
+  const titles = { dashboard: 'Dashboard', questions: 'Question Bank', mocks: 'Mock Tests', topics: 'Topic Tests', builder: 'Test Builder', topicbuilder: 'Topic Builder', ebook: 'E-Book', admin: 'Admin' };
   document.getElementById('pageTitle').textContent = titles[page] || 'Dashboard';
   document.getElementById('statsBadge').textContent = countQuestions() + ' questions';
   if (page === 'questions' && !_qbContext) renderQBTopics();
@@ -209,6 +222,7 @@ function switchPage(page) {
   if (page === 'mocks') renderMockList();
   if (page === 'topics') renderTopicTests();
   if (page === 'builder') renderBuilder();
+  if (page === 'topicbuilder') renderTopicBuilder();
   if (page === 'ebook') renderEbook();
   if (page === 'admin') renderAdmin();
   document.getElementById('sidebar').classList.remove('open');
@@ -1907,6 +1921,7 @@ function pruneExamSessions() {
   forEachQ((q, i, catId, subId, topicId) => {
     validIds.add(topicTestId(catId, subId, topicId));
   });
+  topicTests.forEach(t => validIds.add(String(t.id)));
   let changed = false;
   Object.keys(all).forEach(id => {
     if (!validIds.has(id)) { delete all[id]; changed = true; }
@@ -1982,15 +1997,76 @@ function populateTopicTestSubs() {
 
 function renderTopicTestList() {
   const container = document.getElementById('topicTestList');
-  if (!container) return;
+  const customContainer = document.getElementById('topicTestCustomList');
+  if (!container || !customContainer) return;
   const catId = document.getElementById('topicTestCat')?.value || '';
   const subId = document.getElementById('topicTestSub')?.value || '';
   const search = (document.getElementById('topicTestSearch')?.value || '').toLowerCase().trim();
 
   container.innerHTML = '';
+  customContainer.innerHTML = '';
   let shown = 0;
   let total = 0;
+  let autoShown = 0;
+  let autoTotal = 0;
+  let customShown = 0;
 
+  const appendCard = (target, test, icon, path, title, note) => {
+    const count = (test.questionIds || []).length;
+    const saved = count ? getExamSession(test.id) : null;
+    const answered = saved ? Object.keys(saved.answers || {}).length : 0;
+
+    const div = document.createElement('div');
+    div.className = 'mock-card topic-card' + (count ? '' : ' disabled');
+    div.innerHTML =
+      '<span class="topic-card-path">' + (icon ? esc(icon) + ' ' : '') + esc(path) + '</span>' +
+      '<h3>' + esc(title) + '</h3>' +
+      '<p><i class="fas fa-circle-question"></i> ' + count + ' question' + (count === 1 ? '' : 's') + '</p>' +
+      '<p><i class="far fa-clock"></i> ' + (count ? test.duration + ' min' : '—') + '</p>' +
+      (note ? '<p class="topic-card-types">' + esc(note) + '</p>' : '') +
+      '<p class="mock-start">' + (count
+        ? (saved
+          ? '<i class="fas fa-rotate-left"></i> Resume saved attempt' + (answered ? ' · ' + answered + ' answered' : '')
+          : '<i class="fas fa-play"></i> Start test')
+        : '<i class="fas fa-circle-info"></i> No questions yet') + '</p>';
+
+    if (count) {
+      div.addEventListener('click', () => startExam(test, -1, 'topics'));
+    }
+    if (saved) {
+      const reset = document.createElement('button');
+      reset.type = 'button';
+      reset.className = 'mock-restart';
+      reset.textContent = 'Start over';
+      reset.addEventListener('click', ev => {
+        ev.stopPropagation();
+        if (!confirm('Discard the saved answers for "' + title + '" and start again?')) return;
+        clearExamSession(test.id);
+        startExam(test, -1, 'topics');
+      });
+      div.appendChild(reset);
+    }
+    target.appendChild(div);
+  };
+
+  // Custom topic tests built in the Topic Builder.
+  topicTests.forEach(test => {
+    total++;
+    const cat = data.categories[test.catId];
+    const sub = cat && cat.subcategories[test.subId];
+    const topic = sub && sub.topics[test.topicId];
+    if (catId && test.catId !== catId) return;
+    if (subId && test.subId !== subId) return;
+    const hay = [test.name, cat && cat.name, sub && sub.name, topic && topic.name].join(' ').toLowerCase();
+    if (search && !hay.includes(search)) return;
+    customShown++;
+    shown++;
+    const path = [cat && cat.name, sub && sub.name, topic && topic.name].filter(Boolean).join(' › ');
+    const icon = cat && !cat.iconImage ? (cat.icon || '📂') : '';
+    appendCard(customContainer, test, icon, path, test.name, 'Custom test · ' + test.totalMarks + ' marks');
+  });
+
+  // Auto-generated quick test for every topic.
   sortedKeys(data.categories).forEach(c => {
     if (catId && c !== catId) return;
     const cat = data.categories[c];
@@ -1998,67 +2074,231 @@ function renderTopicTestList() {
       if (subId && s !== subId) return;
       const sub = cat.subcategories[s];
       sortedKeys(sub.topics || {}).forEach(t => {
+        autoTotal++;
         total++;
         const topic = sub.topics[t];
         if (search && !(topic.name + ' ' + sub.name + ' ' + cat.name).toLowerCase().includes(search)) return;
+        autoShown++;
         shown++;
 
         const test = buildTopicTest(c, s, t);
-        const count = test.questionIds.length;
-        const saved = count ? getExamSession(test.id) : null;
-        const answered = saved ? Object.keys(saved.answers || {}).length : 0;
         const typeCounts = questionTypeCounts(topic.questions, topic);
         const typeSummary = Object.keys(typeCounts).map(k => k + ': ' + typeCounts[k]).join(' · ');
-
-        const div = document.createElement('div');
-        div.className = 'mock-card topic-card' + (count ? '' : ' disabled');
-        div.innerHTML =
-          '<span class="topic-card-path">' + (cat.iconImage ? '' : esc(cat.icon || '📂')) + ' ' + esc(cat.name) + ' › ' + esc(sub.name) + '</span>' +
-          '<h3>' + esc(topic.name) + '</h3>' +
-          '<p><i class="fas fa-circle-question"></i> ' + count + ' question' + (count === 1 ? '' : 's') + '</p>' +
-          '<p><i class="far fa-clock"></i> ' + (count ? test.duration + ' min' : '—') + '</p>' +
-          (typeSummary ? '<p class="topic-card-types">' + esc(typeSummary) + '</p>' : '') +
-          '<p class="mock-start">' + (count
-            ? (saved
-              ? '<i class="fas fa-rotate-left"></i> Resume saved attempt' + (answered ? ' · ' + answered + ' answered' : '')
-              : '<i class="fas fa-play"></i> Start test')
-            : '<i class="fas fa-circle-info"></i> No questions yet') + '</p>';
-
-        if (count) {
-          div.addEventListener('click', () => startTopicTest(c, s, t));
-        }
-        if (saved) {
-          const reset = document.createElement('button');
-          reset.type = 'button';
-          reset.className = 'mock-restart';
-          reset.textContent = 'Start over';
-          reset.addEventListener('click', ev => {
-            ev.stopPropagation();
-            if (!confirm('Discard the saved answers for "' + topic.name + '" and start again?')) return;
-            clearExamSession(test.id);
-            startTopicTest(c, s, t);
-          });
-          div.appendChild(reset);
-        }
-        container.appendChild(div);
+        const icon = cat.iconImage ? '' : (cat.icon || '📂');
+        appendCard(container, test, icon, cat.name + ' › ' + sub.name, topic.name, typeSummary);
       });
     });
   });
 
-  if (!shown) {
+  if (!autoShown) {
     container.innerHTML = '<div class="empty-state"><i class="fas fa-list-check"></i><p>' +
-      (total ? 'No topics match your filters.' : 'No topics with questions yet. Add questions in the Admin panel.') +
+      (autoTotal ? 'No quick topic tests match your filters.' : 'No topics with questions yet. Add questions in the Admin panel.') +
       '</p></div>';
   }
+  const customHeading = document.getElementById('topicTestCustomHeading');
+  if (customHeading) customHeading.classList.toggle('hidden', customShown === 0);
   const countEl = document.getElementById('topicTestCount');
-  if (countEl) countEl.textContent = shown + ' of ' + total + ' topic' + (total === 1 ? '' : 's');
+  if (countEl) countEl.textContent = shown + ' of ' + total + ' test' + (total === 1 ? '' : 's');
 }
 
-function startTopicTest(catId, subId, topicId) {
-  const t = buildTopicTest(catId, subId, topicId);
+// ======================== TOPIC TEST BUILDER ========================
+let _topicBuilderSelected = new Set();
+
+function renderTopicBuilder() {
+  const catSel = document.getElementById('topicBuilderCat');
+  if (!catSel) return;
+
+  document.getElementById('topicBuilderName').value = '';
+  document.getElementById('topicBuilderDuration').value = '10';
+  document.getElementById('topicBuilderMarks').value = '10';
+
+  catSel.innerHTML = '<option value="">Category</option>';
+  sortedKeys(data.categories).forEach(catId => {
+    catSel.innerHTML += '<option value="' + catId + '">' + esc(data.categories[catId].name) + '</option>';
+  });
+  document.getElementById('topicBuilderSub').innerHTML = '<option value="">Subcategory</option>';
+  document.getElementById('topicBuilderTopic').innerHTML = '<option value="">Topic</option>';
+
+  _topicBuilderSelected = new Set();
+  const all = document.getElementById('topicBuilderSelectAll');
+  if (all) { all.checked = false; all.indeterminate = false; all.disabled = true; }
+  renderTopicBuilderQList();
+  renderTopicBuilderTests();
+}
+
+function populateTopicBuilderSubs() {
+  const catSel = document.getElementById('topicBuilderCat');
+  const subSel = document.getElementById('topicBuilderSub');
+  const topicSel = document.getElementById('topicBuilderTopic');
+  subSel.innerHTML = '<option value="">Subcategory</option>';
+  topicSel.innerHTML = '<option value="">Topic</option>';
+  const cat = data.categories[catSel.value];
+  if (cat) {
+    sortedKeys(cat.subcategories || {}).forEach(subId => {
+      subSel.innerHTML += '<option value="' + subId + '">' + esc(cat.subcategories[subId].name) + '</option>';
+    });
+  }
+  _topicBuilderSelected = new Set();
+  renderTopicBuilderQList();
+}
+
+function populateTopicBuilderTopics() {
+  const catId = document.getElementById('topicBuilderCat').value;
+  const subId = document.getElementById('topicBuilderSub').value;
+  const topicSel = document.getElementById('topicBuilderTopic');
+  topicSel.innerHTML = '<option value="">Topic</option>';
+  if (catId && subId && data.categories[catId]?.subcategories[subId]) {
+    sortedKeys(data.categories[catId].subcategories[subId].topics || {}).forEach(topicId => {
+      topicSel.innerHTML += '<option value="' + topicId + '">' + esc(data.categories[catId].subcategories[subId].topics[topicId].name) + '</option>';
+    });
+  }
+  _topicBuilderSelected = new Set();
+  renderTopicBuilderQList();
+}
+
+function currentTopicBuilderTopic() {
+  const catId = document.getElementById('topicBuilderCat').value;
+  const subId = document.getElementById('topicBuilderSub').value;
+  const topicId = document.getElementById('topicBuilderTopic').value;
+  const cat = data.categories[catId];
+  const sub = cat && cat.subcategories[subId];
+  const topic = sub && sub.topics[topicId];
+  return (cat && sub && topic) ? { catId, subId, topicId, cat, sub, topic } : null;
+}
+
+function renderTopicBuilderQList() {
+  const container = document.getElementById('topicBuilderQList');
+  if (!container) return;
+  container.innerHTML = '';
+  _topicBuilderSelected = new Set();
+
+  const info = currentTopicBuilderTopic();
+  if (!info) {
+    container.innerHTML = '<p class="builder-empty">Select a category, subcategory and topic to see its questions.</p>';
+    updateTopicBuilderCount();
+    return;
+  }
+
+  const questions = info.topic.questions || [];
+  if (!questions.length) {
+    container.innerHTML = '<p class="builder-empty">No questions in this topic yet. Add some in the Admin panel.</p>';
+    updateTopicBuilderCount();
+    return;
+  }
+
+  questions.forEach(q => {
+    const div = document.createElement('div');
+    div.className = 'builder-qitem';
+
+    const check = document.createElement('input');
+    check.type = 'checkbox';
+    check.className = 'bq-check';
+    check.value = q.id;
+    check._qid = q.id;
+    check.addEventListener('change', function () {
+      if (this.checked) _topicBuilderSelected.add(q.id);
+      else _topicBuilderSelected.delete(q.id);
+      updateTopicBuilderCount();
+    });
+
+    const text = document.createElement('div');
+    text.className = 'bq-text';
+    text.textContent = q.question;
+
+    const metaEl = document.createElement('div');
+    metaEl.className = 'bq-meta';
+    metaEl.textContent = getQuestionTypeLabel(q, info.topic);
+
+    div.appendChild(check);
+    div.appendChild(text);
+    div.appendChild(metaEl);
+    container.appendChild(div);
+  });
+
+  updateTopicBuilderCount();
+}
+
+function updateTopicBuilderCount() {
+  const checks = Array.from(document.querySelectorAll('#topicBuilderQList .bq-check'));
+  const selected = checks.filter(c => c.checked).length;
+  const all = document.getElementById('topicBuilderSelectAll');
+  if (all) {
+    all.disabled = checks.length === 0;
+    all.checked = checks.length > 0 && selected === checks.length;
+    all.indeterminate = selected > 0 && selected < checks.length;
+  }
+  const count = document.getElementById('topicBuilderCount');
+  if (count) count.textContent = selected + ' selected';
+}
+
+function renderTopicBuilderTests() {
+  const container = document.getElementById('topicBuilderTestList');
+  if (!container) return;
+  if (!topicTests.length) {
+    container.innerHTML = '<p style="color:var(--text2);font-size:13px;">No topic tests created yet.</p>';
+    return;
+  }
+  container.innerHTML = topicTests.map((t, i) => {
+    const cat = data.categories[t.catId];
+    const sub = cat && cat.subcategories[t.subId];
+    const topic = sub && sub.topics[t.topicId];
+    const path = [cat && cat.name, sub && sub.name, topic && topic.name].filter(Boolean).join(' › ') || 'Topic removed';
+    return '<div class="admin-item">' +
+      '<span><strong>' + esc(t.name) + '</strong> — ' + esc(path) + ', ' + t.duration + ' min, ' + t.totalMarks + ' marks, ' + (t.questionIds || []).length + ' questions</span>' +
+      '<button class="edit-btn" onclick="editTopicTest(' + i + ')">Edit</button>' +
+      '<button class="del-btn" onclick="delTopicTest(' + i + ')">Del</button>' +
+      '</div>';
+  }).join('');
+}
+
+function editTopicTest(idx) {
+  const t = topicTests[idx];
   if (!t) return;
-  if (!t.questionIds.length) { alert('This topic has no questions yet.'); return; }
-  startExam(t, -1, 'topics');
+  const name = prompt('Test name:', t.name);
+  if (!name || !name.trim()) return;
+  t.name = name.trim();
+  saveData();
+  renderTopicBuilderTests();
+  renderTopicTests();
+}
+
+function delTopicTest(idx) {
+  const t = topicTests[idx];
+  if (!t) return;
+  if (!confirm('Delete "' + t.name + '"?')) return;
+  clearExamSession(t.id);
+  topicTests.splice(idx, 1);
+  saveData();
+  renderTopicBuilderTests();
+  renderTopicTests();
+}
+
+function saveTopicTest() {
+  const name = document.getElementById('topicBuilderName').value.trim();
+  const duration = parseInt(document.getElementById('topicBuilderDuration').value) || 10;
+  const marks = parseInt(document.getElementById('topicBuilderMarks').value) || 0;
+  const info = currentTopicBuilderTopic();
+  const ids = Array.from(_topicBuilderSelected);
+
+  if (!name) { alert('Enter a test name.'); return; }
+  if (!info) { alert('Select a category, subcategory and topic.'); return; }
+  if (!ids.length) { alert('Select at least one question.'); return; }
+
+  topicTests.push({
+    id: 'topiccustom:' + Date.now() + ':' + Math.floor(Math.random() * 10000),
+    name,
+    duration,
+    totalMarks: marks || ids.length,
+    catId: info.catId,
+    subId: info.subId,
+    topicId: info.topicId,
+    subtitle: 'Topic-wise Test · ' + info.cat.name + ' › ' + info.sub.name + ' › ' + info.topic.name,
+    questionIds: ids,
+    custom: true
+  });
+  saveData();
+  renderTopicBuilder();
+  alert('Topic test "' + name + '" created with ' + ids.length + ' question' + (ids.length === 1 ? '' : 's') + '!');
 }
 
 function renderMockList() {
@@ -2675,13 +2915,12 @@ function submitMockTest() {
 
 function retryMockTest() {
   if (!_mockState) return;
+  const t = _mockState.test;
   const idx = _mockState.testIdx;
-  const ref = _mockState.topicRef;
-  const testId = _mockState.test.id;
+  const returnPage = _mockState.returnPage || 'mocks';
   if (confirm('Restart this test? Your current answers will be cleared.')) {
-    clearExamSession(testId);
-    if (ref) startTopicTest(ref.catId, ref.subId, ref.topicId);
-    else startMockTest(idx);
+    clearExamSession(t.id);
+    startExam(t, idx, returnPage);
   }
 }
 
@@ -2795,6 +3034,21 @@ async function init() {
   bindMock('topicTestCat', 'change', function () { populateTopicTestSubs(); renderTopicTestList(); });
   bindMock('topicTestSub', 'change', renderTopicTestList);
   bindMock('topicTestSearch', 'input', renderTopicTestList);
+
+  // Topic Test Builder
+  bindMock('topicBuilderCat', 'change', populateTopicBuilderSubs);
+  bindMock('topicBuilderSub', 'change', populateTopicBuilderTopics);
+  bindMock('topicBuilderTopic', 'change', renderTopicBuilderQList);
+  bindMock('topicBuilderSelectAll', 'change', function () {
+    const checks = document.querySelectorAll('#topicBuilderQList .bq-check');
+    checks.forEach(cb => {
+      cb.checked = this.checked;
+      if (this.checked) _topicBuilderSelected.add(cb._qid);
+      else _topicBuilderSelected.delete(cb._qid);
+    });
+    updateTopicBuilderCount();
+  });
+  bindMock('topicBuilderSaveBtn', 'click', saveTopicTest);
 
   // Admin tabs
   document.querySelectorAll('.admin-tab').forEach(t => t.addEventListener('click', function () {
