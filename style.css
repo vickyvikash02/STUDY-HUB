@@ -2189,6 +2189,7 @@ body.exam-active .page { animation: none; transform: none; }
   vertical-align: middle;
   white-space: nowrap;
 }
+.aq-type.untyped { background: var(--surface3); color: var(--text2); font-weight: 600; }
 .admin-question-item .aq-opts { margin-bottom: 4px; font-size: 11.5px; color: var(--text2); }
 .admin-question-item .aq-ans { font-size: 11.5px; font-weight: 600; color: #059669; }
 .admin-question-item .aq-actions { display: flex; gap: 6px; margin-top: 8px; }

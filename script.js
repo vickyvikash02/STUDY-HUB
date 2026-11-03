@@ -13,6 +13,7 @@ async function loadData() {
   if (!data.categories) data.categories = {};
   if (!Array.isArray(data.ebooks)) data.ebooks = [];
   if (!Array.isArray(mockTests)) mockTests = [];
+  if (normalizeQuestionTypes()) saveData();
   syncIds();
 }
 
@@ -729,20 +730,66 @@ function renameEbook(idx) {
 }
 
 // ======================== ADMIN ========================
-const QUESTION_TYPES = ['MCQ', 'True / False', 'Fill in the Blank', 'Assertion & Reason', 'Match the Following', 'Numerical'];
-const DEFAULT_QUESTION_TYPE = 'MCQ';
-
-function getQuestionType(q) {
-  return (q && q.type) || DEFAULT_QUESTION_TYPE;
+// Question types are user-defined under each topic:
+// Category › Subcategory › Topic › Type › Questions
+function getTopicTypes(topic) {
+  return (topic && topic.types) || {};
 }
 
-function questionTypeCounts(questions) {
+function getTypeName(topic, typeId) {
+  const t = getTopicTypes(topic)[typeId];
+  return t ? t.name : '';
+}
+
+function getQuestionTypeLabel(q, topic) {
+  return getTypeName(topic, q && q.type) || 'Untyped';
+}
+
+function questionTypeCounts(questions, topic) {
   const counts = {};
   (questions || []).forEach(q => {
-    const t = getQuestionType(q);
+    const t = getQuestionTypeLabel(q, topic);
     counts[t] = (counts[t] || 0) + 1;
   });
   return counts;
+}
+
+function nextTypeOrder(topic) {
+  return Object.keys(getTopicTypes(topic)).reduce((m, k) => Math.max(m, getTopicTypes(topic)[k].order || 0), 0) + 1;
+}
+
+// Give every topic a types map and convert older free-text question types
+// (e.g. "MCQ") into real per-topic types.
+function normalizeQuestionTypes() {
+  let changed = false;
+  sortedKeys(data.categories).forEach(catId => {
+    sortedKeys(data.categories[catId].subcategories || {}).forEach(subId => {
+      const sub = data.categories[catId].subcategories[subId];
+      sortedKeys(sub.topics || {}).forEach(topicId => {
+        const topic = sub.topics[topicId];
+        if (!topic.types || typeof topic.types !== 'object') { topic.types = {}; changed = true; }
+        (topic.questions || []).forEach(q => {
+          const legacy = q.type;
+          if (typeof legacy !== 'string' || !legacy.trim()) {
+            if (legacy !== undefined) { delete q.type; changed = true; }
+            return;
+          }
+          const existingId = Object.keys(topic.types).find(k => topic.types[k].name === legacy);
+          if (existingId) {
+            if (q.type !== existingId) { q.type = existingId; changed = true; }
+            return;
+          }
+          let id = legacy.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'type';
+          let n = 2;
+          while (topic.types[id]) id = id.replace(/-\d+$/, '') + '-' + n++;
+          topic.types[id] = { id, name: legacy, order: nextTypeOrder(topic) };
+          q.type = id;
+          changed = true;
+        });
+      });
+    });
+  });
+  return changed;
 }
 
 function renderAdmin() {
@@ -752,6 +799,7 @@ function renderAdmin() {
   if (tab === 'categories') renderAdminCategories(container);
   else if (tab === 'subcategories') renderAdminSubcategories(container);
   else if (tab === 'topics') renderAdminTopics(container);
+  else if (tab === 'types') renderAdminTypes(container);
   else if (tab === 'questions') renderAdminQuestions(container);
   else if (tab === 'ebook') renderAdminEbook(container);
 }
@@ -816,6 +864,7 @@ function enableDragSort(containerId, getListFn, saveFn) {
     if (!target || !dragSrc || target === dragSrc) return;
     if (dragSrc.dataset.cat && dragSrc.dataset.cat !== target.dataset.cat) return;
     if (dragSrc.dataset.sub && dragSrc.dataset.sub !== target.dataset.sub) return;
+    if (dragSrc.dataset.topic && dragSrc.dataset.topic !== target.dataset.topic) return;
 
     const list = getListFn(dragSrc);
     if (!list) return;
@@ -951,7 +1000,7 @@ function renderAdminTopics(container) {
         topicNum++;
         hasAny = true;
         const topicQs = t.questions || [];
-        const typeCounts = questionTypeCounts(topicQs);
+        const typeCounts = questionTypeCounts(topicQs, t);
         const typeSummary = Object.keys(typeCounts).map(k => k + ': ' + typeCounts[k]).join(' · ');
         const countLabel = topicQs.length + ' Q' + (typeSummary ? ' · ' + typeSummary : '');
         html += '<div class="admin-item" data-id="' + topicId + '" data-cat="' + catId + '" data-sub="' + subId + '"><span>' + topicNum + '. ' + c.icon + ' ' + c.name + ' → ' + s.name + ' → ' + t.name + ' (' + countLabel + ')</span><span><button class="act-btn edit" onclick="editTopic(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-pen"></i> Edit</button><button class="act-btn del" onclick="delTopic(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-trash"></i> Del</button><span class="drag-handle" draggable="true"><i class="fas fa-grip-vertical"></i></span></span></div>';
@@ -1018,6 +1067,153 @@ function delTopic(catId, subId, topicId) {
   saveData(); renderDashboard(); renderAdmin();
 }
 
+function renderAdminTypes(container) {
+  const prevCat = document.getElementById('ayFilterCat')?.value || '';
+  const prevSub = document.getElementById('ayFilterSub')?.value || '';
+  const prevTopic = document.getElementById('ayFilterTopic')?.value || '';
+  const prevSearch = document.getElementById('ayFilterSearch')?.value || '';
+
+  let html = '<div class="admin-section"><h3>Add Type</h3><div class="admin-row"><select id="adminTypeCat"><option value="">Category</option>';
+  sortedKeys(data.categories).forEach(catId => { html += '<option value="' + catId + '">' + data.categories[catId].name + '</option>'; });
+  html += '</select><select id="adminTypeSub"><option value="">Subcategory</option></select>';
+  html += '<select id="adminTypeTopic"><option value="">Topic</option></select>';
+  html += '<input type="text" id="adminTypeName" placeholder="Type name (e.g. MCQ, True / False)"><button class="btn-primary" id="adminAddTypeBtn">Add</button></div></div>';
+
+  html += '<div class="admin-section"><h3>Existing Types</h3>';
+  html += '<div class="admin-row" style="flex-wrap:wrap;gap:6px;margin-bottom:10px;">';
+  html += '<select id="ayFilterCat" style="flex:1;min-width:110px;"><option value="">All Categories</option>';
+  sortedKeys(data.categories).forEach(catId => { html += '<option value="' + catId + '"' + (catId === prevCat ? ' selected' : '') + '>' + data.categories[catId].name + '</option>'; });
+  html += '</select>';
+  html += '<select id="ayFilterSub" style="flex:1;min-width:110px;"><option value="">All Subcategories</option>';
+  if (prevCat && data.categories[prevCat]) {
+    sortedKeys(data.categories[prevCat].subcategories || {}).forEach(sid => { html += '<option value="' + sid + '"' + (sid === prevSub ? ' selected' : '') + '>' + data.categories[prevCat].subcategories[sid].name + '</option>'; });
+  }
+  html += '</select>';
+  html += '<select id="ayFilterTopic" style="flex:1;min-width:110px;"><option value="">All Topics</option>';
+  if (prevCat && prevSub && data.categories[prevCat]?.subcategories[prevSub]) {
+    sortedKeys(data.categories[prevCat].subcategories[prevSub].topics || {}).forEach(tid => { html += '<option value="' + tid + '"' + (tid === prevTopic ? ' selected' : '') + '>' + data.categories[prevCat].subcategories[prevSub].topics[tid].name + '</option>'; });
+  }
+  html += '</select>';
+  html += '<input type="text" id="ayFilterSearch" placeholder="Search types..." value="' + esc(prevSearch) + '" style="flex:2;min-width:150px;"></div>';
+
+  html += '<div id="ayList">';
+  let rowNum = 0;
+  let rows = '';
+  sortedKeys(data.categories).forEach(catId => {
+    const c = data.categories[catId];
+    if (prevCat && catId !== prevCat) return;
+    sortedKeys(c.subcategories || {}).forEach(subId => {
+      if (prevSub && subId !== prevSub) return;
+      const s = c.subcategories[subId];
+      sortedKeys(s.topics || {}).forEach(topicId => {
+        if (prevTopic && topicId !== prevTopic) return;
+        const t = s.topics[topicId];
+        sortedKeys(getTopicTypes(t)).forEach(typeId => {
+          const type = getTopicTypes(t)[typeId];
+          if (prevSearch && !type.name.toLowerCase().includes(prevSearch.toLowerCase())) return;
+          rowNum++;
+          const qCount = (t.questions || []).filter(q => q.type === typeId).length;
+          rows += '<div class="admin-item" data-id="' + typeId + '" data-cat="' + catId + '" data-sub="' + subId + '" data-topic="' + topicId + '"><span>' + rowNum + '. ' + c.icon + ' ' + c.name + ' → ' + s.name + ' → ' + t.name + ' → <strong>' + esc(type.name) + '</strong> (' + qCount + ' Q)</span><span><button class="act-btn edit" onclick="editType(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\',\'' + typeId + '\')"><i class="fas fa-pen"></i> Edit</button><button class="act-btn del" onclick="delType(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\',\'' + typeId + '\')"><i class="fas fa-trash"></i> Del</button><span class="drag-handle" draggable="true"><i class="fas fa-grip-vertical"></i></span></span></div>';
+        });
+      });
+    });
+  });
+  html += rows || '<p class="empty-state" style="padding:20px;">No types yet. Add one above.</p>';
+  html += '</div></div>';
+  container.innerHTML = html;
+
+  document.getElementById('adminAddTypeBtn').addEventListener('click', addType);
+
+  const catSel = document.getElementById('adminTypeCat');
+  const subSel = document.getElementById('adminTypeSub');
+  const topicSel = document.getElementById('adminTypeTopic');
+  const fillSubs = (catId, selected) => {
+    subSel.innerHTML = '<option value="">Subcategory</option>';
+    const cat = data.categories[catId];
+    if (cat) sortedKeys(cat.subcategories || {}).forEach(sid => { subSel.innerHTML += '<option value="' + sid + '"' + (sid === selected ? ' selected' : '') + '>' + cat.subcategories[sid].name + '</option>'; });
+  };
+  const fillTopics = (catId, subId, selected) => {
+    topicSel.innerHTML = '<option value="">Topic</option>';
+    if (catId && subId && data.categories[catId]?.subcategories[subId]) {
+      sortedKeys(data.categories[catId].subcategories[subId].topics || {}).forEach(tid => { topicSel.innerHTML += '<option value="' + tid + '"' + (tid === selected ? ' selected' : '') + '>' + data.categories[catId].subcategories[subId].topics[tid].name + '</option>'; });
+    }
+  };
+  catSel.addEventListener('change', function () { fillSubs(this.value); fillTopics('', ''); });
+  subSel.addEventListener('change', function () { fillTopics(catSel.value, this.value); });
+
+  document.getElementById('ayFilterCat').addEventListener('change', function () {
+    const fs = document.getElementById('ayFilterSub');
+    const ft = document.getElementById('ayFilterTopic');
+    fs.innerHTML = '<option value="">All Subcategories</option>';
+    ft.innerHTML = '<option value="">All Topics</option>';
+    const cat = data.categories[this.value];
+    if (cat) sortedKeys(cat.subcategories || {}).forEach(sid => { fs.innerHTML += '<option value="' + sid + '">' + cat.subcategories[sid].name + '</option>'; });
+    renderAdmin();
+  });
+  document.getElementById('ayFilterSub').addEventListener('change', function () {
+    const ft = document.getElementById('ayFilterTopic');
+    ft.innerHTML = '<option value="">All Topics</option>';
+    const catId = document.getElementById('ayFilterCat').value;
+    if (catId && this.value && data.categories[catId]?.subcategories[this.value]) {
+      sortedKeys(data.categories[catId].subcategories[this.value].topics || {}).forEach(tid => { ft.innerHTML += '<option value="' + tid + '">' + data.categories[catId].subcategories[this.value].topics[tid].name + '</option>'; });
+    }
+    renderAdmin();
+  });
+  document.getElementById('ayFilterTopic').addEventListener('change', renderAdmin);
+  document.getElementById('ayFilterSearch').addEventListener('input', function () {
+    const q = this.value.toLowerCase().trim();
+    document.querySelectorAll('#ayList .admin-item').forEach(row => {
+      row.style.display = !q || row.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+  });
+
+  enableDragSort('ayList', (item) => {
+    const catId = item.dataset.cat;
+    const subId = item.dataset.sub;
+    const topicId = item.dataset.topic;
+    return data.categories[catId]?.subcategories[subId]?.topics[topicId]?.types;
+  }, () => { saveData(); renderDashboard(); renderAdmin(); });
+}
+
+function addType() {
+  const catId = document.getElementById('adminTypeCat').value;
+  const subId = document.getElementById('adminTypeSub').value;
+  const topicId = document.getElementById('adminTypeTopic').value;
+  const name = document.getElementById('adminTypeName').value.trim();
+  if (!catId || !subId || !topicId || !name) { alert('Fill all fields.'); return; }
+  const topic = data.categories[catId]?.subcategories[subId]?.topics[topicId];
+  if (!topic) { alert('Topic not found.'); return; }
+  if (!topic.types) topic.types = {};
+  if (Object.values(topic.types).some(t => t.name.toLowerCase() === name.toLowerCase())) { alert('This type already exists for the topic.'); return; }
+  let id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'type';
+  let n = 2;
+  const base = id;
+  while (topic.types[id]) id = base + '-' + n++;
+  topic.types[id] = { id, name, order: nextTypeOrder(topic) };
+  saveData(); renderDashboard(); renderAdmin();
+}
+
+function editType(catId, subId, topicId, typeId) {
+  const type = data.categories[catId]?.subcategories[subId]?.topics[topicId]?.types?.[typeId];
+  if (!type) return;
+  const name = prompt('Type name:', type.name);
+  if (!name || !name.trim()) return;
+  type.name = name.trim();
+  saveData(); renderDashboard(); renderAdmin();
+}
+
+function delType(catId, subId, topicId, typeId) {
+  const topic = data.categories[catId]?.subcategories[subId]?.topics[topicId];
+  const type = topic && topic.types && topic.types[typeId];
+  if (!type) return;
+  const affected = (topic.questions || []).filter(q => q.type === typeId).length;
+  const msg = 'Delete type "' + type.name + '"?' + (affected ? ' ' + affected + ' question(s) will become Untyped.' : '');
+  if (!confirm(msg)) return;
+  delete topic.types[typeId];
+  (topic.questions || []).forEach(q => { if (q.type === typeId) delete q.type; });
+  saveData(); renderDashboard(); renderAdmin();
+}
+
 function renderAdminQuestions(container) {
   const prevFilterCat = document.getElementById('aqFilterCat')?.value || '';
   const prevFilterSub = document.getElementById('aqFilterSub')?.value || '';
@@ -1032,9 +1228,7 @@ function renderAdminQuestions(container) {
   html += '</select>';
   html += '<select id="adminQSub"><option value="">Select Subcategory</option></select>';
   html += '<select id="adminQTopic"><option value="">Select Topic</option></select>';
-  html += '<select id="adminQType" title="Question type">';
-  QUESTION_TYPES.forEach(t => { html += '<option value="' + t + '">Type: ' + t + '</option>'; });
-  html += '</select></div>';
+  html += '<select id="adminQType" title="Question type"><option value="">Type: None</option></select></div>';
   html += '<div class="admin-row"><input type="text" id="adminQQ" placeholder="Question text"></div>';
   html += '<div class="admin-row"><input type="file" id="adminQImg" accept="image/*" style="flex:1;"><span id="adminQImgName" style="font-size:12px;color:var(--text2);"></span></div>';
   html += '<div class="admin-row"><input type="text" id="adminQO0" placeholder="Option A"><input type="text" id="adminQO1" placeholder="Option B"></div>';
@@ -1061,9 +1255,7 @@ function renderAdminQuestions(container) {
     sortedKeys(data.categories[prevFilterCat].subcategories[prevFilterSub].topics || {}).forEach(tid => { html += '<option value="' + tid + '"' + (tid === prevFilterTopic ? ' selected' : '') + '>' + data.categories[prevFilterCat].subcategories[prevFilterSub].topics[tid].name + '</option>'; });
   }
   html += '</select>';
-  html += '<select id="aqFilterType" style="flex:1;min-width:120px;" title="Filter by question type"><option value="">All Types</option>';
-  QUESTION_TYPES.forEach(t => { html += '<option value="' + t + '"' + (t === prevFilterType ? ' selected' : '') + '>' + t + '</option>'; });
-  html += '</select>';
+  html += '<select id="aqFilterType" style="flex:1;min-width:120px;" title="Filter by question type"><option value="">All Types</option>' + typeFilterOptions(prevFilterCat, prevFilterSub, prevFilterTopic, prevFilterType) + '</select>';
   html += '<input type="text" id="aqFilterSearch" placeholder="Search questions..." value="' + esc(prevFilterSearch) + '" style="flex:2;min-width:180px;"></div>';
   html += '<div id="aqList"><p class="empty-state" style="padding:20px;">Select a filter to find questions.</p></div></div>';
   container.innerHTML = html;
@@ -1077,6 +1269,7 @@ function renderAdminQuestions(container) {
     topicSel.innerHTML = '<option value="">Select Topic</option>';
     const cat = data.categories[this.value];
     if (cat) sortedKeys(cat.subcategories || {}).forEach(sid => { subSel.innerHTML += '<option value="' + sid + '">' + cat.subcategories[sid].name + '</option>'; });
+    populateAdminQType('', '', '');
   });
   document.getElementById('adminQSub').addEventListener('change', function () {
     const sel = document.getElementById('adminQTopic');
@@ -1087,6 +1280,10 @@ function renderAdminQuestions(container) {
         sel.innerHTML += '<option value="' + tid + '">' + data.categories[catId].subcategories[this.value].topics[tid].name + '</option>';
       });
     }
+    populateAdminQType('', '', '');
+  });
+  document.getElementById('adminQTopic').addEventListener('change', function () {
+    populateAdminQType(document.getElementById('adminQCat').value, document.getElementById('adminQSub').value, this.value);
   });
 
   document.getElementById('aqFilterCat').addEventListener('change', function () {
@@ -1096,6 +1293,7 @@ function renderAdminQuestions(container) {
     topicSel.innerHTML = '<option value="">Select Topic</option>';
     const cat = data.categories[this.value];
     if (cat) sortedKeys(cat.subcategories || {}).forEach(sid => { subSel.innerHTML += '<option value="' + sid + '">' + cat.subcategories[sid].name + '</option>'; });
+    refreshAQTypeFilter();
     applyAQFilters();
     syncFilterToAddForm();
   });
@@ -1108,10 +1306,12 @@ function renderAdminQuestions(container) {
         sel.innerHTML += '<option value="' + tid + '">' + data.categories[catId].subcategories[this.value].topics[tid].name + '</option>';
       });
     }
+    refreshAQTypeFilter();
     applyAQFilters();
     syncFilterToAddForm();
   });
   document.getElementById('aqFilterTopic').addEventListener('change', function () {
+    refreshAQTypeFilter();
     applyAQFilters();
     syncFilterToAddForm();
   });
@@ -1137,6 +1337,57 @@ function populateAdminQTopic(catId, subId) {
   }
 }
 
+function populateAdminQType(catId, subId, topicId) {
+  const sel = document.getElementById('adminQType');
+  if (!sel) return;
+  const topic = data.categories[catId]?.subcategories[subId]?.topics[topicId];
+  sel.innerHTML = '<option value="">Type: None</option>';
+  if (topic) {
+    sortedKeys(getTopicTypes(topic)).forEach(tid => {
+      sel.innerHTML += '<option value="' + tid + '">Type: ' + esc(getTopicTypes(topic)[tid].name) + '</option>';
+    });
+  }
+}
+
+// Distinct type names within the selected filter scope.
+function typeNamesInScope(cat, sub, topic) {
+  const names = [];
+  sortedKeys(data.categories).forEach(catId => {
+    if (cat && catId !== cat) return;
+    const c = data.categories[catId];
+    sortedKeys(c.subcategories || {}).forEach(subId => {
+      if (sub && subId !== sub) return;
+      const s = c.subcategories[subId];
+      sortedKeys(s.topics || {}).forEach(topicId => {
+        if (topic && topicId !== topic) return;
+        const t = s.topics[topicId];
+        sortedKeys(getTopicTypes(t)).forEach(typeId => {
+          const name = getTopicTypes(t)[typeId].name;
+          if (!names.includes(name)) names.push(name);
+        });
+      });
+    });
+  });
+  return names.sort((a, b) => a.localeCompare(b));
+}
+
+function typeFilterOptions(cat, sub, topic, selected) {
+  return typeNamesInScope(cat, sub, topic).map(name => '<option value="' + esc(name) + '"' + (name === selected ? ' selected' : '') + '>' + esc(name) + '</option>').join('') +
+    '<option value="__untyped__"' + (selected === '__untyped__' ? ' selected' : '') + '>Untyped</option>';
+}
+
+function refreshAQTypeFilter() {
+  const sel = document.getElementById('aqFilterType');
+  if (!sel) return;
+  const cat = document.getElementById('aqFilterCat').value;
+  const sub = document.getElementById('aqFilterSub').value;
+  const topic = document.getElementById('aqFilterTopic').value;
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">All Types</option>' + typeFilterOptions(cat, sub, topic, prev);
+  if (Array.prototype.some.call(sel.options, o => o.value === prev)) sel.value = prev;
+  else sel.value = '';
+}
+
 function syncFilterToAddForm() {
   const cat = document.getElementById('aqFilterCat').value;
   const sub = document.getElementById('aqFilterSub').value;
@@ -1152,6 +1403,7 @@ function syncFilterToAddForm() {
   if (cat && sub && data.categories[cat]?.subcategories[sub]) {
     sortedKeys(data.categories[cat].subcategories[sub].topics || {}).forEach(tid => { topicSel.innerHTML += '<option value="' + tid + '"' + (tid === topic ? ' selected' : '') + '>' + data.categories[cat].subcategories[sub].topics[tid].name + '</option>'; });
   }
+  populateAdminQType(cat, sub, topic);
 }
 
 function applyAQFilters() {
@@ -1170,7 +1422,8 @@ function applyAQFilters() {
     const matchCat = !cat || catId === cat;
     const matchSub = !sub || subId === sub;
     const matchTopic = !topic || topicId === topic;
-    const matchType = !type || getQuestionType(q) === type;
+    const typeLabel = getQuestionTypeLabel(q, topicObj);
+    const matchType = !type || typeLabel === (type === '__untyped__' ? 'Untyped' : type);
     const matchSearch = !search || (q.question || '').toLowerCase().includes(search);
     if (!matchCat || !matchSub || !matchTopic || !matchType || !matchSearch) return;
 
@@ -1180,7 +1433,7 @@ function applyAQFilters() {
       html += '<div class="aq-topic-group" data-topic="' + topicKey + '">';
       html += '<div class="aq-topic-head" onclick="this.nextElementSibling.classList.toggle(\'aq-hidden\');this.querySelector(\'.aq-toggle\').classList.toggle(\'aq-open\');">';
       html += '<span class="aq-toggle">▶</span> <strong>' + esc(catObj.name) + ' › ' + esc(subObj.name) + ' › ' + esc(topicObj.name) + '</strong> <span class="aq-count">(' + (topicObj.questions || []).length + ' Q' + (function () {
-        const tc = questionTypeCounts(topicObj.questions);
+        const tc = questionTypeCounts(topicObj.questions, topicObj);
         const ks = Object.keys(tc);
         return ks.length ? ' · ' + ks.map(k => k + ': ' + tc[k]).join(' · ') : '';
       })() + ')</span>';
@@ -1189,8 +1442,9 @@ function applyAQFilters() {
       topicCount = 0;
     }
     topicCount++;
+    const qTypeLabel = getQuestionTypeLabel(q, topicObj);
     html += '<div class="admin-question-item" data-cat="' + catId + '" data-sub="' + subId + '" data-topic="' + topicId + '">';
-    html += '<div class="aq-text">' + topicCount + '. ' + esc(q.question || '') + ' <span class="aq-type">' + esc(getQuestionType(q)) + '</span></div>' + (q.image ? '<img class="aq-img" src="' + imgUrl(q.image) + '" alt="Question image">' : '');
+    html += '<div class="aq-text">' + topicCount + '. ' + esc(q.question || '') + ' <span class="aq-type' + (qTypeLabel === 'Untyped' ? ' untyped' : '') + '">' + esc(qTypeLabel) + '</span></div>' + (q.image ? '<img class="aq-img" src="' + imgUrl(q.image) + '" alt="Question image">' : '');
     html += '<div class="aq-opts">' + (q.options || []).map((o, oi) => (oi === q.answer ? '✅ ' : '') + String.fromCharCode(65 + oi) + '. ' + esc(o)).join(' | ') + '</div>';
     html += '<div class="aq-ans">Answer: ' + String.fromCharCode(65 + q.answer) + ' | ' + esc(q.explanation || '') + '</div>' + (q.expImage ? '<img class="aq-img" src="' + imgUrl(q.expImage) + '" alt="Explanation image">' : '');
     html += '<div class="aq-actions"><button class="btn-secondary" onclick="event.stopPropagation();editAdminQ(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\',' + q.id + ')"><i class="fas fa-pen"></i> Edit</button>';
@@ -1209,7 +1463,7 @@ async function addAdminQ() {
   const opts = [0, 1, 2, 3].map(i => document.getElementById('adminQO' + i).value.trim());
   const ans = parseInt(document.getElementById('adminQAns').value);
   const exp = document.getElementById('adminQExp').value.trim();
-  const qType = document.getElementById('adminQType').value || DEFAULT_QUESTION_TYPE;
+  const qType = document.getElementById('adminQType').value;
   const editId = document.getElementById('adminQEditId').value;
   const imgFile = document.getElementById('adminQImg').files[0];
   const expImgFile = document.getElementById('adminQExpImg').files[0];
@@ -1239,12 +1493,14 @@ async function addAdminQ() {
         editQ = (data.categories[catId]?.subcategories[subId]?.topics[topicId]?.questions || []).find(q => q.id == editId);
       }
       if (editQ) {
-        editQ.question = qText; editQ.options = opts; editQ.answer = ans; editQ.explanation = exp; editQ.type = qType;
+        editQ.question = qText; editQ.options = opts; editQ.answer = ans; editQ.explanation = exp;
+        if (qType) editQ.type = qType; else delete editQ.type;
         if (imgFile) { await deleteUploadedFile(editQ.image); editQ.image = await uploadFile(imgFile, 'questions').catch(e => { alert('Image upload failed: ' + e.message); return editQ.image; }); }
         if (expImgFile) { await deleteUploadedFile(editQ.expImage); editQ.expImage = await uploadFile(expImgFile, 'explanations').catch(e => { alert('Image upload failed: ' + e.message); return editQ.expImage; }); }
       }
     } else {
-      const q = { id: genId(), question: qText, options: opts, answer: ans, explanation: exp, type: qType, image: '', expImage: '' };
+      const q = { id: genId(), question: qText, options: opts, answer: ans, explanation: exp, image: '', expImage: '' };
+      if (qType) q.type = qType;
       data.categories[catId].subcategories[subId].topics[topicId].questions.push(q);
       if (imgFile) {
         try { q.image = await uploadFile(imgFile, 'questions'); } catch (e) { alert('Image upload failed: ' + e.message); }
@@ -1269,7 +1525,7 @@ function clearAdminQForm() {
   [0, 1, 2, 3].forEach(i => document.getElementById('adminQO' + i).value = '');
   document.getElementById('adminQExp').value = '';
   document.getElementById('adminQAns').value = '0';
-  document.getElementById('adminQType').value = DEFAULT_QUESTION_TYPE;
+  populateAdminQType('', '', '');
   document.getElementById('adminQImg').value = '';
   document.getElementById('adminQImgName').innerHTML = '';
   document.getElementById('adminQExpImg').value = '';
@@ -1300,7 +1556,8 @@ function editAdminQ(catId, subId, topicId, qId) {
   (q.options || []).forEach((o, oi) => document.getElementById('adminQO' + oi).value = o);
   document.getElementById('adminQAns').value = q.answer;
   document.getElementById('adminQExp').value = q.explanation || '';
-  document.getElementById('adminQType').value = getQuestionType(q);
+  populateAdminQType(catId, subId, topicId);
+  document.getElementById('adminQType').value = q.type || '';
   document.getElementById('adminQEditId').value = q.id;
   document.getElementById('adminAddQBtn').textContent = 'Update Question';
   document.getElementById('adminQImg').value = '';
