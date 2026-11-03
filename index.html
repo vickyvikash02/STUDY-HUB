@@ -7,9 +7,11 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Study Hub - Exam Preparation</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-<link rel="stylesheet" href="style.css?v=3">
+<link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
 
@@ -17,17 +19,26 @@
 
   <!-- Sidebar -->
   <aside class="sidebar" id="sidebar">
-    <div class="logo" id="logoSecret"><i class="fas fa-graduation-cap"></i> Study Hub</div>
+    <div class="logo" id="logoSecret">
+      <span class="logo-mark"><i class="fas fa-graduation-cap"></i></span>
+      <span class="logo-text">Study Hub<small>Exam preparation</small></span>
+    </div>
+    <div class="nav-label">Menu</div>
     <nav>
-      <a class="nav-item active" data-page="dashboard"><i class="fas fa-th-large"></i> Dashboard</a>
-      <a class="nav-item" data-page="questions"><i class="fas fa-question-circle"></i> Question Bank</a>
-      <a class="nav-item" data-page="mocks"><i class="fas fa-tasks"></i> Mock Tests</a>
-      <a class="nav-item" data-page="builder"><i class="fas fa-plus-circle"></i> Test Builder</a>
-      <a class="nav-item" data-page="ebook"><i class="fas fa-book"></i> E-Book</a>
-      <a class="nav-item" data-page="admin"><i class="fas fa-cog"></i> Admin</a>
+      <a class="nav-item active" data-page="dashboard"><i class="fas fa-house"></i> Dashboard</a>
+      <a class="nav-item" data-page="questions"><i class="fas fa-layer-group"></i> Question Bank</a>
+      <a class="nav-item" data-page="mocks"><i class="fas fa-stopwatch"></i> Mock Tests</a>
+      <a class="nav-item" data-page="builder"><i class="fas fa-wand-magic-sparkles"></i> Test Builder</a>
+      <a class="nav-item" data-page="ebook"><i class="fas fa-book-open"></i> E-Book</a>
+      <a class="nav-item" data-page="admin"><i class="fas fa-sliders"></i> Admin</a>
     </nav>
+    <div class="sidebar-card">
+      <div class="sidebar-card-icon"><i class="fas fa-fire"></i></div>
+      <strong>Keep the streak alive</strong>
+      <p>A little practice every day beats a last-minute marathon.</p>
+    </div>
     <div class="sidebar-footer">
-      <button class="theme-toggle" id="themeToggle"><i class="fas fa-moon"></i></button>
+      <button class="theme-toggle" id="themeToggle"><i class="fas fa-moon"></i> <span>Dark mode</span></button>
     </div>
   </aside>
 
@@ -35,9 +46,13 @@
   <main class="main">
     <header class="topbar">
       <button class="hamburger" id="hamburger"><i class="fas fa-bars"></i></button>
-      <h2 id="pageTitle">Dashboard</h2>
+      <div class="topbar-title">
+        <span class="topbar-crumb">Study Hub / <span id="pageTitle">Dashboard</span></span>
+        <strong>Welcome back, aspirant 👋</strong>
+      </div>
       <div class="topbar-right">
         <span id="statsBadge" class="stats-badge">0 questions</span>
+        <div class="user-chip"><span class="user-dot"></span> Learner</div>
       </div>
     </header>
 
@@ -45,16 +60,201 @@
 
       <!-- ===================== DASHBOARD ===================== -->
       <section id="page-dashboard" class="page active">
-        <div class="hero">
-          <h1>📚 Your Study Hub</h1>
-          <p>Explore categories, practice questions, and test your knowledge.</p>
+
+        <!-- Hero -->
+        <div class="home-hero">
+          <div class="home-hero-copy">
+            <span class="pill-badge"><i class="fas fa-bolt"></i> All-in-one exam prep</span>
+            <h1>Your daily prep<br><span class="hero-accent">dashboard</span></h1>
+            <p class="hero-sub">Practice topic-wise questions, take timed mock tests and track your accuracy — all in one calm, focused workspace.</p>
+            <div class="home-hero-actions">
+              <button class="btn-primary btn-lg" onclick="switchPage('mocks')">Start a mock test <i class="fas fa-arrow-right"></i></button>
+              <button class="btn-ghost btn-lg" onclick="scrollToSubjects()">Browse subjects</button>
+            </div>
+            <div class="hero-meta">
+              <div class="hero-meta-item"><strong id="heroSubjects">0</strong><span>Subjects</span></div>
+              <span class="hero-meta-sep"></span>
+              <div class="hero-meta-item"><strong id="heroQuestions">0</strong><span>Questions</span></div>
+              <span class="hero-meta-sep"></span>
+              <div class="hero-meta-item"><strong id="heroTests">0</strong><span>Mock tests</span></div>
+            </div>
+          </div>
+
+          <div class="hero-carousel" id="heroCarousel" aria-roledescription="carousel" aria-label="Study Hub highlights">
+            <div class="hero-track" id="heroTrack">
+              <article class="hero-slide slide-indigo">
+                <div class="slide-glow"></div>
+                <span class="slide-eyebrow"><i class="fas fa-stopwatch"></i> Mock tests</span>
+                <h3>Practice like it's<br>the real exam.</h3>
+                <p>Timed tests, a live question palette and an instant accuracy breakdown.</p>
+                <button class="slide-cta" onclick="switchPage('mocks')">Take a test <i class="fas fa-arrow-right"></i></button>
+                <div class="slide-card">
+                  <div class="slide-card-row"><span class="tick"></span><span class="bar" style="width:64%"></span><span class="pct">64%</span></div>
+                  <div class="slide-card-row"><span class="tick"></span><span class="bar" style="width:88%"></span><span class="pct">88%</span></div>
+                  <div class="slide-card-row"><span class="tick"></span><span class="bar" style="width:42%"></span><span class="pct">42%</span></div>
+                </div>
+              </article>
+              <article class="hero-slide slide-violet">
+                <div class="slide-glow"></div>
+                <span class="slide-eyebrow"><i class="fas fa-layer-group"></i> Question bank</span>
+                <h3>One question at a<br>time, the smart way.</h3>
+                <p>Browse by subject, subcategory and topic. Answers plus explanations included.</p>
+                <button class="slide-cta" onclick="switchPage('questions')">Explore questions <i class="fas fa-arrow-right"></i></button>
+                <div class="slide-chips">
+                  <span>Percentage</span><span>Ratio</span><span>Analogy</span><span>Physics</span>
+                </div>
+              </article>
+              <article class="hero-slide slide-emerald">
+                <div class="slide-glow"></div>
+                <span class="slide-eyebrow"><i class="fas fa-wand-magic-sparkles"></i> Test builder</span>
+                <h3>Build the test you<br>actually need.</h3>
+                <p>Pick your own questions, set the duration and marks, then save it.</p>
+                <button class="slide-cta" onclick="switchPage('builder')">Create a test <i class="fas fa-arrow-right"></i></button>
+                <div class="slide-card slide-card-lite">
+                  <div class="mini-row"><span class="mini-dot"></span> Maths Practice #1</div>
+                  <div class="mini-row"><span class="mini-dot"></span> 20 min &middot; 25 marks</div>
+                  <div class="mini-progress"><span></span></div>
+                </div>
+              </article>
+            </div>
+            <button class="carousel-btn prev" id="heroPrev" aria-label="Previous slide"><i class="fas fa-chevron-left"></i></button>
+            <button class="carousel-btn next" id="heroNext" aria-label="Next slide"><i class="fas fa-chevron-right"></i></button>
+            <div class="carousel-dots" id="heroDots"></div>
+          </div>
         </div>
-        <div class="dash-search"><i class="fas fa-search"></i><input type="text" id="topicSearch" placeholder="Search topics..." oninput="filterDashboardTopics(this.value)"></div>
+
+        <!-- Quick actions -->
+        <div class="section-head">
+          <div>
+            <span class="section-kicker">Jump back in</span>
+            <h2>Everything you need to crack it</h2>
+          </div>
+        </div>
+        <div class="quick-grid">
+          <button class="quick-card" onclick="switchPage('questions')">
+            <span class="quick-icon tone-indigo"><i class="fas fa-layer-group"></i></span>
+            <span class="quick-body"><strong>Question Bank</strong><small>Practice topic-wise with explanations</small></span>
+            <i class="fas fa-arrow-up-right-from-square quick-arrow"></i>
+          </button>
+          <button class="quick-card" onclick="switchPage('mocks')">
+            <span class="quick-icon tone-emerald"><i class="fas fa-stopwatch"></i></span>
+            <span class="quick-body"><strong>Mock Tests</strong><small>Timed papers with an instant result</small></span>
+            <i class="fas fa-arrow-up-right-from-square quick-arrow"></i>
+          </button>
+          <button class="quick-card" onclick="switchPage('builder')">
+            <span class="quick-icon tone-amber"><i class="fas fa-wand-magic-sparkles"></i></span>
+            <span class="quick-body"><strong>Test Builder</strong><small>Assemble a custom test in minutes</small></span>
+            <i class="fas fa-arrow-up-right-from-square quick-arrow"></i>
+          </button>
+          <button class="quick-card" onclick="switchPage('ebook')">
+            <span class="quick-icon tone-rose"><i class="fas fa-book-open"></i></span>
+            <span class="quick-body"><strong>E-Book Library</strong><small>Notes and PDFs, ready to open</small></span>
+            <i class="fas fa-arrow-up-right-from-square quick-arrow"></i>
+          </button>
+        </div>
+
+        <!-- Subjects -->
+        <div class="section-head" id="browseSubjects">
+          <div>
+            <span class="section-kicker">Browse the syllabus</span>
+            <h2>Explore by subject</h2>
+          </div>
+          <div class="dash-search">
+            <i class="fas fa-magnifying-glass"></i>
+            <input type="text" id="topicSearch" placeholder="Search topics..." oninput="filterDashboardTopics(this.value)">
+          </div>
+        </div>
         <div id="dashboardGrid" class="dash-grid"></div>
+
+        <!-- Stats -->
+        <div class="stat-band">
+          <div class="stat-band-head">
+            <span class="section-kicker light">Your library at a glance</span>
+            <h2>Built to be practised, not just read</h2>
+          </div>
+          <div class="stat-band-grid">
+            <div class="stat-box"><strong id="statQuestions">0</strong><span>Questions in the bank</span></div>
+            <div class="stat-box"><strong id="statTopics">0</strong><span>Topics covered</span></div>
+            <div class="stat-box"><strong id="statTests">0</strong><span>Mock tests ready</span></div>
+            <div class="stat-box"><strong id="statEbooks">0</strong><span>E-books available</span></div>
+          </div>
+        </div>
+
+        <!-- Why us -->
+        <div class="section-head">
+          <div>
+            <span class="section-kicker">Why Study Hub</span>
+            <h2>Made for the way you actually study</h2>
+          </div>
+        </div>
+        <div class="feature-grid">
+          <div class="feature-card feature-wide">
+            <div class="feature-copy">
+              <span class="feature-icon tone-indigo"><i class="fas fa-chart-line"></i></span>
+              <h3>See exactly where you stand</h3>
+              <p>Every mock test ends with a score, a question-by-question review and the explanations you need to fix weak spots.</p>
+              <button class="btn-ghost" onclick="switchPage('mocks')">View mock tests <i class="fas fa-arrow-right"></i></button>
+            </div>
+            <div class="feature-visual">
+              <div class="result-ring"><span>78%</span></div>
+              <div class="result-lines"><span></span><span></span><span></span></div>
+            </div>
+          </div>
+          <div class="feature-card">
+            <span class="feature-icon tone-emerald"><i class="fas fa-clock"></i></span>
+            <h3>Short, focused sessions</h3>
+            <p>Open a topic, revise a handful of questions, close the tab. Small wins compound.</p>
+          </div>
+          <div class="feature-card">
+            <span class="feature-icon tone-amber"><i class="fas fa-shield-halved"></i></span>
+            <h3>Your data stays yours</h3>
+            <p>Questions, tests and progress are stored in your browser. No account required.</p>
+          </div>
+        </div>
+
+        <!-- FAQ -->
+        <div class="section-head">
+          <div>
+            <span class="section-kicker">Questions</span>
+            <h2>Frequently asked</h2>
+          </div>
+        </div>
+        <div class="faq-list">
+          <details class="faq-item">
+            <summary>How do mock tests work?<i class="fas fa-plus"></i></summary>
+            <p>Open Mock Tests, pick a paper and start. You get a countdown timer, a question palette, mark-for-review and clear-response controls. Submit any time to see your score and a full review. Tests are created in the Test Builder.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Can I create my own test?<i class="fas fa-plus"></i></summary>
+            <p>Yes. In Test Builder, filter the question bank by category, subcategory and topic, tick the questions you want, set a name, duration and marks, then save. Your test appears instantly under Mock Tests.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Where do the questions come from?<i class="fas fa-plus"></i></summary>
+            <p>Your library is fully editable. Add categories, subcategories, topics and questions — with optional images and explanations — from the Admin panel.</p>
+          </details>
+          <details class="faq-item">
+            <summary>How do I download e-books?<i class="fas fa-plus"></i></summary>
+            <p>Open the E-Book Library and hit View on any title. Admins can add PDFs by pasting a Google Drive link or by linking a shared Drive folder.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Is my progress saved?<i class="fas fa-plus"></i></summary>
+            <p>Everything is saved to your browser's local storage on this device, so your questions, tests and e-books stay available without signing in. Clearing browser data will remove them.</p>
+          </details>
+        </div>
+
+        <footer class="home-footer">
+          <span class="logo-mark"><i class="fas fa-graduation-cap"></i></span>
+          <div><strong>Study Hub</strong><small>Small sessions. Sharp practice. Better scores.</small></div>
+        </footer>
       </section>
 
       <!-- ===================== QUESTION BANK ===================== -->
       <section id="page-questions" class="page">
+        <div class="page-head">
+          <span class="section-kicker">Practice</span>
+          <h1>Question Bank</h1>
+          <p>Pick a subject, drill into a topic and revise with explanations.</p>
+        </div>
         <div class="breadcrumb" id="qbBreadcrumb"><span>Select a topic from Dashboard</span></div>
         <div id="qbContent">
           <div class="empty-state"><i class="fas fa-hand-pointer"></i><p>Click a topic on the Dashboard to view questions.</p></div>
@@ -64,8 +264,9 @@
       <!-- ===================== MOCK TESTS ===================== -->
       <section id="page-mocks" class="page">
         <div id="mockListContainer">
-          <div class="hero">
-            <h1>🎯 Mock Tests</h1>
+          <div class="page-head">
+            <span class="section-kicker">Timed practice</span>
+            <h1>Mock Tests</h1>
             <p>Take timed tests and track your performance.</p>
           </div>
           <div id="mockList" class="mock-grid"></div>
@@ -73,7 +274,7 @@
         <div id="mockTestContainer" class="hidden">
           <div class="tcs-header">
             <h1 id="mockTestTitle">Test</h1>
-            <div class="tcs-logo">Skill Vertex</div>
+            <div class="tcs-logo">Study Hub</div>
           </div>
           <div class="tcs-body">
             <div class="tcs-left">
@@ -139,8 +340,9 @@
 
       <!-- ===================== TEST BUILDER ===================== -->
       <section id="page-builder" class="page">
-        <div class="hero">
-          <h1>🛠️ Test Builder</h1>
+        <div class="page-head">
+          <span class="section-kicker">Custom practice</span>
+          <h1>Test Builder</h1>
           <p>Create custom mock tests by selecting questions.</p>
         </div>
         <div class="builder-form">
@@ -168,8 +370,9 @@
 
       <!-- ===================== E-BOOK ===================== -->
       <section id="page-ebook" class="page">
-        <div class="hero">
-          <h1>📖 E-Book Library</h1>
+        <div class="page-head">
+          <span class="section-kicker">Resources</span>
+          <h1>E-Book Library</h1>
           <p>Browse and download study materials.</p>
         </div>
         <div id="ebookList"></div>
@@ -177,9 +380,10 @@
 
       <!-- ===================== ADMIN ===================== -->
       <section id="page-admin" class="page">
-        <div class="hero">
-          <h1>⚙️ Admin Panel</h1>
-          <p>Manage categories, subcategories, topics & questions.</p>
+        <div class="page-head">
+          <span class="section-kicker">Control room</span>
+          <h1>Admin Panel</h1>
+          <p>Manage categories, subcategories, topics &amp; questions.</p>
         </div>
         <div class="admin-tabs">
           <button class="admin-tab active" data-admin="categories">Categories</button>
@@ -195,6 +399,6 @@
   </main>
 </div>
 
-<script src="script.js?v=1781696103"></script>
+<script src="script.js?v=4"></script>
 </body>
 </html>

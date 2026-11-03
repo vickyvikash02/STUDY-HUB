@@ -216,16 +216,19 @@ function switchPage(page) {
 function renderDashboard() {
   const grid = document.getElementById('dashboardGrid');
   grid.innerHTML = '';
-  const catGrads = ['var(--grad1)', 'var(--grad2)', 'var(--grad3)', 'var(--grad4)', 'var(--grad5)', 'var(--grad6)'];
+  const catColors = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#ec4899'];
   let ci = 0;
   sortedKeys(data.categories).forEach(catId => {
     const cat = data.categories[catId];
     const card = document.createElement('div'); card.className = 'cat-card';
     const totalQ = countQInCat(catId);
     const iconHtml = cat.iconImage ? '<img src="' + imgUrl(cat.iconImage) + '" class="cat-icon-img">' : (cat.icon || '📂');
+    const color = (cat.color && /^#[0-9a-f]{3,8}$/i.test(cat.color)) ? cat.color : catColors[ci++ % catColors.length];
     card.innerHTML = `
-      <div class="cat-head" style="background:${cat.color || catGrads[ci++ % catGrads.length]}">
-        ${iconHtml} ${cat.name} <span style="margin-left:auto;font-size:12px;opacity:0.8;">${totalQ} Q</span>
+      <div class="cat-head" style="--cat-color:${color}">
+        <span class="cat-icon-chip">${iconHtml}</span>
+        <span class="cat-name">${esc(cat.name)}</span>
+        <span class="cat-count">${totalQ} Q</span>
       </div>
       <div class="cat-body" id="catBody-${catId}"></div>`;
     grid.appendChild(card);
@@ -236,7 +239,7 @@ function renderDashboard() {
       const subDiv = document.createElement('div'); subDiv.className = 'subcat-item';
       subDiv.innerHTML = `
         <div class="subcat-head" onclick="toggleSubcat('${catId}','${subId}')">
-          📁 ${sub.name} <span class="arrow" id="arrow-${catId}-${subId}"><i class="fas fa-chevron-down"></i></span>
+          <i class="far fa-folder"></i> ${esc(sub.name)} <span class="arrow" id="arrow-${catId}-${subId}"><i class="fas fa-chevron-down"></i></span>
         </div>
         <div class="topic-list hidden" id="topics-${catId}-${subId}"></div>`;
       body.appendChild(subDiv);
@@ -252,6 +255,104 @@ function renderDashboard() {
       });
     });
   });
+  updateHomeStats();
+}
+
+function countTopics() {
+  let c = 0;
+  sortedKeys(data.categories).forEach(catId => {
+    const cat = data.categories[catId];
+    sortedKeys(cat.subcategories || {}).forEach(subId => {
+      c += Object.keys(cat.subcategories[subId].topics || {}).length;
+    });
+  });
+  return c;
+}
+
+function animateNumber(el, target) {
+  if (!el) return;
+  const from = parseInt(el.textContent, 10) || 0;
+  if (from === target) { el.textContent = target; return; }
+  const start = performance.now();
+  const dur = 650;
+  function tick(now) {
+    const p = Math.min((now - start) / dur, 1);
+    const eased = 1 - Math.pow(1 - p, 3);
+    el.textContent = Math.round(from + (target - from) * eased);
+    if (p < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+function updateHomeStats() {
+  const subjects = Object.keys(data.categories).length;
+  const questions = countQuestions();
+  const topics = countTopics();
+  const tests = mockTests.length;
+  const ebooks = (data.ebooks || []).length;
+  animateNumber(document.getElementById('heroSubjects'), subjects);
+  animateNumber(document.getElementById('heroQuestions'), questions);
+  animateNumber(document.getElementById('heroTests'), tests);
+  animateNumber(document.getElementById('statQuestions'), questions);
+  animateNumber(document.getElementById('statTopics'), topics);
+  animateNumber(document.getElementById('statTests'), tests);
+  animateNumber(document.getElementById('statEbooks'), ebooks);
+}
+
+function scrollToSubjects() {
+  const el = document.getElementById('browseSubjects');
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ======================== HERO CAROUSEL ========================
+let _heroIdx = 0;
+let _heroTimer = null;
+
+function goHeroSlide(i) {
+  const track = document.getElementById('heroTrack');
+  if (!track) return;
+  const total = track.children.length;
+  if (!total) return;
+  _heroIdx = (i + total) % total;
+  track.style.transform = 'translateX(-' + (_heroIdx * 100) + '%)';
+  document.querySelectorAll('#heroDots .carousel-dot').forEach((d, di) => {
+    d.classList.toggle('active', di === _heroIdx);
+  });
+}
+
+function stopHeroAuto() {
+  if (_heroTimer) { clearInterval(_heroTimer); _heroTimer = null; }
+}
+
+function startHeroAuto() {
+  stopHeroAuto();
+  _heroTimer = setInterval(() => goHeroSlide(_heroIdx + 1), 5200);
+}
+
+function initHeroCarousel() {
+  const track = document.getElementById('heroTrack');
+  const dots = document.getElementById('heroDots');
+  if (!track || !dots) return;
+  const total = track.children.length;
+  dots.innerHTML = '';
+  for (let i = 0; i < total; i++) {
+    const dot = document.createElement('button');
+    dot.className = 'carousel-dot' + (i === 0 ? ' active' : '');
+    dot.setAttribute('aria-label', 'Go to slide ' + (i + 1));
+    dot.addEventListener('click', () => { goHeroSlide(i); startHeroAuto(); });
+    dots.appendChild(dot);
+  }
+  const prev = document.getElementById('heroPrev');
+  const next = document.getElementById('heroNext');
+  if (prev) prev.addEventListener('click', () => { goHeroSlide(_heroIdx - 1); startHeroAuto(); });
+  if (next) next.addEventListener('click', () => { goHeroSlide(_heroIdx + 1); startHeroAuto(); });
+
+  const carousel = document.getElementById('heroCarousel');
+  carousel.addEventListener('mouseenter', stopHeroAuto);
+  carousel.addEventListener('mouseleave', startHeroAuto);
+  carousel.addEventListener('focusin', stopHeroAuto);
+  carousel.addEventListener('focusout', startHeroAuto);
+  startHeroAuto();
 }
 
 function countQInCat(catId) {
@@ -1462,21 +1563,30 @@ function quitMockTest() {
 }
 
 // ======================== THEME ========================
+function setThemeToggleUI(isDark) {
+  const el = document.getElementById('themeToggle');
+  if (!el) return;
+  el.innerHTML = isDark ? '<i class="fas fa-sun"></i> <span>Light mode</span>' : '<i class="fas fa-moon"></i> <span>Dark mode</span>';
+}
+
 function toggleTheme() {
   document.body.classList.toggle('dark');
   const isDark = document.body.classList.contains('dark');
   localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light');
-  document.getElementById('themeToggle').innerHTML = isDark ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
+  setThemeToggleUI(isDark);
 }
 
 function loadTheme() {
-  if (localStorage.getItem(THEME_KEY) === 'dark') { document.body.classList.add('dark'); document.getElementById('themeToggle').innerHTML = '<i class="fas fa-sun"></i>'; }
+  if (localStorage.getItem(THEME_KEY) === 'dark') {
+    document.body.classList.add('dark');
+    setThemeToggleUI(true);
+  }
 }
 
 // ======================== UTILITIES ========================
 function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
-function updateStats() { document.getElementById('statsBadge').textContent = countQuestions() + ' questions'; }
+function updateStats() { document.getElementById('statsBadge').textContent = countQuestions() + ' questions'; updateHomeStats(); }
 
 // ======================== EVENT BINDING ========================
 async function init() {
@@ -1487,6 +1597,7 @@ async function init() {
   } catch (e) { console.error('Init error:', e); }
   renderDashboard();
   updateStats();
+  initHeroCarousel();
 
   // Nav
   document.querySelectorAll('.nav-item').forEach(n => n.addEventListener('click', () => { if (n.dataset.page) switchPage(n.dataset.page); }));
