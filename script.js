@@ -1281,12 +1281,21 @@ async function delAdminQ(catId, subId, topicId, qId) {
 }
 
 // ======================== MOCK TEST BUILDER ========================
+let _builderSelected = new Set();
+let _builderQMeta = new Map();
+
 function renderBuilder() {
   document.getElementById('builderName').value = '';
   document.getElementById('builderDuration').value = '20';
   document.getElementById('builderMarks').value = '25';
+  _builderSelected = new Set();
+  _builderQMeta = new Map();
+  forEachQ((q, i, catId, subId, topicId, cat) => {
+    _builderQMeta.set(q.id, { q, cat: cat ? cat.name : 'General' });
+  });
   populateBuilderFilters();
   renderBuilderQList();
+  renderBuilderSelected();
   renderExistingTests();
 }
 
@@ -1294,45 +1303,147 @@ function populateBuilderFilters() {
   const catSel = document.getElementById('builderCatFilter');
   const subSel = document.getElementById('builderSubFilter');
   const topicSel = document.getElementById('builderTopicFilter');
-  catSel.innerHTML = '<option value="">Select Category</option>';
+  catSel.innerHTML = '<option value="">Select Category</option><option value="__all__">All Categories</option>';
   sortedKeys(data.categories).forEach(catId => { catSel.innerHTML += '<option value="' + catId + '">' + data.categories[catId].name + '</option>'; });
   catSel.onchange = function () {
-    subSel.innerHTML = '<option value="">Select Subcategory</option><option value="__all__">All Subcategories</option>';
-    topicSel.innerHTML = '<option value="">Select Topic</option>';
-    const cat = data.categories[this.value];
-    if (cat) sortedKeys(cat.subcategories || {}).forEach(sid => { subSel.innerHTML += '<option value="' + sid + '">' + cat.subcategories[sid].name + '</option>'; });
+    if (this.value === '__all__') {
+      subSel.disabled = true;
+      topicSel.disabled = true;
+      subSel.innerHTML = '<option value="">All Subcategories</option>';
+      topicSel.innerHTML = '<option value="">All Topics</option>';
+    } else {
+      subSel.disabled = !this.value;
+      topicSel.disabled = true;
+      subSel.innerHTML = '<option value="">Select Subcategory</option><option value="__all__">All Subcategories</option>';
+      topicSel.innerHTML = '<option value="">Select Topic</option>';
+      const cat = data.categories[this.value];
+      if (cat) sortedKeys(cat.subcategories || {}).forEach(sid => { subSel.innerHTML += '<option value="' + sid + '">' + cat.subcategories[sid].name + '</option>'; });
+    }
     renderBuilderQList();
   };
   subSel.onchange = function () {
     topicSel.innerHTML = '<option value="">Select Topic</option><option value="__all__">All Topics</option>';
     const catId = catSel.value;
+    topicSel.disabled = true;
     if (catId && this.value && this.value !== '__all__' && data.categories[catId]?.subcategories[this.value]) {
       sortedKeys(data.categories[catId].subcategories[this.value].topics || {}).forEach(tid => {
         topicSel.innerHTML += '<option value="' + tid + '">' + data.categories[catId].subcategories[this.value].topics[tid].name + '</option>';
       });
+      topicSel.disabled = false;
     }
     renderBuilderQList();
   };
   topicSel.onchange = renderBuilderQList;
-  topicSel.innerHTML = '<option value="">Select Topic</option>';
+  subSel.disabled = true;
+  topicSel.disabled = true;
 }
 
 function renderBuilderQList() {
-  const catF = document.getElementById('builderCatFilter').value;
+  const catSel = document.getElementById('builderCatFilter');
+  const catF = catSel.value;
   const subF = document.getElementById('builderSubFilter').value;
   const topicF = document.getElementById('builderTopicFilter').value;
   const container = document.getElementById('builderQList');
   container.innerHTML = '';
-  if (!catF) { container.innerHTML = '<p style="text-align:center;padding:20px;color:var(--text2);">Select a category to see questions.</p>'; return; }
+  if (!catF) {
+    container.innerHTML = '<p class="builder-empty">Select a category (or “All Categories”) to see questions. You can mix questions from different categories in one test.</p>';
+    renderBuilderSelected();
+    return;
+  }
+  const allCats = catF === '__all__';
+  let shown = 0;
   forEachQ((q, i, catId, subId, topicId, cat, sub, topic) => {
-    if (catF && catF !== catId) return;
-    if (subF && subF !== '__all__' && subF !== subId) return;
-    if (topicF && topicF !== '__all__' && topicF !== topicId) return;
-    const div = document.createElement('div'); div.className = 'builder-qitem';
-    div.innerHTML = '<input type="checkbox" class="bq-check" value="' + q.id + '"><div class="bq-text">' + esc(q.question) + '</div><div class="bq-meta">' + cat.name + ' → ' + sub.name + ' → ' + topic.name + '</div>';
+    if (!allCats && catF !== catId) return;
+    if (!allCats && subF && subF !== '__all__' && subF !== subId) return;
+    if (!allCats && topicF && topicF !== '__all__' && topicF !== topicId) return;
+    shown++;
+    const div = document.createElement('div');
+    div.className = 'builder-qitem';
+
+    const check = document.createElement('input');
+    check.type = 'checkbox';
+    check.className = 'bq-check';
+    check.value = q.id;
+    check.checked = _builderSelected.has(q.id);
+    check.addEventListener('change', function () {
+      if (this.checked) _builderSelected.add(q.id);
+      else _builderSelected.delete(q.id);
+      renderBuilderSelected();
+    });
+
+    const text = document.createElement('div');
+    text.className = 'bq-text';
+    text.textContent = q.question;
+
+    const meta = document.createElement('div');
+    meta.className = 'bq-meta';
+    meta.textContent = cat.name + ' → ' + sub.name + ' → ' + topic.name;
+
+    div.appendChild(check);
+    div.appendChild(text);
+    div.appendChild(meta);
     container.appendChild(div);
   });
-  if (!container.children.length) container.innerHTML = '<p style="text-align:center;padding:20px;color:var(--text2);">No questions match your filters.</p>';
+  if (!shown) container.innerHTML = '<p class="builder-empty">No questions match your filters.</p>';
+  renderBuilderSelected();
+}
+
+function renderBuilderSelected() {
+  const count = document.getElementById('builderSelCount');
+  if (count) count.textContent = _builderSelected.size;
+  const list = document.getElementById('builderSelectedList');
+  if (list) {
+    list.innerHTML = '';
+    if (!_builderSelected.size) {
+      list.innerHTML = '<p class="builder-empty">No questions selected yet. Pick questions from any category — they stay selected when you switch filters.</p>';
+    } else {
+      _builderSelected.forEach(id => {
+        const meta = _builderQMeta.get(id);
+        if (!meta) return;
+        const row = document.createElement('div');
+        row.className = 'builder-sel-item';
+
+        const info = document.createElement('div');
+        info.className = 'builder-sel-text';
+        const title = document.createElement('span');
+        title.textContent = meta.q.question;
+        const cat = document.createElement('small');
+        cat.textContent = meta.cat;
+        info.appendChild(title);
+        info.appendChild(cat);
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'builder-sel-remove';
+        btn.title = 'Remove question';
+        btn.setAttribute('aria-label', 'Remove question');
+        btn.innerHTML = '<i class="fas fa-xmark"></i>';
+        btn.addEventListener('click', () => {
+          _builderSelected.delete(id);
+          const cb = document.querySelector('#builderQList .bq-check[value="' + id + '"]');
+          if (cb) cb.checked = false;
+          renderBuilderSelected();
+        });
+
+        row.appendChild(info);
+        row.appendChild(btn);
+        list.appendChild(row);
+      });
+    }
+  }
+  updateBuilderSelectAll();
+}
+
+function updateBuilderSelectAll() {
+  const all = document.getElementById('builderSelectAll');
+  if (!all) return;
+  const checks = Array.from(document.querySelectorAll('#builderQList .bq-check'));
+  const selected = checks.filter(c => c.checked).length;
+  all.checked = checks.length > 0 && selected === checks.length;
+  all.indeterminate = selected > 0 && selected < checks.length;
+  all.disabled = checks.length === 0;
+  const shown = document.getElementById('builderShownCount');
+  if (shown) shown.textContent = checks.length ? selected + ' of ' + checks.length + ' selected here' : '';
 }
 
 function renderExistingTests() {
@@ -1350,14 +1461,31 @@ document.getElementById('builderSaveBtn').addEventListener('click', function () 
   const name = document.getElementById('builderName').value.trim();
   const duration = parseInt(document.getElementById('builderDuration').value);
   const totalMarks = parseInt(document.getElementById('builderMarks').value);
-  const checked = document.querySelectorAll('#builderQList .bq-check:checked');
-  const ids = Array.from(checked).map(c => parseInt(c.value));
+  const ids = Array.from(_builderSelected);
   if (!name) { alert('Enter a test name.'); return; }
   if (!ids.length) { alert('Select at least one question.'); return; }
   mockTests.push({ id: Date.now(), name, duration: duration || 20, totalMarks: totalMarks || ids.length, questionIds: ids });
+  const catCount = new Set(ids.map(id => (_builderQMeta.get(id) || {}).cat).filter(Boolean)).size;
   saveData();
   renderBuilder();
-  alert('Mock test "' + name + '" created with ' + ids.length + ' questions!');
+  alert('Mock test "' + name + '" created with ' + ids.length + ' questions' + (catCount > 1 ? ' from ' + catCount + ' categories' : '') + '!');
+});
+
+document.getElementById('builderSelectAll').addEventListener('change', function () {
+  const checks = document.querySelectorAll('#builderQList .bq-check');
+  checks.forEach(cb => {
+    cb.checked = this.checked;
+    const id = Number(cb.value);
+    if (this.checked) _builderSelected.add(id);
+    else _builderSelected.delete(id);
+  });
+  renderBuilderSelected();
+});
+
+document.getElementById('builderClearSel').addEventListener('click', function () {
+  _builderSelected.clear();
+  document.querySelectorAll('#builderQList .bq-check').forEach(cb => { cb.checked = false; });
+  renderBuilderSelected();
 });
 
 function editMockTest(idx) {
