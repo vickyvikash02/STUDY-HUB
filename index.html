@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-<link rel="stylesheet" href="style.css?v=23">
+<link rel="stylesheet" href="style.css?v=24">
 </head>
 <body>
 
@@ -485,13 +485,31 @@
 
       <!-- ===================== E-BOOK ===================== -->
       <section id="page-ebook" class="page">
-        <div class="page-head">
-          <span class="section-kicker">Resources</span>
-          <h1>E-Book Library</h1>
-          <p>Browse and download study materials.</p>
+        <div class="page-head ebook-page-head">
+          <span class="section-kicker">Free study library</span>
+          <h1>E-Books</h1>
+          <p>Free PDF notes, formulas and exam-focused study material. Pick a goal, then read or download.</p>
         </div>
         <div id="ebookList"></div>
       </section>
+
+      <!-- E-Book preview modal -->
+      <div class="ebook-modal hidden" id="ebookModal" role="dialog" aria-modal="true" aria-labelledby="ebookModalTitle">
+        <div class="ebook-modal-panel">
+          <button class="ebook-close" onclick="closeEbookModal()" aria-label="Close preview"><i class="fas fa-xmark"></i></button>
+          <div class="ebook-modal-cover" id="ebookModalCover"></div>
+          <div class="ebook-modal-body">
+            <div class="ebook-modal-chips" id="ebookModalChips"></div>
+            <h2 id="ebookModalTitle"></h2>
+            <div class="ebook-modal-meta" id="ebookModalMeta"></div>
+            <p class="ebook-modal-description" id="ebookModalDescription"></p>
+            <div class="ebook-modal-actions">
+              <button class="ebook-read-btn" id="ebookModalView">Read PDF <i class="fas fa-arrow-right"></i></button>
+              <button class="btn-secondary" id="ebookModalDownload"><i class="fas fa-download"></i> Download</button>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <!-- ===================== ADMIN ===================== -->
       <section id="page-admin" class="page">
@@ -560,6 +578,6 @@
   </main>
 </div>
 
-<script src="script.js?v=23"></script>
+<script src="script.js?v=24"></script>
 </body>
 </html>

@@ -1138,16 +1138,143 @@ function filterQBQuestions(val) {
 }
 
 // ======================== E-BOOK ========================
+const EBOOK_CATEGORIES = ['All', 'SSC', 'Railways', 'UPPBPB', 'IB', 'RPF', 'Others'];
+const EBOOK_LANGUAGES = ['All', 'English', 'Hindi'];
+let _ebookCategory = 'All';
+let _ebookLanguage = 'All';
+let _selectedEbookIdx = -1;
+
+function ebookCategory(ebook) {
+  return ebook && ['SSC', 'Railways', 'UPPBPB', 'IB', 'RPF', 'Others'].includes(ebook.category) ? ebook.category : 'Others';
+}
+
+function ebookLanguage(ebook) {
+  return ebook && String(ebook.language || '').toLowerCase() === 'hindi' ? 'Hindi' : 'English';
+}
+
+function ebookPagesText(ebook) {
+  const pages = parseInt(ebook && ebook.pages, 10);
+  return pages > 0 ? pages + ' Pages' : '';
+}
+
+function ebookSizeText(ebook) {
+  return String((ebook && ebook.size) || '').trim();
+}
+
+function ebookFilterMatches(ebook) {
+  const category = ebookCategory(ebook);
+  const language = ebookLanguage(ebook);
+  return (_ebookCategory === 'All' || category === _ebookCategory) && (_ebookLanguage === 'All' || language === _ebookLanguage);
+}
+
+function ebookCoverHTML(ebook, type) {
+  const title = (ebook && ebook.name) || 'Study Material';
+  if (ebook && ebook.cover) {
+    return '<img class="ebook-cover-image" src="' + esc(ebook.cover) + '" alt="' + esc(title) + ' cover">';
+  }
+  let hash = 0;
+  for (let i = 0; i < title.length; i++) hash = ((hash << 5) - hash) + title.charCodeAt(i);
+  const hue = Math.abs(hash) % 360;
+  const klass = type === 'modal' ? 'ebook-cover-generated ebook-cover-generated-large' : 'ebook-cover-generated';
+  return '<div class="' + klass + '" style="--cover-hue:' + hue + '">' +
+    '<div class="ebook-cover-brand">STUDY HUB</div>' +
+    '<div class="ebook-cover-title">' + esc(title) + '</div>' +
+    '<div class="ebook-cover-rule"></div>' +
+    '<div class="ebook-cover-foot">' + esc(ebookCategory(ebook)) + ' · ' + esc(ebookLanguage(ebook)) + '</div>' +
+    '</div>';
+}
+
+function setEbookFilter(type, value) {
+  if (type === 'category' && EBOOK_CATEGORIES.includes(value)) _ebookCategory = value;
+  if (type === 'language' && EBOOK_LANGUAGES.includes(value)) _ebookLanguage = value;
+  renderEbook();
+}
+
+function clearEbookFilters() {
+  _ebookCategory = 'All';
+  _ebookLanguage = 'All';
+  renderEbook();
+}
+
+function renderEbookFilterButtons(values, active, type) {
+  return values.map(value => '<button type="button" class="ebook-filter-pill' + (active === value ? ' active' : '') + '" onclick="setEbookFilter(\'' + type + '\', \'' + value + '\')">' + esc(value) + '</button>').join('');
+}
+
 function renderEbook() {
-  renderEbookList(false, 'ebookList');
+  const container = document.getElementById('ebookList');
+  if (!container) return;
+  const ebooks = Array.isArray(data.ebooks) ? data.ebooks : [];
+  if (!ebooks.length) {
+    container.innerHTML = '<div class="empty-state ebook-library-empty"><i class="fas fa-book-open"></i><p>No e-books published yet.</p></div>';
+    return;
+  }
+  const visible = ebooks.map((ebook, index) => ({ ebook, index })).filter(item => ebookFilterMatches(item.ebook));
+  const total = visible.length;
+  let html = '<div class="ebook-library">';
+  html += '<div class="ebook-filter-panel"><div class="ebook-filter-block"><span class="ebook-filter-label">Exam</span><div class="ebook-filter-row">' + renderEbookFilterButtons(EBOOK_CATEGORIES, _ebookCategory, 'category') + '</div></div>';
+  html += '<div class="ebook-filter-block"><span class="ebook-filter-label">Language</span><div class="ebook-filter-row">' + renderEbookFilterButtons(EBOOK_LANGUAGES, _ebookLanguage, 'language') + '</div></div></div>';
+  html += '<div class="ebook-results-head"><div><strong>' + esc(_ebookCategory) + '</strong> e-books</div><span>' + total + ' result' + (total === 1 ? '' : 's') + '</span></div>';
+
+  if (!visible.length) {
+    html += '<div class="ebook-empty-filter"><i class="fas fa-filter-circle-xmark"></i><p>No e-books in this filter yet.</p><button type="button" class="btn-secondary" onclick="clearEbookFilters()">Clear filters</button></div></div>';
+    container.innerHTML = html;
+    return;
+  }
+
+  html += '<div class="ebook-grid">';
+  visible.forEach(({ ebook, index }) => {
+    const meta = [ebookPagesText(ebook), ebookSizeText(ebook)].filter(Boolean).join(' · ');
+    html += '<article class="ebook-shop-card"><div class="ebook-cover">' + ebookCoverHTML(ebook, 'card') + '</div>';
+    html += '<div class="ebook-shop-body"><div class="ebook-card-tags"><span>' + esc(ebookCategory(ebook)) + '</span><span>' + esc(ebookLanguage(ebook)) + '</span></div>';
+    html += '<h3 class="ebook-shop-title">' + esc(ebook.name) + '</h3>';
+    html += '<div class="ebook-shop-meta">' + esc(meta || 'PDF e-book') + '</div>';
+    html += '<button type="button" class="ebook-read-btn" onclick="openEbookModal(' + index + ')">Read more <i class="fas fa-arrow-right"></i></button></div></article>';
+  });
+  html += '</div></div>';
+  container.innerHTML = html;
+}
+
+function openEbookModal(idx) {
+  const ebook = data.ebooks[idx];
+  if (!ebook) return;
+  _selectedEbookIdx = idx;
+  const modal = document.getElementById('ebookModal');
+  const cover = document.getElementById('ebookModalCover');
+  const chips = document.getElementById('ebookModalChips');
+  const title = document.getElementById('ebookModalTitle');
+  const meta = document.getElementById('ebookModalMeta');
+  const description = document.getElementById('ebookModalDescription');
+  const view = document.getElementById('ebookModalView');
+  const download = document.getElementById('ebookModalDownload');
+  if (!modal || !cover || !chips || !title || !meta || !description || !view || !download) return;
+
+  cover.innerHTML = ebookCoverHTML(ebook, 'modal');
+  chips.innerHTML = '<span>' + esc(ebookCategory(ebook)) + '</span><span>' + esc(ebookLanguage(ebook)) + '</span><span>PDF</span>';
+  title.textContent = ebook.name;
+  meta.textContent = [ebookPagesText(ebook), ebookSizeText(ebook), ebook.uploaded ? 'Added ' + ebook.uploaded : ''].filter(Boolean).join(' · ');
+  description.textContent = (ebook.description || '').trim();
+  description.hidden = !description.textContent;
+  view.onclick = function () { openPdf(idx, false); };
+  download.onclick = function () { openPdf(idx, true); };
+  modal.classList.remove('hidden');
+  document.body.classList.add('modal-open');
+}
+
+function closeEbookModal() {
+  const modal = document.getElementById('ebookModal');
+  if (modal) modal.classList.add('hidden');
+  document.body.classList.remove('modal-open');
 }
 
 function renderAdminEbook(container) {
   const apiKey = localStorage.getItem('gdrive_api_key') || '';
-  let html = '<div class="admin-section"><h3>Add E-Book</h3><div class="admin-row" style="flex-wrap:wrap;gap:8px;">';
-  html += '<input type="text" id="ebookName" placeholder="E-Book name" style="flex:1;min-width:160px;">';
-  html += '<input type="text" id="ebookManualUrl" placeholder="Paste a Google Drive / direct URL" style="flex:2;min-width:200px;">';
-  html += '<button class="btn-secondary" id="ebookAddUrlBtn"><i class="fas fa-link"></i> Add URL</button></div></div>';
+  let html = '<div class="admin-section"><h3>Add E-Book</h3>';
+  html += '<div class="admin-row" style="flex-wrap:wrap;gap:8px;"><input type="text" id="ebookName" placeholder="E-Book name" style="flex:2;min-width:220px;">';
+  html += '<input type="text" id="ebookManualUrl" placeholder="Paste a Google Drive / direct PDF URL" style="flex:2;min-width:260px;"></div>';
+  html += '<div class="admin-row" style="flex-wrap:wrap;gap:8px;"><select id="ebookCategory" style="flex:1;min-width:135px;"><option value="SSC">SSC</option><option value="Railways">Railways</option><option value="UPPBPB">UPPBPB</option><option value="IB">IB</option><option value="RPF">RPF</option><option value="Others" selected>Others</option></select>';
+  html += '<select id="ebookLanguage" style="flex:1;min-width:110px;"><option value="English" selected>English</option><option value="Hindi">Hindi</option></select>';
+  html += '<input type="number" id="ebookPages" min="1" placeholder="Pages" style="width:100px;"><input type="text" id="ebookSize" placeholder="Size (e.g. 2.02 MB)" style="flex:1;min-width:130px;"><input type="text" id="ebookCover" placeholder="Cover image URL (optional)" style="flex:2;min-width:220px;"><button class="btn-secondary" id="ebookAddUrlBtn"><i class="fas fa-plus"></i> Add E-Book</button></div>';
+  html += '<div class="admin-row" style="flex-wrap:wrap;gap:8px;"><input type="text" id="ebookDescription" placeholder="Short description (optional)" style="flex:1;min-width:300px;"></div></div>';
   html += '<div class="admin-section"><h3>Linked Drive Folders</h3>';
   html += '<div class="admin-row" style="flex-wrap:wrap;gap:8px;">';
   html += '<input type="text" id="driveFolderName" placeholder="Label (e.g. Maths Books)" style="flex:1;min-width:140px;">';
@@ -1252,7 +1379,13 @@ async function addSelectedFromFolder() {
       id: Date.now() + Math.random(),
       name: c.dataset.name,
       url: 'https://drive.google.com/uc?export=download&id=' + c.dataset.id,
-      uploaded: new Date().toLocaleDateString()
+      uploaded: new Date().toLocaleDateString(),
+      category: 'Others',
+      language: 'English',
+      pages: '',
+      size: '',
+      cover: '',
+      description: ''
     });
   });
   await saveData();
@@ -1269,10 +1402,22 @@ function addEbookUrl() {
   // Convert Google Drive share link to direct download
   const m = url.match(/drive\.google\.com\/.*[?&]id=([^&]+)/) || url.match(/drive\.google\.com\/file\/d\/([^/]+)/);
   if (m) url = 'https://drive.google.com/uc?export=download&id=' + m[1];
-  data.ebooks.push({ id: Date.now(), name, url, uploaded: new Date().toLocaleDateString() });
+  data.ebooks.push({
+    id: Date.now(),
+    name,
+    url,
+    uploaded: new Date().toLocaleDateString(),
+    category: document.getElementById('ebookCategory')?.value || 'Others',
+    language: document.getElementById('ebookLanguage')?.value || 'English',
+    pages: parseInt(document.getElementById('ebookPages')?.value, 10) || '',
+    size: (document.getElementById('ebookSize')?.value || '').trim(),
+    cover: (document.getElementById('ebookCover')?.value || '').trim(),
+    description: (document.getElementById('ebookDescription')?.value || '').trim()
+  });
   saveData();
-  document.getElementById('ebookName').value = '';
-  document.getElementById('ebookManualUrl').value = '';
+  ['ebookName', 'ebookManualUrl', 'ebookPages', 'ebookSize', 'ebookCover', 'ebookDescription'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
   renderEbookList(true, 'adminEbookList');
 }
 
@@ -1283,12 +1428,16 @@ function renderEbookList(showDelete, containerId) {
     return;
   }
   container.innerHTML = data.ebooks.map((e, i) => {
+    const meta = [ebookCategory(e), ebookLanguage(e), ebookPagesText(e), ebookSizeText(e)].filter(Boolean).join(' · ');
+    const thumbnail = e.cover
+      ? '<img class="ebook-admin-cover" src="' + esc(e.cover) + '" alt="">'
+      : '<div class="ebook-admin-cover ebook-admin-cover-fallback"><i class="fas fa-file-pdf"></i></div>';
     let actions = '<button class="btn-secondary" onclick="openPdf(' + i + ',false)"><i class="fas fa-eye"></i> View</button>';
     if (showDelete) {
-      actions += '<button class="act-btn edit" onclick="renameEbook(' + i + ')"><i class="fas fa-pen"></i></button>';
-      actions += '<button class="act-btn del" onclick="delEbook(' + i + ')"><i class="fas fa-trash"></i></button>';
+      actions += '<button class="act-btn edit" onclick="editEbook(' + i + ')" title="Edit details"><i class="fas fa-pen"></i></button>';
+      actions += '<button class="act-btn del" onclick="delEbook(' + i + ')" title="Delete"><i class="fas fa-trash"></i></button>';
     }
-    return '<div class="ebook-card"><div class="ebook-info"><i class="fas fa-file-pdf ebook-icon"></i><div><div class="ebook-name">' + esc(e.name) + '</div><div class="ebook-meta">' + esc(e.uploaded) + '</div></div></div><div class="ebook-actions">' + actions + '</div></div>';
+    return '<div class="ebook-card"><div class="ebook-info">' + thumbnail + '<div><div class="ebook-name">' + esc(e.name) + '</div><div class="ebook-meta">' + esc(meta || e.uploaded) + '</div></div></div><div class="ebook-actions">' + actions + '</div></div>';
   }).join('');
 }
 
@@ -1322,14 +1471,38 @@ function delEbook(idx) {
   else renderEbook();
 }
 
-function renameEbook(idx) {
+function editEbook(idx) {
   const ebook = data.ebooks[idx];
   if (!ebook) return;
-  const name = prompt('Rename e-book:', ebook.name);
-  if (!name || name.trim() === ebook.name) return;
+  const name = prompt('E-Book title:', ebook.name);
+  if (name === null) return;
+  if (!name.trim()) { alert('Title cannot be empty.'); return; }
+  const category = prompt('Category (SSC, Railways, UPPBPB, IB, RPF, Others):', ebook.category || 'Others');
+  if (category === null) return;
+  const language = prompt('Language (English or Hindi):', ebook.language || 'English');
+  if (language === null) return;
+  const pages = prompt('Number of pages:', ebook.pages || '');
+  if (pages === null) return;
+  const size = prompt('File size (e.g. 2.02 MB):', ebook.size || '');
+  if (size === null) return;
+  const cover = prompt('Cover image URL (leave blank for a generated cover):', ebook.cover || '');
+  if (cover === null) return;
+  const description = prompt('Short description (optional):', ebook.description || '');
+  if (description === null) return;
+
+  const knownCategories = ['SSC', 'Railways', 'UPPBPB', 'IB', 'RPF', 'Others'];
+  const normalizedCategory = String(category || 'Others').trim();
+  const normalizedLanguage = String(language || 'English').trim().toLowerCase() === 'hindi' ? 'Hindi' : 'English';
   ebook.name = name.trim();
+  ebook.category = knownCategories.includes(normalizedCategory) ? normalizedCategory : 'Others';
+  ebook.language = normalizedLanguage;
+  ebook.pages = parseInt(pages, 10) || '';
+  ebook.size = String(size || '').trim();
+  ebook.cover = String(cover || '').trim();
+  ebook.description = String(description || '').trim();
   saveData();
   renderEbookList(true, 'adminEbookList');
+  if (document.getElementById('ebookList')) renderEbook();
 }
 
 // ======================== ADMIN ========================
@@ -4078,6 +4251,17 @@ async function init() {
   bindMock('topicTestCat', 'change', function () { populateTopicTestSubs(); renderTopicTestList(); });
   bindMock('topicTestSub', 'change', renderTopicTestList);
   bindMock('topicTestSearch', 'input', renderTopicTestList);
+
+  // E-Book preview modal
+  const ebookModal = document.getElementById('ebookModal');
+  if (ebookModal) {
+    ebookModal.addEventListener('click', function (event) {
+      if (event.target === ebookModal) closeEbookModal();
+    });
+  }
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') closeEbookModal();
+  });
 
   // Admin tabs
   document.querySelectorAll('.admin-tab').forEach(t => t.addEventListener('click', function () {
