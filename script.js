@@ -473,23 +473,173 @@ function toggleSubcat(catId, subId) {
 let _qbContext = null;
 let _qbSelected = new Set();
 let _qbPickerType = null;
+// null = show the type picker, 'all' = every question, otherwise a type group id
+let _qbTypeView = null;
 
 function openQuestionBank(catId, subId, topicId) {
   _qbContext = { catId, subId, topicId };
   _qbSelected = new Set();
   _qbPickerType = null;
+  _qbTypeView = null;
   switchPage('questions');
-  const cat = data.categories[catId];
-  const sub = cat.subcategories[subId];
-  const topic = sub.topics[topicId];
-  document.getElementById('qbBreadcrumb').innerHTML = '<a href="#" onclick="renderQBTopics(\'' + catId + '\');return false;">' + esc(cat.name) + '</a> › <a href="#" onclick="renderQBTopics(\'' + catId + '\',\'' + subId + '\');return false;">' + esc(sub.name) + '</a> › <span>' + esc(topic.name) + '</span>';
+  renderQBView();
+}
+
+function setQBTypeView(view) {
+  _qbTypeView = view;
+  renderQBView();
+}
+
+function qbContextTopic() {
+  if (!_qbContext) return null;
+  return data.categories[_qbContext.catId]?.subcategories[_qbContext.subId]?.topics[_qbContext.topicId] || null;
+}
+
+function qbAllGroups(topic) {
+  return qbGroupQuestions((topic && topic.questions) || [], topic);
+}
+
+function makeQBTypeCard(info) {
+  const card = document.createElement('button');
+  card.type = 'button';
+  card.className = 'qb-type-card' + (info.all ? ' all' : '') + (info.untyped ? ' untyped' : '');
+  card.innerHTML =
+    '<span class="qb-type-card-tag">' + esc(info.tag) + '</span>' +
+    '<span class="qb-type-card-name">' + esc(info.name) + '</span>' +
+    '<span class="qb-type-card-count">' + info.count + ' Question' + (info.count === 1 ? '' : 's') + '</span>' +
+    '<span class="qb-type-card-go"><i class="fas fa-arrow-right"></i></span>';
+  card.addEventListener('click', function () { setQBTypeView(info.id); });
+  return card;
+}
+
+function makeQBTypeTab(id, label, active) {
+  const tab = document.createElement('button');
+  tab.type = 'button';
+  tab.className = 'qb-type-tab' + (active ? ' active' : '');
+  tab.textContent = label;
+  tab.addEventListener('click', function () { setQBTypeView(id); });
+  return tab;
+}
+
+function qbViewHead(titleText, subText, backLabel, onBack) {
+  const head = document.createElement('div');
+  head.className = 'qb-view-head';
+  const back = document.createElement('button');
+  back.type = 'button';
+  back.className = 'qb-back-btn';
+  back.innerHTML = '<i class="fas fa-arrow-left"></i> ' + backLabel;
+  back.addEventListener('click', onBack);
+  const title = document.createElement('div');
+  title.className = 'qb-view-title';
+  title.innerHTML = esc(titleText) + (subText ? ' <span class="qb-view-sub">' + esc(subText) + '</span>' : '');
+  head.appendChild(back);
+  head.appendChild(title);
+  return head;
+}
+
+function renderQBView() {
+  const cat = data.categories[_qbContext.catId];
+  const sub = cat && cat.subcategories[_qbContext.subId];
+  const topic = sub && sub.topics[_qbContext.topicId];
+  if (!cat || !sub || !topic) return;
   const container = document.getElementById('qbContent');
   const qs = topic.questions || [];
+  const typeIds = sortedKeys(getTopicTypes(topic));
+  const groups = qbAllGroups(topic);
+  const viewGroup = (_qbTypeView && _qbTypeView !== 'all')
+    ? groups.find(g => g.id === _qbTypeView)
+    : null;
+
+  let crumb =
+    '<a href="#" onclick="renderQBTopics(\'' + _qbContext.catId + '\');return false;">' + esc(cat.name) + '</a> › ' +
+    '<a href="#" onclick="renderQBTopics(\'' + _qbContext.catId + '\',\'' + _qbContext.subId + '\');return false;">' + esc(sub.name) + '</a> › ';
+  if (typeIds.length) {
+    crumb += '<a href="#" onclick="setQBTypeView(null);return false;">' + esc(topic.name) + '</a>';
+    if (viewGroup) crumb += ' › <span>' + esc(viewGroup.name) + '</span>';
+  } else {
+    crumb += '<span>' + esc(topic.name) + '</span>';
+  }
+  document.getElementById('qbBreadcrumb').innerHTML = crumb;
+
   if (!qs.length) {
     container.innerHTML = '<div class="empty-state"><i class="fas fa-inbox"></i><p>No questions in this topic yet.</p></div>';
     return;
   }
+
+  // Types exist and none has been chosen yet: show one box per type.
+  if (typeIds.length && _qbTypeView === null) {
+    renderQBTypePicker(container, topic, groups);
+    return;
+  }
+  if (typeIds.length && _qbTypeView !== 'all' && !viewGroup) {
+    // The chosen type disappeared (for example after bulk assigning types).
+    _qbTypeView = null;
+    renderQBTypePicker(container, topic, groups);
+    return;
+  }
+  renderQBQuestionView(container, topic, _qbTypeView, groups);
+}
+
+function renderQBTypePicker(container, topic, groups) {
   container.innerHTML = '';
+  container.appendChild(qbViewHead('Choose a type', topic.name, 'All topics', function () {
+    renderQBTopics(_qbContext.catId, _qbContext.subId);
+  }));
+
+  const row = document.createElement('div');
+  row.className = 'qb-types-row';
+  row.appendChild(makeQBTypeCard({
+    id: 'all',
+    tag: 'All',
+    name: 'All Questions',
+    count: (topic.questions || []).length,
+    all: true
+  }));
+
+  let typeNo = 0;
+  groups.forEach(group => {
+    const untyped = group.id === '__untyped__';
+    if (!untyped) typeNo++;
+    row.appendChild(makeQBTypeCard({
+      id: group.id,
+      tag: untyped ? 'Other' : 'Type ' + typeNo,
+      name: group.name,
+      count: group.questions.length,
+      untyped: untyped
+    }));
+  });
+  container.appendChild(row);
+}
+
+function renderQBQuestionView(container, topic, view, groups) {
+  const typeIds = sortedKeys(getTopicTypes(topic));
+  const group = (view && view !== 'all') ? groups.find(g => g.id === view) : null;
+  const qsView = group ? group.questions : (topic.questions || []);
+
+  container.innerHTML = '';
+  container.appendChild(qbViewHead(
+    group ? group.name : (typeIds.length ? 'All Questions' : topic.name),
+    qsView.length + ' Question' + (qsView.length === 1 ? '' : 's'),
+    typeIds.length ? 'All types' : 'All topics',
+    function () {
+      if (typeIds.length) setQBTypeView(null);
+      else renderQBTopics(_qbContext.catId, _qbContext.subId);
+    }
+  ));
+
+  if (typeIds.length) {
+    const tabs = document.createElement('div');
+    tabs.className = 'qb-type-tabs';
+    tabs.appendChild(makeQBTypeTab('all', 'All', !group));
+    let typeNo = 0;
+    groups.forEach(g => {
+      const untyped = g.id === '__untyped__';
+      if (!untyped) typeNo++;
+      tabs.appendChild(makeQBTypeTab(g.id, untyped ? g.name : typeNo + '. ' + g.name, !!group && group.id === g.id));
+    });
+    container.appendChild(tabs);
+  }
+
   let searchHtml = '<div style="margin-bottom:12px;"><input type="text" id="qbSearch" placeholder="Search questions..." style="width:100%;padding:10px 14px;border:2px solid var(--border);border-radius:var(--radius-sm);font-size:14px;background:var(--surface);color:var(--text);outline:none;" oninput="filterQBQuestions(this.value)"></div>';
   container.insertAdjacentHTML('beforeend', searchHtml);
 
@@ -513,7 +663,7 @@ function openQuestionBank(catId, subId, topicId) {
   const list = document.createElement('div'); list.id = 'qbQuestionList';
   container.appendChild(list);
 
-  window._qbAllQs = qs;
+  window._qbAllQs = qsView;
 
   document.getElementById('qbSelectAll').addEventListener('change', function () { toggleQBSelectAll(this.checked); });
   document.getElementById('qbAddMockBtn').addEventListener('click', function () { openQBPicker('mock'); });
@@ -568,7 +718,7 @@ function openQuestionBank(catId, subId, topicId) {
     renderQBTypeGroups(list, qs);
   }
 
-  renderQBList(qs);
+  renderQBList(qsView);
 }
 
 function qbTypeKey(value) {
@@ -651,6 +801,15 @@ function makeQBTypeAssign(topic, getTargets, rerender) {
   return wrap;
 }
 
+function refreshQBAfterTypeChange() {
+  if (_qbTypeView && _qbTypeView !== 'all') {
+    const topic = qbContextTopic();
+    const groups = topic ? qbAllGroups(topic) : [];
+    if (!groups.some(g => g.id === _qbTypeView)) _qbTypeView = null;
+  }
+  renderQBView();
+}
+
 function renderQBTypeGroups(list, qs) {
   list.innerHTML = '';
   if (!qs.length) {
@@ -658,17 +817,30 @@ function renderQBTypeGroups(list, qs) {
     updateQBSelection();
     return;
   }
-  const topic = _qbContext
-    ? data.categories[_qbContext.catId]?.subcategories[_qbContext.subId]?.topics[_qbContext.topicId]
-    : null;
+  const topic = qbContextTopic();
   const typeIds = topic ? sortedKeys(getTopicTypes(topic)) : [];
   const groups = qbGroupQuestions(qs, topic);
+
+  // Drilled into a single type: show only its questions, as a flat list.
+  if (topic && _qbTypeView && _qbTypeView !== 'all') {
+    const viewGroup = qbAllGroups(topic).find(g => g.id === _qbTypeView);
+    if (viewGroup && viewGroup.id === '__untyped__' && typeIds.length) {
+      const hint = document.createElement('div');
+      hint.className = 'qb-type-hint';
+      hint.innerHTML = '<span>These questions have no type yet. Assign one to organise them:</span>';
+      hint.appendChild(makeQBTypeAssign(topic, function () {
+        return (topic.questions || []).filter(q => !q.type || !getTopicTypes(topic)[q.type]);
+      }, refreshQBAfterTypeChange));
+      list.appendChild(hint);
+    }
+    qs.forEach((q, i) => list.appendChild(buildQBItem(q, i)));
+    updateQBSelection();
+    return;
+  }
+
   const typedGroups = groups.filter(g => g.id !== '__untyped__');
   const untypedGroups = groups.filter(g => g.id === '__untyped__');
-  const rerender = function () {
-    const search = document.getElementById('qbSearch');
-    filterQBQuestions(search ? search.value : '');
-  };
+  const rerender = refreshQBAfterTypeChange;
   const untypedTargets = function () {
     return (topic ? (topic.questions || []) : qs).filter(q => !q.type || !getTopicTypes(topic)[q.type]);
   };
