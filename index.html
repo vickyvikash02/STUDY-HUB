@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-<link rel="stylesheet" href="style.css?v=22">
+<link rel="stylesheet" href="style.css?v=23">
 </head>
 <body>
 
@@ -29,8 +29,6 @@
       <a class="nav-item" data-page="questions"><i class="fas fa-layer-group"></i> Question Bank</a>
       <a class="nav-item" data-page="mocks"><i class="fas fa-stopwatch"></i> Mock Tests</a>
       <a class="nav-item" data-page="topics"><i class="fas fa-list-check"></i> Topic Tests</a>
-      <a class="nav-item" data-page="builder"><i class="fas fa-wand-magic-sparkles"></i> Test Builder</a>
-      <a class="nav-item" data-page="topicbuilder"><i class="fas fa-square-plus"></i> Topic Builder</a>
       <a class="nav-item" data-page="ebook"><i class="fas fa-book-open"></i> E-Book</a>
       <a class="nav-item" data-page="admin"><i class="fas fa-sliders"></i> Admin</a>
     </nav>
@@ -111,7 +109,7 @@
                 <span class="slide-eyebrow"><i class="fas fa-wand-magic-sparkles"></i> Test builder</span>
                 <h3>Build the test you<br>actually need.</h3>
                 <p>Pick your own questions, set the duration and marks, then save it.</p>
-                <button class="slide-cta" onclick="switchPage('builder')">Create a test <i class="fas fa-arrow-right"></i></button>
+                <button class="slide-cta" onclick="openTestBuilder()">Create a test <i class="fas fa-arrow-right"></i></button>
                 <div class="slide-card slide-card-lite">
                   <div class="mini-row"><span class="mini-dot"></span> Maths Practice #1</div>
                   <div class="mini-row"><span class="mini-dot"></span> 20 min &middot; 25 marks</div>
@@ -143,9 +141,9 @@
             <span class="quick-body"><strong>Mock Tests</strong><small>Timed papers with an instant result</small></span>
             <i class="fas fa-arrow-up-right-from-square quick-arrow"></i>
           </button>
-          <button class="quick-card" onclick="switchPage('builder')">
+          <button class="quick-card" onclick="openTestBuilder()">
             <span class="quick-icon tone-amber"><i class="fas fa-wand-magic-sparkles"></i></span>
-            <span class="quick-body"><strong>Test Builder</strong><small>Assemble a custom test in minutes</small></span>
+            <span class="quick-body"><strong>Test Builder</strong><small>Build a mock or topic test in minutes</small></span>
             <i class="fas fa-arrow-up-right-from-square quick-arrow"></i>
           </button>
           <button class="quick-card" onclick="switchPage('ebook')">
@@ -224,11 +222,11 @@
         <div class="faq-list">
           <details class="faq-item">
             <summary>How do mock tests work?<i class="fas fa-plus"></i></summary>
-            <p>Open Mock Tests, pick a paper and start. You get a countdown timer, a question palette, mark-for-review and clear-response controls. Submit any time to see your score and a full review. Tests are created in the Test Builder.</p>
+            <p>Open Mock Tests, pick a paper and start. You get a countdown timer, a question palette, mark-for-review and clear-response controls. Submit any time to see your score and a full review. Tests are created in Admin → Test Builder.</p>
           </details>
           <details class="faq-item">
             <summary>Can I create my own test?<i class="fas fa-plus"></i></summary>
-            <p>Yes. In Test Builder, filter the question bank by category, subcategory and topic, tick the questions you want, set a name, duration and marks, then save. Your test appears instantly under Mock Tests.</p>
+            <p>Yes. In Admin → Test Builder, choose Mock or Topic Test, filter by category, subcategory and topic, tick the questions you want, set a name, duration and marks, then save. Your test appears instantly under Mock Tests or Topic Tests.</p>
           </details>
           <details class="faq-item">
             <summary>Where do the questions come from?<i class="fas fa-plus"></i></summary>
@@ -485,81 +483,6 @@
         <div id="topicTestList" class="mock-grid"></div>
       </section>
 
-      <!-- ===================== TEST BUILDER ===================== -->
-      <section id="page-builder" class="page">
-        <div class="page-head">
-          <span class="section-kicker">Custom practice</span>
-          <h1>Test Builder</h1>
-          <p>Create custom mock tests by selecting questions.</p>
-        </div>
-        <div class="builder-form">
-          <div class="form-row">
-            <input type="text" id="builderName" placeholder="Test name (e.g. Maths Practice #1)">
-            <input type="number" id="builderDuration" placeholder="Duration (minutes)" value="20" min="1">
-            <input type="number" id="builderMarks" placeholder="Total marks" value="25" min="1">
-          </div>
-          <div class="form-row">
-            <input type="text" id="builderSubtitle" placeholder="Exam subtitle (e.g. Computer Based Test · 06 Oct 2026 · Shift 1)">
-          </div>
-          <div class="builder-browse">
-            <div class="builder-browse-head">
-              <h3>Select Questions</h3>
-              <div class="builder-browse-tools">
-                <span class="builder-total" id="builderTotalSelected">0 selected</span>
-                <button type="button" class="builder-add-cat" id="builderAddCatBtn" title="Add another category"><i class="fas fa-plus"></i> Add Category</button>
-              </div>
-            </div>
-            <div class="builder-filter-rows" id="builderFilterRows"></div>
-            <div class="builder-list-head">
-              <label class="builder-selectall"><input type="checkbox" id="builderSelectAll"> Select all shown</label>
-              <span class="builder-shown" id="builderShownCount"></span>
-            </div>
-            <div id="builderQList" class="builder-qlist"></div>
-          </div>
-          <button class="btn-success" id="builderSaveBtn"><i class="fas fa-save"></i> Save Mock Test</button>
-        </div>
-        <div id="builderExisting" class="builder-existing">
-          <h3>Existing Tests</h3>
-          <div id="builderTestList"></div>
-        </div>
-      </section>
-
-      <!-- ===================== TOPIC TEST BUILDER ===================== -->
-      <section id="page-topicbuilder" class="page">
-        <div class="page-head">
-          <span class="section-kicker">Focused practice</span>
-          <h1>Topic Test Builder</h1>
-          <p>Build a custom timed test from a single topic's questions.</p>
-        </div>
-        <div class="builder-form">
-          <div class="form-row">
-            <input type="text" id="topicBuilderName" placeholder="Test name (e.g. Rivers Practice #1)">
-            <input type="number" id="topicBuilderDuration" placeholder="Duration (minutes)" value="10" min="1">
-            <input type="number" id="topicBuilderMarks" placeholder="Total marks" value="10" min="1">
-          </div>
-          <div class="builder-filter-row">
-            <select id="topicBuilderCat"><option value="">Category</option></select>
-            <select id="topicBuilderSub"><option value="">Subcategory</option></select>
-            <select id="topicBuilderTopic"><option value="">Topic</option></select>
-          </div>
-          <div class="builder-browse">
-            <div class="builder-browse-head">
-              <h3>Select Questions</h3>
-              <div class="builder-browse-tools">
-                <span class="builder-total" id="topicBuilderCount">0 selected</span>
-                <label class="builder-selectall"><input type="checkbox" id="topicBuilderSelectAll" disabled> Select all</label>
-              </div>
-            </div>
-            <div id="topicBuilderQList" class="builder-qlist"></div>
-          </div>
-          <button class="btn-success" id="topicBuilderSaveBtn"><i class="fas fa-save"></i> Save Topic Test</button>
-        </div>
-        <div id="topicBuilderExisting" class="builder-existing">
-          <h3>Your Topic Tests</h3>
-          <div id="topicBuilderTestList"></div>
-        </div>
-      </section>
-
       <!-- ===================== E-BOOK ===================== -->
       <section id="page-ebook" class="page">
         <div class="page-head">
@@ -581,16 +504,62 @@
           <button class="admin-tab active" data-admin="categories">Categories</button>
           <button class="admin-tab" data-admin="subcategories">Subcategories</button>
           <button class="admin-tab" data-admin="topics">Topics &amp; Types</button>
+          <button class="admin-tab" data-admin="builder">Test Builder</button>
           <button class="admin-tab" data-admin="questions">Questions</button>
           <button class="admin-tab" data-admin="ebook">E-Book</button>
         </div>
         <div id="adminContent"></div>
+        <div id="adminBuilderPane" class="hidden">
+          <div class="builder-mode-card">
+            <div>
+              <span class="section-kicker">Build a test</span>
+              <h2>What do you want to create?</h2>
+              <p id="builderModeHint">Pick questions from one or more categories and save it under Mock Tests.</p>
+            </div>
+            <div class="builder-mode-switch" role="tablist" aria-label="Test type">
+              <button type="button" class="builder-mode-btn active" data-mode="mock" onclick="setBuilderMode('mock')"><i class="fas fa-stopwatch"></i> Mock Test</button>
+              <button type="button" class="builder-mode-btn" data-mode="topic" onclick="setBuilderMode('topic')"><i class="fas fa-list-check"></i> Topic Test</button>
+            </div>
+          </div>
+          <div class="builder-form">
+            <div class="form-row">
+              <input type="text" id="builderName" placeholder="Test name (e.g. Maths Practice #1)">
+              <input type="number" id="builderDuration" placeholder="Duration (minutes)" value="20" min="1">
+              <input type="number" id="builderMarks" placeholder="Total marks" value="25" min="1">
+            </div>
+            <div class="form-row" id="builderSubtitleRow">
+              <input type="text" id="builderSubtitle" placeholder="Exam subtitle (e.g. Computer Based Test · 06 Oct 2026 · Shift 1)">
+            </div>
+            <div class="builder-browse">
+              <div class="builder-browse-head">
+                <h3>Select Questions</h3>
+                <div class="builder-browse-tools">
+                  <span class="builder-total" id="builderTotalSelected">0 selected</span>
+                  <button type="button" class="builder-add-cat" id="builderAddCatBtn" title="Add another category"><i class="fas fa-plus"></i> Add Category</button>
+                </div>
+              </div>
+              <div class="builder-filter-rows" id="builderFilterRows"></div>
+              <div class="builder-list-head">
+                <label class="builder-selectall"><input type="checkbox" id="builderSelectAll"> Select all shown</label>
+                <span class="builder-shown" id="builderShownCount"></span>
+              </div>
+              <div id="builderQList" class="builder-qlist"></div>
+            </div>
+            <button class="btn-success" id="builderSaveBtn"><i class="fas fa-save"></i> Save Mock Test</button>
+          </div>
+          <div class="builder-existing">
+            <h3>Existing Mock Tests</h3>
+            <div id="builderTestList"></div>
+            <h3 class="builder-existing-sub">Your Topic Tests</h3>
+            <div id="builderTopicTestList"></div>
+          </div>
+        </div>
       </section>
 
     </div>
   </main>
 </div>
 
-<script src="script.js?v=22"></script>
+<script src="script.js?v=23"></script>
 </body>
 </html>

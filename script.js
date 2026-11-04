@@ -214,18 +214,21 @@ function switchPage(page) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.page === page));
-  const titles = { dashboard: 'Dashboard', questions: 'Question Bank', mocks: 'Mock Tests', topics: 'Topic Tests', builder: 'Test Builder', topicbuilder: 'Topic Builder', ebook: 'E-Book', admin: 'Admin' };
+  const titles = { dashboard: 'Dashboard', questions: 'Question Bank', mocks: 'Mock Tests', topics: 'Topic Tests', ebook: 'E-Book', admin: 'Admin' };
   document.getElementById('pageTitle').textContent = titles[page] || 'Dashboard';
   document.getElementById('statsBadge').textContent = countQuestions() + ' questions';
   if (page === 'questions' && !_qbContext) renderQBTopics();
   if (page === 'dashboard') { _qbContext = null; renderDashboard(); }
   if (page === 'mocks') renderMockList();
   if (page === 'topics') renderTopicTests();
-  if (page === 'builder') renderBuilder();
-  if (page === 'topicbuilder') renderTopicBuilder();
   if (page === 'ebook') renderEbook();
   if (page === 'admin') renderAdmin();
   document.getElementById('sidebar').classList.remove('open');
+}
+
+function openTestBuilder() {
+  document.querySelectorAll('.admin-tab').forEach(x => x.classList.toggle('active', x.dataset.admin === 'builder'));
+  switchPage('admin');
 }
 
 // ======================== DASHBOARD ========================
@@ -1396,6 +1399,10 @@ function renderAdmin() {
   const container = document.getElementById('adminContent');
   const activeTab = document.querySelector('.admin-tab.active');
   const tab = activeTab ? activeTab.dataset.admin : 'categories';
+  const builderPane = document.getElementById('adminBuilderPane');
+  if (builderPane) builderPane.classList.toggle('hidden', tab !== 'builder');
+  if (container) container.classList.toggle('hidden', tab === 'builder');
+  if (tab === 'builder') { renderBuilder(); return; }
   if (tab === 'categories') renderAdminCategories(container);
   else if (tab === 'subcategories') renderAdminSubcategories(container);
   else if (tab === 'topics') renderAdminTopics(container);
@@ -2694,16 +2701,55 @@ async function delAdminQ(catId, subId, topicId, qId) {
   await saveData(); renderDashboard(); renderAdmin(); updateStats();
 }
 
-// ======================== MOCK TEST BUILDER ========================
+// ======================== TEST BUILDER ========================
 let _builderFilterRows = [];
 let _builderSelected = new Set();
 let _builderQMeta = new Map();
+let _builderMode = 'mock';
+
+function applyBuilderModeUI() {
+  const topicMode = _builderMode === 'topic';
+  document.querySelectorAll('.builder-mode-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === _builderMode);
+  });
+  const subtitleRow = document.getElementById('builderSubtitleRow');
+  if (subtitleRow) subtitleRow.classList.toggle('hidden', topicMode);
+  const addCat = document.getElementById('builderAddCatBtn');
+  if (addCat) addCat.classList.toggle('hidden', topicMode);
+  const saveBtn = document.getElementById('builderSaveBtn');
+  if (saveBtn) saveBtn.innerHTML = topicMode
+    ? '<i class="fas fa-save"></i> Save Topic Test'
+    : '<i class="fas fa-save"></i> Save Mock Test';
+  const hint = document.getElementById('builderModeHint');
+  if (hint) hint.textContent = topicMode
+    ? 'Pick one topic and save it under Topic Tests. Only that topic\'s questions can be selected.'
+    : 'Pick questions from one or more categories and save it under Mock Tests.';
+}
+
+function setBuilderMode(mode) {
+  if (mode !== 'mock' && mode !== 'topic') return;
+  _builderMode = mode;
+  applyBuilderModeUI();
+  const duration = document.getElementById('builderDuration');
+  const marks = document.getElementById('builderMarks');
+  if (duration) duration.value = mode === 'topic' ? '10' : '20';
+  if (marks) marks.value = mode === 'topic' ? '10' : '25';
+  const subtitle = document.getElementById('builderSubtitle');
+  if (subtitle) subtitle.value = '';
+  _builderSelected = new Set();
+  _builderFilterRows = [{ cat: '', sub: '', topic: '' }];
+  renderBuilderFilterRows();
+  renderBuilderQList();
+  renderExistingTests();
+}
 
 function renderBuilder() {
+  applyBuilderModeUI();
+  const topicMode = _builderMode === 'topic';
   document.getElementById('builderName').value = '';
   document.getElementById('builderSubtitle').value = '';
-  document.getElementById('builderDuration').value = '20';
-  document.getElementById('builderMarks').value = '25';
+  document.getElementById('builderDuration').value = topicMode ? '10' : '20';
+  document.getElementById('builderMarks').value = topicMode ? '10' : '25';
   _builderSelected = new Set();
   _builderQMeta = new Map();
   forEachQ((q, i, catId, subId, topicId, cat, sub, topic) => {
@@ -2733,7 +2779,7 @@ function builderSubOptions(state) {
   let html = '<option value="">Select Subcategory</option>';
   const cat = data.categories[state.cat];
   if (cat) {
-    html += '<option value="__all__"' + (state.sub === '__all__' ? ' selected' : '') + '>All Subcategories</option>';
+    if (_builderMode !== 'topic') html += '<option value="__all__"' + (state.sub === '__all__' ? ' selected' : '') + '>All Subcategories</option>';
     sortedKeys(cat.subcategories || {}).forEach(sid => {
       html += '<option value="' + sid + '"' + (sid === state.sub ? ' selected' : '') + '>' + esc(cat.subcategories[sid].name) + '</option>';
     });
@@ -2747,7 +2793,7 @@ function builderTopicOptions(state) {
     ? (data.categories[state.cat]?.subcategories || {})[state.sub]
     : null;
   if (sub) {
-    html += '<option value="__all__"' + (state.topic === '__all__' ? ' selected' : '') + '>All Topics</option>';
+    if (_builderMode !== 'topic') html += '<option value="__all__"' + (state.topic === '__all__' ? ' selected' : '') + '>All Topics</option>';
     sortedKeys(sub.topics || {}).forEach(tid => {
       html += '<option value="' + tid + '"' + (tid === state.topic ? ' selected' : '') + '>' + esc(sub.topics[tid].name) + '</option>';
     });
@@ -2807,6 +2853,7 @@ function createBuilderFilterRow(state) {
   remove.setAttribute('aria-label', 'Remove this category');
   remove.innerHTML = '<i class="fas fa-xmark"></i>';
   remove.disabled = _builderFilterRows.length <= 1;
+  if (_builderMode === 'topic') remove.classList.add('hidden');
   remove.addEventListener('click', function () { removeBuilderFilterRow(state); });
 
   row.appendChild(catSel);
@@ -2824,6 +2871,7 @@ function renderBuilderFilterRows() {
 }
 
 function addBuilderFilterRow() {
+  if (_builderMode === 'topic') return;
   _builderFilterRows.push({ cat: '', sub: '', topic: '' });
   renderBuilderFilterRows();
   renderBuilderQList();
@@ -2856,8 +2904,14 @@ function renderBuilderQList() {
   container.innerHTML = '';
   pruneBuilderSelection();
 
-  if (!_builderFilterRows.some(state => state.cat)) {
-    container.innerHTML = '<p class="builder-empty">Select a category to see its questions. Use “Add Category” to include another subject in the same test.</p>';
+  const topicReady = _builderFilterRows.some(s => s.cat && s.sub && s.sub !== '__all__' && s.topic && s.topic !== '__all__');
+  const mockReady = _builderFilterRows.some(s => s.cat);
+  const ready = _builderMode === 'topic' ? topicReady : mockReady;
+
+  if (!ready) {
+    container.innerHTML = '<p class="builder-empty">' + (_builderMode === 'topic'
+      ? 'Select a category, subcategory and topic to see its questions.'
+      : 'Select a category to see its questions. Use “Add Category” to include another subject in the same test.') + '</p>';
     updateBuilderSelectAll();
     return;
   }
@@ -2917,28 +2971,88 @@ function updateBuilderSelectAll() {
 }
 
 function renderExistingTests() {
-  const container = document.getElementById('builderTestList');
-  if (!mockTests.length) { container.innerHTML = '<p style="color:var(--text2);font-size:13px;">No tests created yet.</p>'; return; }
-  container.innerHTML = mockTests.map((t, i) => `
-    <div class="admin-item">
-      <span><strong>${esc(t.name)}</strong> — ${t.duration} min, ${t.totalMarks} marks, ${(t.questionIds || []).length} questions</span>
-      <button class="edit-btn" onclick="editMockTest(${i})">Edit</button>
-      <button class="del-btn" onclick="delMockTest(${i})">Del</button>
-    </div>`).join('');
+  const mockContainer = document.getElementById('builderTestList');
+  if (mockContainer) {
+    if (!mockTests.length) {
+      mockContainer.innerHTML = '<p style="color:var(--text2);font-size:13px;">No mock tests created yet.</p>';
+    } else {
+      mockContainer.innerHTML = mockTests.map((t, i) => `
+        <div class="admin-item">
+          <span><strong>${esc(t.name)}</strong> — ${t.duration} min, ${t.totalMarks} marks, ${(t.questionIds || []).length} questions</span>
+          <button class="edit-btn" onclick="editMockTest(${i})">Edit</button>
+          <button class="del-btn" onclick="delMockTest(${i})">Del</button>
+        </div>`).join('');
+    }
+  }
+
+  const topicContainer = document.getElementById('builderTopicTestList');
+  if (topicContainer) {
+    if (!topicTests.length) {
+      topicContainer.innerHTML = '<p style="color:var(--text2);font-size:13px;">No topic tests created yet.</p>';
+    } else {
+      topicContainer.innerHTML = topicTests.map((test, i) => {
+        const cat = data.categories[test.catId];
+        const sub = cat && cat.subcategories[test.subId];
+        const topic = sub && sub.topics[test.topicId];
+        const path = [cat && cat.name, sub && sub.name, topic && topic.name].filter(Boolean).join(' › ') || 'Topic removed';
+        return '<div class="admin-item">' +
+          '<span><strong>' + esc(test.name) + '</strong> — ' + esc(path) + ', ' + test.duration + ' min, ' + test.totalMarks + ' marks, ' + (test.questionIds || []).length + ' questions</span>' +
+          '<button class="edit-btn" onclick="editTopicTest(' + i + ')">Edit</button>' +
+          '<button class="del-btn" onclick="delTopicTest(' + i + ')">Del</button>' +
+          '</div>';
+      }).join('');
+    }
+  }
 }
 
 document.getElementById('builderSaveBtn').addEventListener('click', function () {
   const name = document.getElementById('builderName').value.trim();
   const subtitle = document.getElementById('builderSubtitle').value.trim();
-  const duration = parseInt(document.getElementById('builderDuration').value);
-  const totalMarks = parseInt(document.getElementById('builderMarks').value);
+  const duration = parseInt(document.getElementById('builderDuration').value, 10);
+  const totalMarks = parseInt(document.getElementById('builderMarks').value, 10);
   const ids = Array.from(_builderSelected);
+
   if (!name) { alert('Enter a test name.'); return; }
   if (!ids.length) { alert('Select at least one question.'); return; }
+
+  if (_builderMode === 'topic') {
+    const state = _builderFilterRows[0] || {};
+    if (_builderFilterRows.length !== 1 || !state.cat || !state.sub || !state.topic || state.sub === '__all__' || state.topic === '__all__') {
+      alert('Select a category, subcategory and topic.');
+      return;
+    }
+    const cat = data.categories[state.cat];
+    const sub = cat && cat.subcategories[state.sub];
+    const topic = sub && sub.topics[state.topic];
+    if (!cat || !sub || !topic) {
+      alert('Select a valid category, subcategory and topic.');
+      return;
+    }
+
+    topicTests.push({
+      id: 'topiccustom:' + Date.now() + ':' + Math.floor(Math.random() * 10000),
+      name,
+      duration: duration || 10,
+      totalMarks: totalMarks || ids.length,
+      catId: state.cat,
+      subId: state.sub,
+      topicId: state.topic,
+      subtitle: 'Topic-wise Test · ' + cat.name + ' › ' + sub.name + ' › ' + topic.name,
+      questionIds: ids,
+      custom: true
+    });
+    saveData();
+    renderBuilder();
+    renderTopicTests();
+    alert('Topic test "' + name + '" created with ' + ids.length + ' question' + (ids.length === 1 ? '' : 's') + '!');
+    return;
+  }
+
   const catCount = new Set(ids.map(id => (_builderQMeta.get(id) || {}).catId).filter(Boolean)).size;
   mockTests.push({ id: Date.now(), name, subtitle, duration: duration || 20, totalMarks: totalMarks || ids.length, questionIds: ids });
   saveData();
   renderBuilder();
+  renderMockList();
   alert('Mock test "' + name + '" created with ' + ids.length + ' questions' + (catCount > 1 ? ' from ' + catCount + ' categories' : '') + '!');
 });
 
@@ -3154,7 +3268,7 @@ function renderTopicTestList() {
     target.appendChild(div);
   };
 
-  // Custom topic tests built in the Topic Builder.
+  // Custom topic tests built in Admin → Test Builder.
   topicTests.forEach(test => {
     total++;
     const cat = data.categories[test.catId];
@@ -3206,211 +3320,36 @@ function renderTopicTestList() {
   if (countEl) countEl.textContent = shown + ' of ' + total + ' test' + (total === 1 ? '' : 's');
 }
 
-// ======================== TOPIC TEST BUILDER ========================
-let _topicBuilderSelected = new Set();
-
-function renderTopicBuilder() {
-  const catSel = document.getElementById('topicBuilderCat');
-  if (!catSel) return;
-
-  document.getElementById('topicBuilderName').value = '';
-  document.getElementById('topicBuilderDuration').value = '10';
-  document.getElementById('topicBuilderMarks').value = '10';
-
-  catSel.innerHTML = '<option value="">Category</option>';
-  sortedKeys(data.categories).forEach(catId => {
-    catSel.innerHTML += '<option value="' + catId + '">' + esc(data.categories[catId].name) + '</option>';
-  });
-  document.getElementById('topicBuilderSub').innerHTML = '<option value="">Subcategory</option>';
-  document.getElementById('topicBuilderTopic').innerHTML = '<option value="">Topic</option>';
-
-  _topicBuilderSelected = new Set();
-  const all = document.getElementById('topicBuilderSelectAll');
-  if (all) { all.checked = false; all.indeterminate = false; all.disabled = true; }
-  renderTopicBuilderQList();
-  renderTopicBuilderTests();
-}
-
-function populateTopicBuilderSubs() {
-  const catSel = document.getElementById('topicBuilderCat');
-  const subSel = document.getElementById('topicBuilderSub');
-  const topicSel = document.getElementById('topicBuilderTopic');
-  subSel.innerHTML = '<option value="">Subcategory</option>';
-  topicSel.innerHTML = '<option value="">Topic</option>';
-  const cat = data.categories[catSel.value];
-  if (cat) {
-    sortedKeys(cat.subcategories || {}).forEach(subId => {
-      subSel.innerHTML += '<option value="' + subId + '">' + esc(cat.subcategories[subId].name) + '</option>';
-    });
-  }
-  _topicBuilderSelected = new Set();
-  renderTopicBuilderQList();
-}
-
-function populateTopicBuilderTopics() {
-  const catId = document.getElementById('topicBuilderCat').value;
-  const subId = document.getElementById('topicBuilderSub').value;
-  const topicSel = document.getElementById('topicBuilderTopic');
-  topicSel.innerHTML = '<option value="">Topic</option>';
-  if (catId && subId && data.categories[catId]?.subcategories[subId]) {
-    sortedKeys(data.categories[catId].subcategories[subId].topics || {}).forEach(topicId => {
-      topicSel.innerHTML += '<option value="' + topicId + '">' + esc(data.categories[catId].subcategories[subId].topics[topicId].name) + '</option>';
-    });
-  }
-  _topicBuilderSelected = new Set();
-  renderTopicBuilderQList();
-}
-
-function currentTopicBuilderTopic() {
-  const catId = document.getElementById('topicBuilderCat').value;
-  const subId = document.getElementById('topicBuilderSub').value;
-  const topicId = document.getElementById('topicBuilderTopic').value;
-  const cat = data.categories[catId];
-  const sub = cat && cat.subcategories[subId];
-  const topic = sub && sub.topics[topicId];
-  return (cat && sub && topic) ? { catId, subId, topicId, cat, sub, topic } : null;
-}
-
-function renderTopicBuilderQList() {
-  const container = document.getElementById('topicBuilderQList');
-  if (!container) return;
-  container.innerHTML = '';
-  _topicBuilderSelected = new Set();
-
-  const info = currentTopicBuilderTopic();
-  if (!info) {
-    container.innerHTML = '<p class="builder-empty">Select a category, subcategory and topic to see its questions.</p>';
-    updateTopicBuilderCount();
-    return;
-  }
-
-  const questions = info.topic.questions || [];
-  if (!questions.length) {
-    container.innerHTML = '<p class="builder-empty">No questions in this topic yet. Add some in the Admin panel.</p>';
-    updateTopicBuilderCount();
-    return;
-  }
-
-  questions.forEach(q => {
-    const div = document.createElement('div');
-    div.className = 'builder-qitem';
-
-    const check = document.createElement('input');
-    check.type = 'checkbox';
-    check.className = 'bq-check';
-    check.value = q.id;
-    check._qid = q.id;
-    check.addEventListener('change', function () {
-      if (this.checked) _topicBuilderSelected.add(q.id);
-      else _topicBuilderSelected.delete(q.id);
-      updateTopicBuilderCount();
-    });
-
-    const text = document.createElement('div');
-    text.className = 'bq-text';
-    text.textContent = q.question;
-
-    const metaEl = document.createElement('div');
-    metaEl.className = 'bq-meta';
-    metaEl.textContent = getQuestionTypeLabel(q, info.topic);
-
-    div.appendChild(check);
-    div.appendChild(text);
-    div.appendChild(metaEl);
-    container.appendChild(div);
-  });
-
-  updateTopicBuilderCount();
-}
-
-function updateTopicBuilderCount() {
-  const checks = Array.from(document.querySelectorAll('#topicBuilderQList .bq-check'));
-  const selected = checks.filter(c => c.checked).length;
-  const all = document.getElementById('topicBuilderSelectAll');
-  if (all) {
-    all.disabled = checks.length === 0;
-    all.checked = checks.length > 0 && selected === checks.length;
-    all.indeterminate = selected > 0 && selected < checks.length;
-  }
-  const count = document.getElementById('topicBuilderCount');
-  if (count) count.textContent = selected + ' selected';
-}
-
-function renderTopicBuilderTests() {
-  const container = document.getElementById('topicBuilderTestList');
-  if (!container) return;
-  if (!topicTests.length) {
-    container.innerHTML = '<p style="color:var(--text2);font-size:13px;">No topic tests created yet.</p>';
-    return;
-  }
-  container.innerHTML = topicTests.map((t, i) => {
-    const cat = data.categories[t.catId];
-    const sub = cat && cat.subcategories[t.subId];
-    const topic = sub && sub.topics[t.topicId];
-    const path = [cat && cat.name, sub && sub.name, topic && topic.name].filter(Boolean).join(' › ') || 'Topic removed';
-    return '<div class="admin-item">' +
-      '<span><strong>' + esc(t.name) + '</strong> — ' + esc(path) + ', ' + t.duration + ' min, ' + t.totalMarks + ' marks, ' + (t.questionIds || []).length + ' questions</span>' +
-      '<button class="edit-btn" onclick="editTopicTest(' + i + ')">Edit</button>' +
-      '<button class="del-btn" onclick="delTopicTest(' + i + ')">Del</button>' +
-      '</div>';
-  }).join('');
-}
-
+// ======================== CUSTOM TOPIC TEST ACTIONS ========================
 function editTopicTest(idx) {
   const t = topicTests[idx];
   if (!t) return;
-  const name = prompt('Test name:', t.name);
+  const name = prompt("Test name:", t.name);
   if (!name || !name.trim()) return;
   t.name = name.trim();
   saveData();
-  renderTopicBuilderTests();
+  renderExistingTests();
+  renderMockList();
   renderTopicTests();
 }
 
 function delTopicTest(idx) {
   const t = topicTests[idx];
   if (!t) return;
-  if (!confirm('Delete "' + t.name + '"?')) return;
+  if (!confirm(`Delete "${t.name}"?`)) return;
   clearExamSession(t.id);
   topicTests.splice(idx, 1);
   saveData();
-  renderTopicBuilderTests();
+  renderExistingTests();
+  renderMockList();
   renderTopicTests();
-}
-
-function saveTopicTest() {
-  const name = document.getElementById('topicBuilderName').value.trim();
-  const duration = parseInt(document.getElementById('topicBuilderDuration').value) || 10;
-  const marks = parseInt(document.getElementById('topicBuilderMarks').value) || 0;
-  const info = currentTopicBuilderTopic();
-  const ids = Array.from(_topicBuilderSelected);
-
-  if (!name) { alert('Enter a test name.'); return; }
-  if (!info) { alert('Select a category, subcategory and topic.'); return; }
-  if (!ids.length) { alert('Select at least one question.'); return; }
-
-  topicTests.push({
-    id: 'topiccustom:' + Date.now() + ':' + Math.floor(Math.random() * 10000),
-    name,
-    duration,
-    totalMarks: marks || ids.length,
-    catId: info.catId,
-    subId: info.subId,
-    topicId: info.topicId,
-    subtitle: 'Topic-wise Test · ' + info.cat.name + ' › ' + info.sub.name + ' › ' + info.topic.name,
-    questionIds: ids,
-    custom: true
-  });
-  saveData();
-  renderTopicBuilder();
-  alert('Topic test "' + name + '" created with ' + ids.length + ' question' + (ids.length === 1 ? '' : 's') + '!');
 }
 
 function renderMockList() {
   const container = document.getElementById('mockList');
   container.innerHTML = '';
   if (!mockTests.length) {
-    container.innerHTML = '<div class="empty-state"><i class="fas fa-tasks"></i><p>No mock tests yet. Create one in the Test Builder.</p></div>';
+    container.innerHTML = '<div class="empty-state"><i class="fas fa-tasks"></i><p>No mock tests yet. Create one in Admin → Test Builder.</p></div>';
     return;
   }
   pruneExamSessions();
@@ -4139,21 +4078,6 @@ async function init() {
   bindMock('topicTestCat', 'change', function () { populateTopicTestSubs(); renderTopicTestList(); });
   bindMock('topicTestSub', 'change', renderTopicTestList);
   bindMock('topicTestSearch', 'input', renderTopicTestList);
-
-  // Topic Test Builder
-  bindMock('topicBuilderCat', 'change', populateTopicBuilderSubs);
-  bindMock('topicBuilderSub', 'change', populateTopicBuilderTopics);
-  bindMock('topicBuilderTopic', 'change', renderTopicBuilderQList);
-  bindMock('topicBuilderSelectAll', 'change', function () {
-    const checks = document.querySelectorAll('#topicBuilderQList .bq-check');
-    checks.forEach(cb => {
-      cb.checked = this.checked;
-      if (this.checked) _topicBuilderSelected.add(cb._qid);
-      else _topicBuilderSelected.delete(cb._qid);
-    });
-    updateTopicBuilderCount();
-  });
-  bindMock('topicBuilderSaveBtn', 'click', saveTopicTest);
 
   // Admin tabs
   document.querySelectorAll('.admin-tab').forEach(t => t.addEventListener('click', function () {
