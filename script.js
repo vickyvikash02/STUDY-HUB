@@ -1399,7 +1399,7 @@ function renderAdmin() {
   if (tab === 'categories') renderAdminCategories(container);
   else if (tab === 'subcategories') renderAdminSubcategories(container);
   else if (tab === 'topics') renderAdminTopics(container);
-  else if (tab === 'types') renderAdminTypes(container);
+  else if (tab === 'types') renderAdminTopics(container);
   else if (tab === 'questions') renderAdminQuestions(container);
   else if (tab === 'ebook') renderAdminEbook(container);
 }
@@ -1569,11 +1569,27 @@ function renderAdminTopics(container) {
   const prevCat = document.getElementById('atFilterCat')?.value || '';
   const prevSub = document.getElementById('atFilterSub')?.value || '';
   const prevSearch = document.getElementById('atFilterSearch')?.value || '';
+
+  // Add topic
   let html = '<div class="admin-section"><h3>Add Topic</h3><div class="admin-row"><select id="adminTopicCat"><option value="">Category</option>';
   sortedKeys(data.categories).forEach(catId => { html += '<option value="' + catId + '">' + data.categories[catId].name + '</option>'; });
   html += '</select><select id="adminTopicSub"><option value="">Subcategory</option></select>';
-  html += '<input type="text" id="adminTopicName" placeholder="Topic name"><button class="btn-primary" id="adminAddTopicBtn">Add</button></div></div>';
-  html += '<div class="admin-section"><h3>Existing Topics</h3>';
+  html += '<input type="text" id="adminTopicName" placeholder="Topic name"><button class="btn-primary" id="adminAddTopicBtn">Add Topic</button></div></div>';
+
+  // Add type (same place as topics now)
+  html += '<div class="admin-section"><h3>Add Type</h3><div class="admin-row"><select id="adminTypeCat"><option value="">Category</option>';
+  sortedKeys(data.categories).forEach(catId => { html += '<option value="' + catId + '">' + data.categories[catId].name + '</option>'; });
+  html += '</select><select id="adminTypeSub"><option value="">Subcategory</option></select>';
+  html += '<select id="adminTypeTopic"><option value="">Topic</option></select>';
+  html += '<input type="text" id="adminTypeName" placeholder="Type name (e.g. MCQ, True / False)"><button class="btn-primary" id="adminAddTypeBtn">Add Type</button></div></div>';
+
+  // Excel import
+  html += '<div class="admin-section"><h3>Import from Excel</h3>';
+  html += '<div class="admin-row"><input type="file" id="adminExcelFile" accept=".xlsx,.xls,.csv" style="flex:1;min-width:200px;"><button class="btn-secondary" id="adminExcelImportBtn"><i class="fas fa-file-excel"></i> Import Excel</button></div>';
+  html += '<details class="admin-import-help"><summary>Show Excel format</summary><pre>Header row (any order):\nCategory | Subcategory | Topic | Type | Question | Option A | Option B | Option C | Option D | Answer | Explanation\n\nExample:\nQuantitative Aptitude | Arithmetic | Percentage | Basics | What is 20% of 150? | 20 | 25 | 30 | 35 | C | 20% of 150 = 30.\n\nNotes:\n- Category, Subcategory and Topic are required on every row.\n- Leave Question empty to only create the topic/type.\n- Answer can be A, B, C, D, 1-4, or the option text.\n- Existing categories, subcategories, topics and types are reused.\n- Missing ones are created automatically.\n- Supports .xlsx, .xls and .csv files.</pre></details></div>';
+
+  // Combined list
+  html += '<div class="admin-section"><h3>Topics &amp; Types</h3>';
   html += '<div class="admin-row" style="flex-wrap:wrap;gap:6px;margin-bottom:10px;">';
   html += '<select id="atFilterCat" style="flex:1;min-width:120px;"><option value="">All Categories</option>';
   sortedKeys(data.categories).forEach(catId => { html += '<option value="' + catId + '"' + (catId === prevCat ? ' selected' : '') + '>' + data.categories[catId].name + '</option>'; });
@@ -1583,7 +1599,7 @@ function renderAdminTopics(container) {
     sortedKeys(data.categories[prevCat].subcategories || {}).forEach(sid => { html += '<option value="' + sid + '"' + (sid === prevSub ? ' selected' : '') + '>' + data.categories[prevCat].subcategories[sid].name + '</option>'; });
   }
   html += '</select>';
-  html += '<input type="text" id="atFilterSearch" placeholder="Search topics..." value="' + esc(prevSearch) + '" style="flex:2;min-width:180px;"></div>';
+  html += '<input type="text" id="atFilterSearch" placeholder="Search topics or types..." value="' + esc(prevSearch) + '" style="flex:2;min-width:180px;"></div>';
   html += '<div id="atList">';
   let topicNum = 0;
   let hasAny = false;
@@ -1593,17 +1609,25 @@ function renderAdminTopics(container) {
     sortedKeys(c.subcategories || {}).forEach(subId => {
       if (prevSub && subId !== prevSub) return;
       const s = c.subcategories[subId];
-      const topicKeys = sortedKeys(s.topics || {});
-      topicKeys.forEach((topicId, idx) => {
+      sortedKeys(s.topics || {}).forEach(topicId => {
         const t = s.topics[topicId];
-        if (prevSearch && !t.name.toLowerCase().includes(prevSearch.toLowerCase())) return;
+        const searchBlob = (t.name + ' ' + Object.values(getTopicTypes(t)).map(x => x.name).join(' ')).toLowerCase();
+        if (prevSearch && !searchBlob.includes(prevSearch.toLowerCase())) return;
         topicNum++;
         hasAny = true;
         const topicQs = t.questions || [];
-        const typeCounts = questionTypeCounts(topicQs, t);
-        const typeSummary = Object.keys(typeCounts).map(k => k + ': ' + typeCounts[k]).join(' · ');
-        const countLabel = topicQs.length + ' Q' + (typeSummary ? ' · ' + typeSummary : '');
-        html += '<div class="admin-item" data-id="' + topicId + '" data-cat="' + catId + '" data-sub="' + subId + '"><span>' + topicNum + '. ' + c.icon + ' ' + c.name + ' → ' + s.name + ' → ' + t.name + ' (' + countLabel + ')</span><span><button class="act-btn edit" onclick="editTopic(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-pen"></i> Edit</button><button class="act-btn del" onclick="delTopic(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-trash"></i> Del</button><span class="drag-handle" draggable="true"><i class="fas fa-grip-vertical"></i></span></span></div>';
+        const typeChips = sortedKeys(getTopicTypes(t)).map(typeId => {
+          const type = getTopicTypes(t)[typeId];
+          const qCount = topicQs.filter(q => q.type === typeId).length;
+          return '<span class="admin-type-chip"><strong>' + esc(type.name) + '</strong><em>' + qCount + ' Q</em>' +
+            '<button class="act-btn edit" title="Edit type" onclick="editType(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\',\'' + typeId + '\')"><i class="fas fa-pen"></i></button>' +
+            '<button class="act-btn del" title="Delete type" onclick="delType(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\',\'' + typeId + '\')"><i class="fas fa-trash"></i></button></span>';
+        }).join('');
+        html += '<div class="admin-topic-block" data-id="' + topicId + '" data-cat="' + catId + '" data-sub="' + subId + '">';
+        html += '<div class="admin-item" data-id="' + topicId + '" data-cat="' + catId + '" data-sub="' + subId + '"><span>' + topicNum + '. ' + c.icon + ' ' + c.name + ' → ' + s.name + ' → ' + t.name + ' (' + topicQs.length + ' Q)</span><span><button class="act-btn edit" onclick="editTopic(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-pen"></i> Edit</button><button class="act-btn del" onclick="delTopic(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-trash"></i> Del</button><span class="drag-handle" draggable="true"><i class="fas fa-grip-vertical"></i></span></span></div>';
+        html += '<div class="admin-topic-types">' + (typeChips || '<span class="admin-type-empty">No types yet</span>') +
+          '<button class="admin-type-add" onclick="focusAddTypeForm(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-plus"></i> Add type</button></div>';
+        html += '</div>';
       });
     });
   });
@@ -1612,6 +1636,8 @@ function renderAdminTopics(container) {
   container.innerHTML = html;
 
   document.getElementById('adminAddTopicBtn').addEventListener('click', addTopic);
+  document.getElementById('adminExcelImportBtn').addEventListener('click', importFromExcel);
+
   document.getElementById('adminTopicCat').addEventListener('change', function () {
     const sel = document.getElementById('adminTopicSub');
     sel.innerHTML = '<option value="">Subcategory</option>';
@@ -1619,20 +1645,65 @@ function renderAdminTopics(container) {
     if (cat) sortedKeys(cat.subcategories || {}).forEach(sid => { sel.innerHTML += '<option value="' + sid + '">' + cat.subcategories[sid].name + '</option>'; });
   });
 
+  // Add-type selects
+  document.getElementById('adminAddTypeBtn').addEventListener('click', addType);
+  const catSel = document.getElementById('adminTypeCat');
+  const subSel = document.getElementById('adminTypeSub');
+  const topicSel = document.getElementById('adminTypeTopic');
+  const fillSubs = (catId, selected) => {
+    subSel.innerHTML = '<option value="">Subcategory</option>';
+    const cat = data.categories[catId];
+    if (cat) sortedKeys(cat.subcategories || {}).forEach(sid => { subSel.innerHTML += '<option value="' + sid + '"' + (sid === selected ? ' selected' : '') + '>' + cat.subcategories[sid].name + '</option>'; });
+  };
+  const fillTopics = (catId, subId, selected) => {
+    topicSel.innerHTML = '<option value="">Topic</option>';
+    if (catId && subId && data.categories[catId]?.subcategories[subId]) {
+      sortedKeys(data.categories[catId].subcategories[subId].topics || {}).forEach(tid => { topicSel.innerHTML += '<option value="' + tid + '"' + (tid === selected ? ' selected' : '') + '>' + data.categories[catId].subcategories[subId].topics[tid].name + '</option>'; });
+    }
+  };
+  catSel.addEventListener('change', function () { fillSubs(this.value); fillTopics('', ''); });
+  subSel.addEventListener('change', function () { fillTopics(catSel.value, this.value); });
+
+  // Filters
   document.getElementById('atFilterCat').addEventListener('change', function () {
-    const subSel = document.getElementById('atFilterSub');
-    subSel.innerHTML = '<option value="">All Subcategories</option>';
+    const fs = document.getElementById('atFilterSub');
+    fs.innerHTML = '<option value="">All Subcategories</option>';
     const cat = data.categories[this.value];
-    if (cat) sortedKeys(cat.subcategories || {}).forEach(sid => { subSel.innerHTML += '<option value="' + sid + '">' + cat.subcategories[sid].name + '</option>'; });
+    if (cat) sortedKeys(cat.subcategories || {}).forEach(sid => { fs.innerHTML += '<option value="' + sid + '">' + cat.subcategories[sid].name + '</option>'; });
     applyATFilters();
   });
   document.getElementById('atFilterSub').addEventListener('change', applyATFilters);
-  document.getElementById('atFilterSearch').addEventListener('input', applyATFilters);
+  document.getElementById('atFilterSearch').addEventListener('input', function () {
+    const q = this.value.toLowerCase().trim();
+    document.querySelectorAll('#atList .admin-topic-block').forEach(block => {
+      block.style.display = !q || block.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+  });
+
   enableDragSort('atList', (item) => {
     const catId = item.dataset.cat;
     const subId = item.dataset.sub;
     return data.categories[catId]?.subcategories[subId]?.topics;
   }, () => { saveData(); renderDashboard(); renderAdmin(); });
+}
+
+function focusAddTypeForm(catId, subId, topicId) {
+  const catSel = document.getElementById('adminTypeCat');
+  const subSel = document.getElementById('adminTypeSub');
+  const topicSel = document.getElementById('adminTypeTopic');
+  const nameInput = document.getElementById('adminTypeName');
+  if (!catSel || !subSel || !topicSel || !nameInput) return;
+  catSel.value = catId;
+  subSel.innerHTML = '<option value="">Subcategory</option>';
+  const cat = data.categories[catId];
+  if (cat) sortedKeys(cat.subcategories || {}).forEach(sid => { subSel.innerHTML += '<option value="' + sid + '">' + cat.subcategories[sid].name + '</option>'; });
+  subSel.value = subId;
+  topicSel.innerHTML = '<option value="">Topic</option>';
+  if (cat && cat.subcategories[subId]) sortedKeys(cat.subcategories[subId].topics || {}).forEach(tid => { topicSel.innerHTML += '<option value="' + tid + '">' + cat.subcategories[subId].topics[tid].name + '</option>'; });
+  topicSel.value = topicId;
+  const section = nameInput.closest('.admin-section');
+  nameInput.focus({ preventScroll: true });
+  if (section) section.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 function applyATFilters() {
@@ -2132,6 +2203,29 @@ async function addAdminQ() {
 const MAMMOTH_URL = 'https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js';
 let _mammothPromise = null;
 
+// Excel import shares the same on-demand approach (SheetJS).
+const XLSX_URL = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+let _xlsxPromise = null;
+
+function loadXLSX() {
+  if (typeof XLSX !== 'undefined') return Promise.resolve(XLSX);
+  if (_xlsxPromise) return _xlsxPromise;
+  _xlsxPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = XLSX_URL;
+    script.onload = function () {
+      if (typeof XLSX !== 'undefined') resolve(XLSX);
+      else reject(new Error('The Excel import library did not start.'));
+    };
+    script.onerror = function () {
+      _xlsxPromise = null;
+      reject(new Error('Could not load the Excel import library. Check your internet connection and try again.'));
+    };
+    document.head.appendChild(script);
+  });
+  return _xlsxPromise;
+}
+
 function loadMammoth() {
   if (typeof mammoth !== 'undefined') return Promise.resolve(mammoth);
   if (_mammothPromise) return _mammothPromise;
@@ -2307,6 +2401,227 @@ function addParsedQuestions(parsed, catId, subId, topicId, defaultTypeId) {
     topic.questions.push(q);
   });
   return { added: parsed.length, createdTypes };
+}
+
+// ======================== EXCEL IMPORT ========================
+function excelHeaderKey(value) {
+  return String(value == null ? '' : value).toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+const EXCEL_COLUMNS = {
+  category: ['category', 'subject', 'cat'],
+  subcategory: ['subcategory', 'subcat', 'section', 'unit'],
+  topic: ['topic', 'chapter', 'lesson'],
+  type: ['type', 'questiontype', 'typeofquestion'],
+  question: ['question', 'questiontext', 'qtext', 'q'],
+  optionA: ['optiona', 'opta', 'a', 'option1', 'choice1'],
+  optionB: ['optionb', 'optb', 'b', 'option2', 'choice2'],
+  optionC: ['optionc', 'optc', 'c', 'option3', 'choice3'],
+  optionD: ['optiond', 'optd', 'd', 'option4', 'choice4'],
+  optionE: ['optione', 'opte', 'e', 'option5', 'choice5'],
+  optionF: ['optionf', 'optf', 'f', 'option6', 'choice6'],
+  answer: ['answer', 'correctanswer', 'correct', 'ans', 'correctoption'],
+  explanation: ['explanation', 'solution', 'explain', 'reason']
+};
+
+function excelColumnIndexes(headerRow) {
+  const idx = {};
+  (headerRow || []).forEach((cell, i) => {
+    const key = excelHeaderKey(cell);
+    if (!key) return;
+    Object.keys(EXCEL_COLUMNS).forEach(field => {
+      if (idx[field] === undefined && EXCEL_COLUMNS[field].includes(key)) idx[field] = i;
+    });
+  });
+  return idx;
+}
+
+function parseExcelSheets(XLSX, wb) {
+  const rows = [];
+  let skipped = 0;
+  let headerFound = false;
+  (wb.SheetNames || []).forEach(sheetName => {
+    const ws = wb.Sheets[sheetName];
+    if (!ws) return;
+    const matrix = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', blankrows: false });
+    if (!matrix || !matrix.length) return;
+
+    let headerAt = -1;
+    let idx = null;
+    for (let r = 0; r < Math.min(matrix.length, 8); r++) {
+      const candidate = excelColumnIndexes(matrix[r]);
+      if (candidate.category !== undefined && candidate.topic !== undefined) {
+        headerAt = r;
+        idx = candidate;
+        break;
+      }
+    }
+    if (headerAt === -1) return;
+    headerFound = true;
+
+    const cell = (row, field) => {
+      const i = idx[field];
+      if (i === undefined) return '';
+      const v = row[i];
+      return v == null ? '' : String(v).trim();
+    };
+
+    for (let r = headerAt + 1; r < matrix.length; r++) {
+      const row = matrix[r] || [];
+      if (!row.some(v => String(v == null ? '' : v).trim() !== '')) continue;
+      const item = {
+        category: cell(row, 'category'),
+        subcategory: cell(row, 'subcategory'),
+        topic: cell(row, 'topic'),
+        type: cell(row, 'type'),
+        question: cell(row, 'question'),
+        options: ['optionA', 'optionB', 'optionC', 'optionD', 'optionE', 'optionF'].map(f => cell(row, f)).filter(Boolean),
+        answer: cell(row, 'answer'),
+        explanation: cell(row, 'explanation')
+      };
+      if (!item.category || !item.subcategory || !item.topic) { skipped++; continue; }
+      rows.push(item);
+    }
+  });
+  return { rows, skipped, headerFound };
+}
+
+function findByNameIn(collection, name) {
+  const target = String(name || '').trim().toLowerCase();
+  if (!target) return '';
+  return Object.keys(collection || {}).find(id => String((collection[id] || {}).name || '').trim().toLowerCase() === target) || '';
+}
+
+function uniqueImportId(collection, name) {
+  const base = String(name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'item';
+  let id = base;
+  let n = 2;
+  while (collection[id]) id = base + '-' + n++;
+  return id;
+}
+
+function ensureImportCategory(name) {
+  const clean = String(name || '').trim();
+  const existing = findByNameIn(data.categories, clean);
+  if (existing) return { id: existing, created: false };
+  const id = uniqueImportId(data.categories, clean);
+  const nextOrder = Object.keys(data.categories).reduce((m, k) => Math.max(m, data.categories[k].order || 0), 0) + 1;
+  data.categories[id] = { id, name: clean, icon: '📂', iconImage: '', color: null, subcategories: {}, order: nextOrder };
+  return { id, created: true };
+}
+
+function ensureImportSubcategory(cat, name) {
+  const clean = String(name || '').trim();
+  if (!cat.subcategories) cat.subcategories = {};
+  const existing = findByNameIn(cat.subcategories, clean);
+  if (existing) return { id: existing, created: false };
+  const id = uniqueImportId(cat.subcategories, clean);
+  const nextOrder = Object.keys(cat.subcategories).reduce((m, k) => Math.max(m, cat.subcategories[k].order || 0), 0) + 1;
+  cat.subcategories[id] = { id, name: clean, topics: {}, order: nextOrder };
+  return { id, created: true };
+}
+
+function ensureImportTopic(sub, name) {
+  const clean = String(name || '').trim();
+  if (!sub.topics) sub.topics = {};
+  const existing = findByNameIn(sub.topics, clean);
+  if (existing) return { id: existing, created: false };
+  const id = uniqueImportId(sub.topics, clean);
+  const nextOrder = Object.keys(sub.topics).reduce((m, k) => Math.max(m, sub.topics[k].order || 0), 0) + 1;
+  sub.topics[id] = { id, name: clean, questions: [], types: {}, order: nextOrder };
+  return { id, created: true };
+}
+
+function importExcelRows(rows) {
+  const stats = { categories: 0, subcategories: 0, topics: 0, types: 0, questions: 0, skippedQuestions: 0 };
+  (rows || []).forEach(item => {
+    const catRes = ensureImportCategory(item.category);
+    if (catRes.created) stats.categories++;
+    const cat = data.categories[catRes.id];
+
+    const subRes = ensureImportSubcategory(cat, item.subcategory);
+    if (subRes.created) stats.subcategories++;
+    const sub = cat.subcategories[subRes.id];
+
+    const topicRes = ensureImportTopic(sub, item.topic);
+    if (topicRes.created) stats.topics++;
+    const topic = sub.topics[topicRes.id];
+
+    let typeId = '';
+    if (item.type) {
+      const before = Object.keys(getTopicTypes(topic)).length;
+      typeId = ensureTopicType(topic, item.type);
+      if (Object.keys(getTopicTypes(topic)).length > before) stats.types++;
+    }
+
+    const questionText = String(item.question || '').trim();
+    if (!questionText) return;
+
+    const options = (item.options || []).map(o => String(o).trim()).filter(Boolean);
+    const answer = parseAnswerIndex(item.answer, options);
+    if (options.length < 2 || answer < 0) { stats.skippedQuestions++; return; }
+
+    const q = {
+      id: genId(),
+      question: questionText,
+      options,
+      answer,
+      explanation: String(item.explanation || '').trim(),
+      image: '',
+      expImage: ''
+    };
+    if (typeId) q.type = typeId;
+    topic.questions.push(q);
+    stats.questions++;
+  });
+  return stats;
+}
+
+async function importFromExcel() {
+  const fileInput = document.getElementById('adminExcelFile');
+  const btn = document.getElementById('adminExcelImportBtn');
+  const file = fileInput && fileInput.files ? fileInput.files[0] : null;
+
+  if (!file) { alert('Choose an Excel file (.xlsx, .xls or .csv) to import.'); return; }
+  if (!/\.(xlsx|xls|csv)$/i.test(file.name)) { alert('Please choose an Excel file (.xlsx, .xls) or a .csv file.'); return; }
+
+  if (btn) { btn.disabled = true; btn.innerHTML = 'Reading...'; }
+  try {
+    const XLSX = await loadXLSX();
+    const buffer = await file.arrayBuffer();
+    const wb = XLSX.read(buffer, { type: 'array' });
+    const parsed = parseExcelSheets(XLSX, wb);
+
+    if (!parsed.headerFound || !parsed.rows.length) {
+      alert('No usable rows found.' +
+        '\n\nThe first row must contain headers such as Category, Subcategory, Topic, Type, Question, Option A ... Answer.' +
+        (parsed.skipped ? '\n\n' + parsed.skipped + ' row(s) were skipped because Category, Subcategory or Topic was empty.' : ''));
+      return;
+    }
+
+    let message = 'Found ' + parsed.rows.length + ' row' + (parsed.rows.length === 1 ? '' : 's') + ' in "' + file.name + '".';
+    if (parsed.skipped) message += '\n' + parsed.skipped + ' row(s) will be skipped (missing Category, Subcategory or Topic).';
+    message += '\n\nImport now? Missing categories, subcategories, topics and types will be created.';
+    if (!confirm(message)) return;
+
+    const stats = importExcelRows(parsed.rows);
+    await saveData();
+    renderDashboard();
+    updateStats();
+    renderAdmin();
+
+    alert('Excel import complete.' +
+      '\nQuestions added: ' + stats.questions +
+      '\nTopics created: ' + stats.topics +
+      '\nTypes created: ' + stats.types +
+      (stats.categories ? '\nCategories created: ' + stats.categories : '') +
+      (stats.subcategories ? '\nSubcategories created: ' + stats.subcategories : '') +
+      (stats.skippedQuestions ? '\nSkipped questions: ' + stats.skippedQuestions + ' (missing options or a valid answer)' : ''));
+  } catch (e) {
+    alert(/Excel import library/.test(e.message || '') ? e.message : 'Could not read the Excel file: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-file-excel"></i> Import Excel'; }
+  }
 }
 
 async function importQuestionsFromWord() {
