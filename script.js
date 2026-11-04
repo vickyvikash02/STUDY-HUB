@@ -1283,6 +1283,10 @@ function renderEbookCollectionList(type) {
   }).join('');
 }
 
+function ebookSelectOptionsHtml(values, selected) {
+  return values.map(value => '<option value="' + esc(value) + '"' + (value === selected ? ' selected' : '') + '>' + esc(value) + '</option>').join('');
+}
+
 function ebookSelectHtml(id, values, selected) {
   const preferred = selected && values.includes(selected)
     ? selected
@@ -1495,13 +1499,24 @@ async function renderDriveFolders() {
       try {
         const pdfs = await scanDriveFolder(folder.folderId, apiKey);
         if (pdfs.length) {
-          html += '<div style="display:flex;flex-direction:column;gap:3px;margin-left:20px;margin-top:4px;">';
+          const defaultCategory = ebookFallback('exam');
+          const defaultLanguage = ebookFallback('language');
+          const examOptions = ebookSelectOptionsHtml(getEbookExams(), defaultCategory);
+          const languageOptions = ebookSelectOptionsHtml(getEbookLanguages(), defaultLanguage);
+          html += '<div class="drive-folder-import">';
+          html += '<div class="folder-import-toolbar"><label>Exam <select class="folder-default-category">' + ebookSelectOptionsHtml(getEbookExams(), defaultCategory) + '</select></label><label>Language <select class="folder-default-language">' + ebookSelectOptionsHtml(getEbookLanguages(), defaultLanguage) + '</select></label><button type="button" class="act-btn edit folder-apply-defaults" onclick="applyFolderImportDefaults(this)"><i class="fas fa-check-double"></i> Apply to rows</button></div>';
+          html += '<div class="admin-import-list">';
           pdfs.forEach(f => {
+            const defaultName = String(f.name || '').replace(/\.pdf$/i, '').trim() || 'Untitled E-Book';
             const exists = data.ebooks.some(e => e.url && e.url.includes(f.id));
-            html += '<label style="font-size:13px;cursor:pointer;"><input type="checkbox" class="folder-pdf-check" data-id="' + f.id + '" data-name="' + esc(f.name.replace(/\.pdf$/i, '')) + '"' + (exists ? ' checked disabled' : '') + '> ' + esc(f.name) + (exists ? ' <span style="color:var(--text2);font-size:11px;">(added)</span>' : '') + '</label>';
+            html += '<div class="admin-import-row' + (exists ? ' admin-import-row-locked' : '') + '" data-id="' + esc(f.id) + '">';
+            html += '<div class="admin-import-source"><label><input type="checkbox" class="folder-pdf-check" data-id="' + esc(f.id) + '"' + (exists ? ' checked disabled' : '') + '> <span class="folder-pdf-source-name">' + esc(f.name) + '</span>' + (exists ? '<small>(added)</small>' : '') + '</label></div>';
+            html += '<input type="text" class="folder-pdf-name" value="' + esc(defaultName) + '" placeholder="E-Book name"' + (exists ? ' disabled' : '') + '>';
+            html += '<select class="folder-pdf-category"' + (exists ? ' disabled' : '') + '>' + examOptions + '</select>';
+            html += '<select class="folder-pdf-language"' + (exists ? ' disabled' : '') + '>' + languageOptions + '</select>';
+            html += '</div>';
           });
-          html += '</div>';
-          html += '<button class="btn-primary" style="align-self:flex-start;font-size:12px;padding:5px 14px;margin-top:4px;" onclick="addSelectedFromFolder()"><i class="fas fa-plus"></i> Add Selected</button>';
+          html += '</div><div class="admin-import-footer"><button class="btn-primary" onclick="addSelectedFromFolder(this)"><i class="fas fa-plus"></i> Add Selected</button></div></div>';
         } else {
           html += '<p style="color:var(--text2);font-size:12px;margin-left:20px;margin-top:4px;">No PDFs found. Make sure the folder is shared publicly.</p>';
         }
@@ -1539,17 +1554,51 @@ async function unlinkDriveFolder(idx) {
   renderDriveFolders();
 }
 
-async function addSelectedFromFolder() {
-  const checks = document.querySelectorAll('.folder-pdf-check:checked:not(:disabled)');
-  if (!checks.length) { alert('No new PDFs selected.'); return; }
-  checks.forEach(c => {
+function applyFolderImportDefaults(button) {
+  const scope = button && button.closest('.drive-folder-import');
+  if (!scope) return;
+  const category = scope.querySelector('.folder-default-category')?.value;
+  const language = scope.querySelector('.folder-default-language')?.value;
+  scope.querySelectorAll('.admin-import-row:not(.admin-import-row-locked)').forEach(row => {
+    const categorySelect = row.querySelector('.folder-pdf-category');
+    const languageSelect = row.querySelector('.folder-pdf-language');
+    if (category && categorySelect) categorySelect.value = category;
+    if (language && languageSelect) languageSelect.value = language;
+  });
+}
+
+async function addSelectedFromFolder(button) {
+  const scope = button && button.closest('.drive-folder-import');
+  const rows = Array.from((scope || document).querySelectorAll('.admin-import-row'));
+  const selected = rows.filter(row => {
+    const check = row.querySelector('.folder-pdf-check');
+    return check && check.checked && !check.disabled && !row.classList.contains('admin-import-row-locked');
+  });
+  if (!selected.length) { alert('Select at least one new PDF.'); return; }
+
+  const plans = [];
+  for (const row of selected) {
+    const id = row.dataset.id;
+    const nameInput = row.querySelector('.folder-pdf-name');
+    const name = nameInput ? nameInput.value.trim() : '';
+    const category = row.querySelector('.folder-pdf-category')?.value || ebookFallback('exam');
+    const language = row.querySelector('.folder-pdf-language')?.value || ebookFallback('language');
+    if (!name) {
+      alert('Enter an E-Book name for every selected PDF.');
+      if (nameInput) nameInput.focus();
+      return;
+    }
+    plans.push({ id, name, url: 'https://drive.google.com/uc?export=download&id=' + id, category, language });
+  }
+
+  plans.forEach((plan, index) => {
     data.ebooks.push({
-      id: Date.now() + Math.random(),
-      name: c.dataset.name,
-      url: 'https://drive.google.com/uc?export=download&id=' + c.dataset.id,
+      id: Date.now() + Math.floor(Math.random() * 10000) + index,
+      name: plan.name,
+      url: plan.url,
       uploaded: new Date().toLocaleDateString(),
-      category: ebookFallback('exam'),
-      language: ebookFallback('language'),
+      category: plan.category,
+      language: plan.language,
       pages: '',
       size: '',
       cover: '',
@@ -1557,9 +1606,8 @@ async function addSelectedFromFolder() {
     });
   });
   await saveData();
-  renderDriveFolders();
-  renderEbookList(true, 'adminEbookList');
-  alert('Added ' + checks.length + ' PDF(s).');
+  renderAdmin();
+  alert('Added ' + plans.length + ' E-Book' + (plans.length === 1 ? '' : 's') + ' from Drive.');
 }
 
 function addEbookUrl() {
