@@ -499,6 +499,37 @@ function qbAllGroups(topic) {
   return qbGroupQuestions((topic && topic.questions) || [], topic);
 }
 
+// One entry per box on the type picker: every registered type (even with no
+// questions yet), then stale/legacy type labels, then untyped questions.
+function qbTypeEntries(topic, groups) {
+  const entries = [];
+  const typeIds = sortedKeys(getTopicTypes(topic));
+  typeIds.forEach((tid, i) => {
+    const type = getTopicTypes(topic)[tid] || {};
+    const group = groups.find(g => g.id === tid);
+    entries.push({
+      id: tid,
+      tag: 'Type ' + (i + 1),
+      name: type.name || tid,
+      count: group ? group.questions.length : 0
+    });
+  });
+  if (typeIds.length) {
+    let extraNo = typeIds.length;
+    groups.forEach(group => {
+      if (group.extra) {
+        extraNo++;
+        entries.push({ id: group.id, tag: 'Type ' + extraNo, name: group.name, count: group.questions.length });
+      }
+    });
+    const untyped = groups.find(g => g.id === '__untyped__');
+    if (untyped) {
+      entries.push({ id: untyped.id, tag: 'Other', name: untyped.name, count: untyped.questions.length, untyped: true });
+    }
+  }
+  return entries;
+}
+
 function makeQBTypeCard(info) {
   const card = document.createElement('button');
   card.type = 'button';
@@ -543,35 +574,32 @@ function renderQBView() {
   const topic = sub && sub.topics[_qbContext.topicId];
   if (!cat || !sub || !topic) return;
   const container = document.getElementById('qbContent');
-  const qs = topic.questions || [];
   const typeIds = sortedKeys(getTopicTypes(topic));
   const groups = qbAllGroups(topic);
   const viewGroup = (_qbTypeView && _qbTypeView !== 'all')
     ? groups.find(g => g.id === _qbTypeView)
     : null;
+  const viewName = viewGroup
+    ? viewGroup.name
+    : ((_qbTypeView && _qbTypeView !== 'all') ? (getTypeName(topic, _qbTypeView) || '') : '');
 
   let crumb =
     '<a href="#" onclick="renderQBTopics(\'' + _qbContext.catId + '\');return false;">' + esc(cat.name) + '</a> › ' +
     '<a href="#" onclick="renderQBTopics(\'' + _qbContext.catId + '\',\'' + _qbContext.subId + '\');return false;">' + esc(sub.name) + '</a> › ';
   if (typeIds.length) {
     crumb += '<a href="#" onclick="setQBTypeView(null);return false;">' + esc(topic.name) + '</a>';
-    if (viewGroup) crumb += ' › <span>' + esc(viewGroup.name) + '</span>';
+    if (viewName) crumb += ' › <span>' + esc(viewName) + '</span>';
   } else {
     crumb += '<span>' + esc(topic.name) + '</span>';
   }
   document.getElementById('qbBreadcrumb').innerHTML = crumb;
 
-  if (!qs.length) {
-    container.innerHTML = '<div class="empty-state"><i class="fas fa-inbox"></i><p>No questions in this topic yet.</p></div>';
-    return;
-  }
-
-  // Types exist and none has been chosen yet: show one box per type.
-  if (typeIds.length && _qbTypeView === null) {
+  // Every topic starts on the type boxes screen, even when it has no types yet.
+  if (_qbTypeView === null) {
     renderQBTypePicker(container, topic, groups);
     return;
   }
-  if (typeIds.length && _qbTypeView !== 'all' && !viewGroup) {
+  if (_qbTypeView !== 'all' && !viewGroup && !getTopicTypes(topic)[_qbTypeView]) {
     // The chosen type disappeared (for example after bulk assigning types).
     _qbTypeView = null;
     renderQBTypePicker(container, topic, groups);
@@ -582,32 +610,35 @@ function renderQBView() {
 
 function renderQBTypePicker(container, topic, groups) {
   container.innerHTML = '';
+  const entries = qbTypeEntries(topic, groups);
+  if (!entries.length) {
+    const empty = document.createElement('div');
+    empty.className = 'qb-types-empty';
+    empty.innerHTML = '<i class="fas fa-layer-group"></i><p>No types in this topic yet.</p>' +
+      '<span>Add types in <strong>Admin → Types</strong> and they will appear here as boxes.</span>';
+    container.appendChild(empty);
+    return;
+  }
   const row = document.createElement('div');
   row.className = 'qb-types-row';
-
-  let typeNo = 0;
-  groups.forEach(group => {
-    const untyped = group.id === '__untyped__';
-    if (!untyped) typeNo++;
-    row.appendChild(makeQBTypeCard({
-      id: group.id,
-      tag: untyped ? 'Other' : 'Type ' + typeNo,
-      name: group.name,
-      count: group.questions.length,
-      untyped: untyped
-    }));
-  });
+  entries.forEach(entry => row.appendChild(makeQBTypeCard(entry)));
   container.appendChild(row);
 }
 
 function renderQBQuestionView(container, topic, view, groups) {
   const typeIds = sortedKeys(getTopicTypes(topic));
-  const group = (view && view !== 'all') ? groups.find(g => g.id === view) : null;
-  const qsView = group ? group.questions : (topic.questions || []);
+  const isTypeView = !!(view && view !== 'all');
+  const group = isTypeView ? groups.find(g => g.id === view) : null;
+  const qsView = isTypeView
+    ? (group ? group.questions : [])
+    : (topic.questions || []);
+  const typeName = isTypeView
+    ? ((group && group.name) || getTypeName(topic, view) || view)
+    : '';
 
   container.innerHTML = '';
   container.appendChild(qbViewHead(
-    group ? group.name : (typeIds.length ? 'All Questions' : topic.name),
+    isTypeView ? typeName : (typeIds.length ? 'All Questions' : topic.name),
     qsView.length + ' Question' + (qsView.length === 1 ? '' : 's'),
     typeIds.length ? 'All types' : 'All topics',
     function () {
@@ -619,14 +650,23 @@ function renderQBQuestionView(container, topic, view, groups) {
   if (typeIds.length) {
     const tabs = document.createElement('div');
     tabs.className = 'qb-type-tabs';
-    tabs.appendChild(makeQBTypeTab('all', 'All', !group));
-    let typeNo = 0;
-    groups.forEach(g => {
-      const untyped = g.id === '__untyped__';
-      if (!untyped) typeNo++;
-      tabs.appendChild(makeQBTypeTab(g.id, untyped ? g.name : typeNo + '. ' + g.name, !!group && group.id === g.id));
+    tabs.appendChild(makeQBTypeTab('all', 'All', !isTypeView));
+    let tabNo = 0;
+    qbTypeEntries(topic, groups).forEach(entry => {
+      if (!entry.untyped) tabNo++;
+      tabs.appendChild(makeQBTypeTab(entry.id, entry.untyped ? entry.name : tabNo + '. ' + entry.name, entry.id === view));
     });
     container.appendChild(tabs);
+  }
+
+  if (!qsView.length) {
+    const empty = document.createElement('div');
+    empty.className = 'empty-state';
+    empty.innerHTML = '<i class="fas fa-inbox"></i><p>' +
+      (isTypeView ? 'No questions in this type yet.' : 'No questions in this topic yet.') + '</p>';
+    container.appendChild(empty);
+    updateQBSelection();
+    return;
   }
 
   let searchHtml = '<div style="margin-bottom:12px;"><input type="text" id="qbSearch" placeholder="Search questions..." style="width:100%;padding:10px 14px;border:2px solid var(--border);border-radius:var(--radius-sm);font-size:14px;background:var(--surface);color:var(--text);outline:none;" oninput="filterQBQuestions(this.value)"></div>';
@@ -794,7 +834,8 @@ function refreshQBAfterTypeChange() {
   if (_qbTypeView && _qbTypeView !== 'all') {
     const topic = qbContextTopic();
     const groups = topic ? qbAllGroups(topic) : [];
-    if (!groups.some(g => g.id === _qbTypeView)) _qbTypeView = null;
+    const registered = topic && getTopicTypes(topic)[_qbTypeView];
+    if (!groups.some(g => g.id === _qbTypeView) && !registered) _qbTypeView = null;
   }
   renderQBView();
 }
