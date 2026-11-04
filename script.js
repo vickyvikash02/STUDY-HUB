@@ -1583,10 +1583,10 @@ function renderAdminTopics(container) {
   html += '<select id="adminTypeTopic"><option value="">Topic</option></select>';
   html += '<input type="text" id="adminTypeName" placeholder="Type name (e.g. MCQ, True / False)"><button class="btn-primary" id="adminAddTypeBtn">Add Type</button></div></div>';
 
-  // Excel import
-  html += '<div class="admin-section"><h3>Import from Excel</h3>';
+  // Excel import (structure only: categories, subcategories, topics and types)
+  html += '<div class="admin-section"><h3>Import Topics &amp; Types from Excel</h3>';
   html += '<div class="admin-row"><input type="file" id="adminExcelFile" accept=".xlsx,.xls,.csv" style="flex:1;min-width:200px;"><button class="btn-secondary" id="adminExcelImportBtn"><i class="fas fa-file-excel"></i> Import Excel</button></div>';
-  html += '<details class="admin-import-help"><summary>Show Excel format</summary><pre>Header row (any order):\nCategory | Subcategory | Topic | Type | Question | Option A | Option B | Option C | Option D | Answer | Explanation\n\nExample:\nQuantitative Aptitude | Arithmetic | Percentage | Basics | What is 20% of 150? | 20 | 25 | 30 | 35 | C | 20% of 150 = 30.\n\nNotes:\n- Category, Subcategory and Topic are required on every row.\n- Leave Question empty to only create the topic/type.\n- Answer can be A, B, C, D, 1-4, or the option text.\n- Existing categories, subcategories, topics and types are reused.\n- Missing ones are created automatically.\n- Supports .xlsx, .xls and .csv files.</pre></details></div>';
+  html += '<details class="admin-import-help"><summary>Show Excel format</summary><pre>Header row (any order):\nCategory | Subcategory | Topic | Type\n\nExample:\nQuantitative Aptitude | Arithmetic | Percentage | Basics\nQuantitative Aptitude | Arithmetic | Percentage | Advanced\nQuantitative Aptitude | Arithmetic | Average\nReasoning | Verbal | Series | Alpha\n\nNotes:\n- Category, Subcategory and Topic are required on every row.\n- Type is optional. Leave it empty to only create the topic.\n- Existing categories, subcategories, topics and types are reused.\n- Missing ones are created automatically.\n- Questions are not imported here. Use the Questions tab to add them.\n- Supports .xlsx, .xls and .csv files.</pre></details></div>';
 
   // Combined list
   html += '<div class="admin-section"><h3>Topics &amp; Types</h3>';
@@ -2412,16 +2412,7 @@ const EXCEL_COLUMNS = {
   category: ['category', 'subject', 'cat'],
   subcategory: ['subcategory', 'subcat', 'section', 'unit'],
   topic: ['topic', 'chapter', 'lesson'],
-  type: ['type', 'questiontype', 'typeofquestion'],
-  question: ['question', 'questiontext', 'qtext', 'q'],
-  optionA: ['optiona', 'opta', 'a', 'option1', 'choice1'],
-  optionB: ['optionb', 'optb', 'b', 'option2', 'choice2'],
-  optionC: ['optionc', 'optc', 'c', 'option3', 'choice3'],
-  optionD: ['optiond', 'optd', 'd', 'option4', 'choice4'],
-  optionE: ['optione', 'opte', 'e', 'option5', 'choice5'],
-  optionF: ['optionf', 'optf', 'f', 'option6', 'choice6'],
-  answer: ['answer', 'correctanswer', 'correct', 'ans', 'correctoption'],
-  explanation: ['explanation', 'solution', 'explain', 'reason']
+  type: ['type', 'questiontype', 'typeofquestion']
 };
 
 function excelColumnIndexes(headerRow) {
@@ -2473,11 +2464,7 @@ function parseExcelSheets(XLSX, wb) {
         category: cell(row, 'category'),
         subcategory: cell(row, 'subcategory'),
         topic: cell(row, 'topic'),
-        type: cell(row, 'type'),
-        question: cell(row, 'question'),
-        options: ['optionA', 'optionB', 'optionC', 'optionD', 'optionE', 'optionF'].map(f => cell(row, f)).filter(Boolean),
-        answer: cell(row, 'answer'),
-        explanation: cell(row, 'explanation')
+        type: cell(row, 'type')
       };
       if (!item.category || !item.subcategory || !item.topic) { skipped++; continue; }
       rows.push(item);
@@ -2533,8 +2520,9 @@ function ensureImportTopic(sub, name) {
 }
 
 function importExcelRows(rows) {
-  const stats = { categories: 0, subcategories: 0, topics: 0, types: 0, questions: 0, skippedQuestions: 0 };
+  const stats = { categories: 0, subcategories: 0, topics: 0, types: 0, rows: 0 };
   (rows || []).forEach(item => {
+    stats.rows++;
     const catRes = ensureImportCategory(item.category);
     if (catRes.created) stats.categories++;
     const cat = data.categories[catRes.id];
@@ -2547,32 +2535,11 @@ function importExcelRows(rows) {
     if (topicRes.created) stats.topics++;
     const topic = sub.topics[topicRes.id];
 
-    let typeId = '';
     if (item.type) {
       const before = Object.keys(getTopicTypes(topic)).length;
-      typeId = ensureTopicType(topic, item.type);
+      ensureTopicType(topic, item.type);
       if (Object.keys(getTopicTypes(topic)).length > before) stats.types++;
     }
-
-    const questionText = String(item.question || '').trim();
-    if (!questionText) return;
-
-    const options = (item.options || []).map(o => String(o).trim()).filter(Boolean);
-    const answer = parseAnswerIndex(item.answer, options);
-    if (options.length < 2 || answer < 0) { stats.skippedQuestions++; return; }
-
-    const q = {
-      id: genId(),
-      question: questionText,
-      options,
-      answer,
-      explanation: String(item.explanation || '').trim(),
-      image: '',
-      expImage: ''
-    };
-    if (typeId) q.type = typeId;
-    topic.questions.push(q);
-    stats.questions++;
   });
   return stats;
 }
@@ -2594,7 +2561,7 @@ async function importFromExcel() {
 
     if (!parsed.headerFound || !parsed.rows.length) {
       alert('No usable rows found.' +
-        '\n\nThe first row must contain headers such as Category, Subcategory, Topic, Type, Question, Option A ... Answer.' +
+        '\n\nThe first row must contain headers: Category, Subcategory, Topic, Type.' +
         (parsed.skipped ? '\n\n' + parsed.skipped + ' row(s) were skipped because Category, Subcategory or Topic was empty.' : ''));
       return;
     }
@@ -2611,12 +2578,11 @@ async function importFromExcel() {
     renderAdmin();
 
     alert('Excel import complete.' +
-      '\nQuestions added: ' + stats.questions +
+      '\nRows processed: ' + stats.rows +
       '\nTopics created: ' + stats.topics +
       '\nTypes created: ' + stats.types +
       (stats.categories ? '\nCategories created: ' + stats.categories : '') +
-      (stats.subcategories ? '\nSubcategories created: ' + stats.subcategories : '') +
-      (stats.skippedQuestions ? '\nSkipped questions: ' + stats.skippedQuestions + ' (missing options or a valid answer)' : ''));
+      (stats.subcategories ? '\nSubcategories created: ' + stats.subcategories : ''));
   } catch (e) {
     alert(/Excel import library/.test(e.message || '') ? e.message : 'Could not read the Excel file: ' + e.message);
   } finally {
