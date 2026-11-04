@@ -1252,6 +1252,44 @@ function editEbookCollectionItem(type, index) {
   renderAdmin();
 }
 
+function clearUnusedEbookCollections(type) {
+  const values = ebookCollectionValues(type).slice();
+  const used = [];
+  const unused = [];
+  values.forEach(value => {
+    if (ebookCollectionCount(type, value) > 0) used.push(value);
+    else unused.push(value);
+  });
+  if (!unused.length) {
+    alert('No unused ' + (type === 'exam' ? 'exams' : 'languages') + ' to remove.');
+    return;
+  }
+
+  let kept = used.slice();
+  if (!kept.length) {
+    const defaults = type === 'exam' ? DEFAULT_EBOOK_EXAMS : DEFAULT_EBOOK_LANGUAGES;
+    const keptDefault = values.find(value => defaults.some(item => item.toLowerCase() === value.toLowerCase()));
+    kept = [keptDefault || values[0]];
+  }
+
+  const fallback = type === 'exam' && kept.some(value => value === 'Others') ? 'Others' : kept[0];
+  const removed = values.filter(value => !kept.includes(value));
+  const label = type === 'exam' ? 'exams' : 'languages';
+  if (!confirm('Remove these unused ' + label + '?\n\n' + removed.join(', ') + '\n\nE-Books using them will be moved to "' + fallback + '".')) return;
+
+  const removedSet = {};
+  removed.forEach(value => { removedSet[value.toLowerCase()] = true; });
+  (data.ebooks || []).forEach(ebook => {
+    const current = type === 'exam' ? ebookCategory(ebook) : ebookLanguage(ebook);
+    if (current && removedSet[current.toLowerCase()]) setEbookCollectionValue(ebook, type, fallback);
+  });
+
+  if (type === 'exam') data.exams = kept;
+  else data.languages = kept;
+  saveData();
+  renderAdmin();
+}
+
 function deleteEbookCollectionItem(type, index) {
   const values = ebookCollectionValues(type);
   const oldName = values[index];
@@ -1424,13 +1462,13 @@ function renderAdminEbook(container) {
   html += '<div class="admin-split">';
 
   html += '<div class="admin-subsection">';
-  html += '<div class="admin-subsection-head"><div><h4>Exams</h4><span>' + getEbookExams().length + ' configured</span></div></div>';
+  html += '<div class="admin-subsection-head"><div><h4>Exams</h4><span>' + getEbookExams().length + ' configured</span></div><button type="button" class="act-btn del" id="clearUnusedExamsBtn" title="Remove all exams with 0 E-Books"><i class="fas fa-eraser"></i> Remove unused</button></div>';
   html += '<div class="admin-inline-add"><input type="text" id="adminExamInput" placeholder="Add exam (e.g. IBPS)"><button type="button" class="btn-secondary" id="adminAddExamBtn"><i class="fas fa-plus"></i> Add Exam</button></div>';
   html += '<div id="adminExamList" class="admin-option-list">' + renderEbookCollectionList('exam') + '</div>';
   html += '</div>';
 
   html += '<div class="admin-subsection">';
-  html += '<div class="admin-subsection-head"><div><h4>Languages</h4><span>' + getEbookLanguages().length + ' configured</span></div></div>';
+  html += '<div class="admin-subsection-head"><div><h4>Languages</h4><span>' + getEbookLanguages().length + ' configured</span></div><button type="button" class="act-btn del" id="clearUnusedLanguagesBtn" title="Remove all languages with 0 E-Books"><i class="fas fa-eraser"></i> Remove unused</button></div>';
   html += '<div class="admin-inline-add"><input type="text" id="adminLanguageInput" placeholder="Add language (e.g. Marathi)"><button type="button" class="btn-secondary" id="adminAddLanguageBtn"><i class="fas fa-plus"></i> Add Language</button></div>';
   html += '<div id="adminLanguageList" class="admin-option-list">' + renderEbookCollectionList('language') + '</div>';
   html += '</div>';
@@ -1456,6 +1494,8 @@ function renderAdminEbook(container) {
   document.getElementById('linkDriveFolderBtn').addEventListener('click', linkDriveFolder);
   document.getElementById('adminAddExamBtn').addEventListener('click', () => addEbookCollectionItem('exam'));
   document.getElementById('adminAddLanguageBtn').addEventListener('click', () => addEbookCollectionItem('language'));
+  document.getElementById('clearUnusedExamsBtn').addEventListener('click', () => clearUnusedEbookCollections('exam'));
+  document.getElementById('clearUnusedLanguagesBtn').addEventListener('click', () => clearUnusedEbookCollections('language'));
   document.getElementById('adminExamInput').addEventListener('keydown', event => { if (event.key === 'Enter') addEbookCollectionItem('exam'); });
   document.getElementById('adminLanguageInput').addEventListener('keydown', event => { if (event.key === 'Enter') addEbookCollectionItem('language'); });
   renderDriveFolders();
