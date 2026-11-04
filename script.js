@@ -571,26 +571,84 @@ function openQuestionBank(catId, subId, topicId) {
   renderQBList(qs);
 }
 
+function qbTypeKey(value) {
+  return String(value == null ? '' : value).toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
 function qbGroupQuestions(qs, topic) {
   const groups = [];
-  const byId = new Map();
+  const byKey = new Map();
   if (topic) {
     sortedKeys(getTopicTypes(topic)).forEach((typeId, i) => {
       const type = getTopicTypes(topic)[typeId];
-      const group = { id: typeId, name: type.name || typeId, order: i + 1, questions: [] };
+      const name = (type && type.name) || typeId;
+      const group = { id: typeId, name, order: i + 1, questions: [] };
       groups.push(group);
-      byId.set(typeId, group);
+      byKey.set(qbTypeKey(typeId), group);
+      byKey.set(qbTypeKey(name), group);
     });
   }
   const untyped = { id: '__untyped__', name: 'Untyped', order: groups.length + 1, questions: [] };
+  const extras = new Map();
   (qs || []).forEach(q => {
-    const group = q.type ? byId.get(q.type) : null;
-    if (group) group.questions.push(q);
-    else untyped.questions.push(q);
+    const raw = q && q.type != null ? String(q.type).trim() : '';
+    let group = null;
+    if (raw) {
+      group = byKey.get(qbTypeKey(raw)) || extras.get(qbTypeKey(raw));
+      // A question can carry a type value that is no longer registered (legacy
+      // data, renamed topic, etc.). Still group it instead of dumping it into
+      // "Other" so the type-wise layout never disappears.
+      if (!group) {
+        group = { id: 'raw:' + raw, name: raw, order: groups.length + extras.size + 1, questions: [], extra: true };
+        extras.set(qbTypeKey(raw), group);
+        groups.push(group);
+        byKey.set(qbTypeKey(raw), group);
+      }
+    }
+    (group || untyped).questions.push(q);
   });
   const result = groups.filter(g => g.questions.length);
   if (untyped.questions.length) result.push(untyped);
   return result;
+}
+
+function makeQBTypeAssign(topic, getTargets, rerender) {
+  const wrap = document.createElement('span');
+  wrap.className = 'qb-type-assign';
+  const sel = document.createElement('select');
+  sel.className = 'qb-assign-select';
+  sel.setAttribute('aria-label', 'Type to assign');
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = 'Choose type…';
+  sel.appendChild(placeholder);
+  sortedKeys(getTopicTypes(topic)).forEach(tid => {
+    const type = getTopicTypes(topic)[tid];
+    const opt = document.createElement('option');
+    opt.value = tid;
+    opt.textContent = (type && type.name) || tid;
+    sel.appendChild(opt);
+  });
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'qb-assign-btn';
+  btn.textContent = 'Assign';
+  btn.addEventListener('click', function () {
+    const typeId = sel.value;
+    if (!typeId) { alert('Choose a type first.'); return; }
+    const targets = getTargets();
+    if (!targets.length) { alert('There are no untyped questions in this topic.'); return; }
+    const name = getTypeName(topic, typeId) || typeId;
+    if (!confirm('Assign type "' + name + '" to ' + targets.length + ' untyped question(s)?')) return;
+    targets.forEach(q => { q.type = typeId; });
+    saveData();
+    renderDashboard();
+    updateStats();
+    rerender();
+  });
+  wrap.appendChild(sel);
+  wrap.appendChild(btn);
+  return wrap;
 }
 
 function renderQBTypeGroups(list, qs) {
@@ -603,13 +661,53 @@ function renderQBTypeGroups(list, qs) {
   const topic = _qbContext
     ? data.categories[_qbContext.catId]?.subcategories[_qbContext.subId]?.topics[_qbContext.topicId]
     : null;
+  const typeIds = topic ? sortedKeys(getTopicTypes(topic)) : [];
   const groups = qbGroupQuestions(qs, topic);
-  // Topics that have no types at all: keep the plain list, no pointless header.
-  if (groups.length === 1 && groups[0].id === '__untyped__') {
-    groups[0].questions.forEach((q, i) => list.appendChild(buildQBItem(q, i)));
+  const typedGroups = groups.filter(g => g.id !== '__untyped__');
+  const untypedGroups = groups.filter(g => g.id === '__untyped__');
+  const rerender = function () {
+    const search = document.getElementById('qbSearch');
+    filterQBQuestions(search ? search.value : '');
+  };
+  const untypedTargets = function () {
+    return (topic ? (topic.questions || []) : qs).filter(q => !q.type || !getTopicTypes(topic)[q.type]);
+  };
+
+  // All questions are still untyped: show the type picker so grouping can start.
+  if (topic && typeIds.length && !typedGroups.length) {
+    const hint = document.createElement('div');
+    hint.className = 'qb-type-hint';
+    const label = document.createElement('span');
+    label.textContent = 'None of the questions shown have a type yet. Assign a type to group them:';
+    hint.appendChild(label);
+    hint.appendChild(makeQBTypeAssign(topic, untypedTargets, rerender));
+    list.appendChild(hint);
+    untypedGroups.forEach(group => {
+      group.questions.forEach((q, i) => list.appendChild(buildQBItem(q, i)));
+    });
     updateQBSelection();
     return;
   }
+
+  // Topics with no types at all: explain why there are no type headers.
+  if (topic && !typeIds.length) {
+    const hint = document.createElement('div');
+    hint.className = 'qb-type-hint info';
+    hint.innerHTML = '<i class="fas fa-circle-info"></i> This topic has no types yet. Add types in <strong>Admin → Types</strong> to see type-wise groups.';
+    list.appendChild(hint);
+    if (!typedGroups.length) {
+      let flatNo = 0;
+      groups.forEach(group => {
+        group.questions.forEach(q => {
+          list.appendChild(buildQBItem(q, flatNo));
+          flatNo++;
+        });
+      });
+      updateQBSelection();
+      return;
+    }
+  }
+
   let n = 0;
   let typeNo = 0;
   groups.forEach(group => {
@@ -623,6 +721,9 @@ function renderQBTypeGroups(list, qs) {
       '<span class="qb-type-index' + (untyped ? ' untyped' : '') + '">' + (untyped ? 'Other' : 'Type ' + typeNo) + '</span>' +
       '<strong>' + esc(group.name) + '</strong>' +
       '<span class="qb-type-count">' + group.questions.length + ' question' + (group.questions.length === 1 ? '' : 's') + '</span>';
+    if (untyped && topic && typeIds.length) {
+      head.appendChild(makeQBTypeAssign(topic, untypedTargets, rerender));
+    }
     section.appendChild(head);
     group.questions.forEach(q => {
       section.appendChild(buildQBItem(q, n));
@@ -1648,9 +1749,12 @@ function populateAdminQType(catId, subId, topicId) {
   const topic = data.categories[catId]?.subcategories[subId]?.topics[topicId];
   sel.innerHTML = '<option value="">Type: None</option>';
   if (topic) {
-    sortedKeys(getTopicTypes(topic)).forEach(tid => {
+    const typeIds = sortedKeys(getTopicTypes(topic));
+    typeIds.forEach(tid => {
       sel.innerHTML += '<option value="' + tid + '">Type: ' + esc(getTopicTypes(topic)[tid].name) + '</option>';
     });
+    // Default to the first type so newly added questions are grouped automatically.
+    if (typeIds.length) sel.value = typeIds[0];
   }
 }
 
