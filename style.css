@@ -1131,8 +1131,6 @@ input, select, textarea, button { font-family: inherit; }
 }
 .qb-types-empty i { font-size: 26px; color: var(--primary); opacity: 0.65; margin-bottom: 4px; }
 .qb-types-empty p { margin: 0; font-size: 14px; font-weight: 700; color: var(--text); }
-.qb-types-empty span { font-size: 12px; }
-.qb-types-empty strong { color: var(--text); }
 .qb-type-card {
   position: relative;
   display: flex;

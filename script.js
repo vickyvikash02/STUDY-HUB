@@ -614,8 +614,7 @@ function renderQBTypePicker(container, topic, groups) {
   if (!entries.length) {
     const empty = document.createElement('div');
     empty.className = 'qb-types-empty';
-    empty.innerHTML = '<i class="fas fa-layer-group"></i><p>No types in this topic yet.</p>' +
-      '<span>Add types in <strong>Admin → Types</strong> and they will appear here as boxes.</span>';
+    empty.innerHTML = '<i class="fas fa-layer-group"></i><p>No questions in this topic yet.</p>';
     container.appendChild(empty);
     return;
   }
