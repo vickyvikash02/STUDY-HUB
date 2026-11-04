@@ -1283,7 +1283,7 @@ function renderEbookCollectionList(type) {
   const values = ebookCollectionValues(type);
   return values.map((name, index) => {
     const count = ebookCollectionCount(type, name);
-    return '<div class="admin-option-row"><div><span class="admin-option-name">' + esc(name) + '</span><span class="admin-option-count">' + count + ' E-Book' + (count === 1 ? '' : 's') + '</span></div><span><button type="button" class="act-btn edit" onclick="editEbookCollectionItem(\'' + type + '\',' + index + ')" aria-label="Edit"><i class="fas fa-pen"></i> Edit</button><button type="button" class="act-btn del" onclick="deleteEbookCollectionItem(\'' + type + '\',' + index + ')" aria-label="Remove"><i class="fas fa-trash"></i> Remove</button></span></div>';
+    return '<div class="admin-option-row"><div><span class="admin-option-name">' + esc(name) + '</span><span class="admin-option-count">' + count + ' E-Book' + (count === 1 ? '' : 's') + '</span></div><span><button type="button" class="act-btn edit" onclick="editEbookCollectionItem(\'' + type + '\',' + index + ')" aria-label="Edit"><i class="fas fa-pen"></i></button><button type="button" class="act-btn del" onclick="deleteEbookCollectionItem(\'' + type + '\',' + index + ')" aria-label="Remove"><i class="fas fa-trash"></i></button></span></div>';
   }).join('');
 }
 
@@ -1536,8 +1536,8 @@ async function renderDriveFolders() {
     const idx = data.driveFolders.indexOf(folder);
     html += '<div class="admin-item" style="flex-direction:column;align-items:stretch;gap:6px;margin-top:8px;">';
     html += '<div style="display:flex;align-items:center;gap:8px;"><strong><i class="fas fa-folder"></i> ' + esc(folder.name) + '</strong>';
-    html += '<button class="act-btn edit" onclick="editDriveFolder(' + idx + ')" title="Rename linked folder label"><i class="fas fa-pen"></i> Edit</button>';
-    html += '<button class="del-btn" onclick="unlinkDriveFolder(' + idx + ')" style="margin-left:auto;">Unlink</button></div>';
+    html += '<button class="act-btn edit" onclick="editDriveFolder(' + idx + ')" title="Rename linked folder label"><i class="fas fa-pen"></i></button>';
+    html += '<button class="act-btn del" onclick="unlinkDriveFolder(' + idx + ')" title="Unlink folder" aria-label="Unlink folder"><i class="fas fa-trash"></i></button></div>';
     if (apiKey) {
       try {
         const pdfs = await scanDriveFolder(folder.folderId, apiKey);
@@ -1545,7 +1545,7 @@ async function renderDriveFolders() {
           const defaultCategory = ebookFallback('exam');
           const defaultLanguage = ebookFallback('language');
           html += '<div class="drive-folder-import">';
-          html += '<div class="folder-import-toolbar"><label>Exam <select class="folder-default-category">' + ebookSelectOptionsHtml(getEbookExams(), defaultCategory) + '</select></label><label>Language <select class="folder-default-language">' + ebookSelectOptionsHtml(getEbookLanguages(), defaultLanguage) + '</select></label><button type="button" class="act-btn edit folder-apply-defaults" onclick="applyFolderImportDefaults(this)"><i class="fas fa-check-double"></i> Apply to rows</button><p>Existing rows can be edited here; changes are saved automatically.</p></div>';
+          html += '<div class="folder-import-toolbar"><label>Exam <select class="folder-default-category">' + ebookSelectOptionsHtml(getEbookExams(), defaultCategory) + '</select></label><label>Language <select class="folder-default-language">' + ebookSelectOptionsHtml(getEbookLanguages(), defaultLanguage) + '</select></label><button type="button" class="act-btn action-wide folder-apply-defaults" onclick="applyFolderImportDefaults(this)" title="Apply selected exam and language to all rows"><i class="fas fa-check-double"></i> Apply to rows</button><p>Existing rows can be edited here; changes are saved automatically.</p></div>';
           html += '<div class="admin-import-list">';
           pdfs.forEach(f => {
             const existing = ebookForDriveFile(f.id);
@@ -1895,7 +1895,7 @@ function renderAdminCategories(container) {
   catKeys.forEach((catId, idx) => {
     const c = data.categories[catId];
     const iconHtml = c.iconImage ? '<img src="' + imgUrl(c.iconImage) + '" style="width:20px;height:20px;vertical-align:middle;border-radius:4px;">' : (c.icon || '📂');
-    html += `<div class="admin-item" data-id="${catId}"><span>${c.order || (idx+1)}. ${iconHtml} ${c.name}</span><span><button class="act-btn edit" onclick="editCat('${catId}')"><i class="fas fa-pen"></i> Edit</button><button class="act-btn del" onclick="delCat('${catId}')"><i class="fas fa-trash"></i> Del</button><span class="drag-handle" draggable="true"><i class="fas fa-grip-vertical"></i></span></span></div>`;
+    html += `<div class="admin-item" data-id="${catId}"><span>${c.order || (idx+1)}. ${iconHtml} ${c.name}</span><span><button class="act-btn edit" title="Edit" aria-label="Edit" onclick="editCat('${catId}')"><i class="fas fa-pen"></i></button><button class="act-btn del" title="Delete" aria-label="Delete" onclick="delCat('${catId}')"><i class="fas fa-trash"></i></button><span class="drag-handle" draggable="true"><i class="fas fa-grip-vertical"></i></span></span></div>`;
   });
   html += '</div></div>';
   container.innerHTML = html;
@@ -2010,7 +2010,7 @@ function renderAdminSubcategories(container) {
     subKeys.forEach((subId, idx) => {
       const s = c.subcategories[subId];
       subNum++;
-      html += '<div class="admin-item" data-id="' + subId + '" data-cat="' + catId + '"><span>' + subNum + '. ' + c.icon + ' ' + c.name + ' → ' + s.name + '</span><span><button class="act-btn edit" onclick="editSub(\'' + catId + '\',\'' + subId + '\')"><i class="fas fa-pen"></i> Edit</button><button class="act-btn del" onclick="delSub(\'' + catId + '\',\'' + subId + '\')"><i class="fas fa-trash"></i> Del</button><span class="drag-handle" draggable="true"><i class="fas fa-grip-vertical"></i></span></span></div>';
+      html += '<div class="admin-item" data-id="' + subId + '" data-cat="' + catId + '"><span>' + subNum + '. ' + c.icon + ' ' + c.name + ' → ' + s.name + '</span><span><button class="act-btn edit" title="Edit" aria-label="Edit" onclick="editSub(\'' + catId + '\',\'' + subId + '\')"><i class="fas fa-pen"></i></button><button class="act-btn del" title="Delete" aria-label="Delete" onclick="delSub(\'' + catId + '\',\'' + subId + '\')"><i class="fas fa-trash"></i></button><span class="drag-handle" draggable="true"><i class="fas fa-grip-vertical"></i></span></span></div>';
     });
   });
   html += '</div></div>';
@@ -2107,7 +2107,7 @@ function renderAdminTopics(container) {
             '<button class="act-btn del" title="Delete type" onclick="delType(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\',\'' + typeId + '\')"><i class="fas fa-trash"></i></button></span>';
         }).join('');
         html += '<div class="admin-topic-block" data-id="' + topicId + '" data-cat="' + catId + '" data-sub="' + subId + '">';
-        html += '<div class="admin-item" data-id="' + topicId + '" data-cat="' + catId + '" data-sub="' + subId + '"><span>' + topicNum + '. ' + c.icon + ' ' + c.name + ' → ' + s.name + ' → ' + t.name + ' (' + topicQs.length + ' Q)</span><span><button class="act-btn edit" onclick="editTopic(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-pen"></i> Edit</button><button class="act-btn del" onclick="delTopic(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-trash"></i> Del</button><span class="drag-handle" draggable="true"><i class="fas fa-grip-vertical"></i></span></span></div>';
+        html += '<div class="admin-item" data-id="' + topicId + '" data-cat="' + catId + '" data-sub="' + subId + '"><span>' + topicNum + '. ' + c.icon + ' ' + c.name + ' → ' + s.name + ' → ' + t.name + ' (' + topicQs.length + ' Q)</span><span><button class="act-btn edit" title="Edit" aria-label="Edit" onclick="editTopic(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-pen"></i></button><button class="act-btn del" title="Delete" aria-label="Delete" onclick="delTopic(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-trash"></i></button><span class="drag-handle" draggable="true"><i class="fas fa-grip-vertical"></i></span></span></div>';
         html += '<div class="admin-topic-types">' + (typeChips || '<span class="admin-type-empty">No types yet</span>') +
           '<button class="admin-type-add" onclick="focusAddTypeForm(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\')"><i class="fas fa-plus"></i> Add type</button></div>';
         html += '</div>';
@@ -2267,7 +2267,7 @@ function renderAdminTypes(container) {
           if (prevSearch && !type.name.toLowerCase().includes(prevSearch.toLowerCase())) return;
           rowNum++;
           const qCount = (t.questions || []).filter(q => q.type === typeId).length;
-          rows += '<div class="admin-item" data-id="' + typeId + '" data-cat="' + catId + '" data-sub="' + subId + '" data-topic="' + topicId + '"><span>' + rowNum + '. ' + c.icon + ' ' + c.name + ' → ' + s.name + ' → ' + t.name + ' → <strong>' + esc(type.name) + '</strong> (' + qCount + ' Q)</span><span><button class="act-btn edit" onclick="editType(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\',\'' + typeId + '\')"><i class="fas fa-pen"></i> Edit</button><button class="act-btn del" onclick="delType(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\',\'' + typeId + '\')"><i class="fas fa-trash"></i> Del</button><span class="drag-handle" draggable="true"><i class="fas fa-grip-vertical"></i></span></span></div>';
+          rows += '<div class="admin-item" data-id="' + typeId + '" data-cat="' + catId + '" data-sub="' + subId + '" data-topic="' + topicId + '"><span>' + rowNum + '. ' + c.icon + ' ' + c.name + ' → ' + s.name + ' → ' + t.name + ' → <strong>' + esc(type.name) + '</strong> (' + qCount + ' Q)</span><span><button class="act-btn edit" title="Edit" aria-label="Edit" onclick="editType(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\',\'' + typeId + '\')"><i class="fas fa-pen"></i></button><button class="act-btn del" title="Delete" aria-label="Delete" onclick="delType(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\',\'' + typeId + '\')"><i class="fas fa-trash"></i></button><span class="drag-handle" draggable="true"><i class="fas fa-grip-vertical"></i></span></span></div>';
         });
       });
     });
@@ -2611,8 +2611,8 @@ function applyAQFilters() {
     html += '<div class="aq-text">' + topicCount + '. ' + esc(q.question || '') + ' <span class="aq-type' + (qTypeLabel === 'Untyped' ? ' untyped' : '') + '">' + esc(qTypeLabel) + '</span></div>' + (q.image ? '<img class="aq-img" src="' + imgUrl(q.image) + '" alt="Question image">' : '');
     html += '<div class="aq-opts">' + (q.options || []).map((o, oi) => (oi === q.answer ? '✅ ' : '') + String.fromCharCode(65 + oi) + '. ' + esc(o)).join(' | ') + '</div>';
     html += '<div class="aq-ans">Answer: ' + String.fromCharCode(65 + q.answer) + ' | ' + esc(q.explanation || '') + '</div>' + (q.expImage ? '<img class="aq-img" src="' + imgUrl(q.expImage) + '" alt="Explanation image">' : '');
-    html += '<div class="aq-actions"><button class="btn-secondary" onclick="event.stopPropagation();editAdminQ(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\',' + q.id + ')"><i class="fas fa-pen"></i> Edit</button>';
-    html += '<button class="btn-danger" onclick="event.stopPropagation();delAdminQ(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\',' + q.id + ')"><i class="fas fa-trash"></i> Delete</button></div></div>';
+    html += '<div class="aq-actions"><button class="act-btn edit" onclick="event.stopPropagation();editAdminQ(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\',' + q.id + ')" aria-label="Edit question" title="Edit question"><i class="fas fa-pen"></i></button>';
+    html += '<button class="act-btn del" onclick="event.stopPropagation();delAdminQ(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\',' + q.id + ')" aria-label="Delete question" title="Delete question"><i class="fas fa-trash"></i></button></div></div>';
   });
   if (prevTopicKey !== null) html += '</div></div>';
   if (!prevTopicKey) html = '<p class="empty-state" style="padding:20px;">No questions match your filters.</p>';
@@ -3455,8 +3455,10 @@ function renderExistingTests() {
       mockContainer.innerHTML = mockTests.map((t, i) => `
         <div class="admin-item">
           <span><strong>${esc(t.name)}</strong> — ${t.duration} min, ${t.totalMarks} marks, ${(t.questionIds || []).length} questions</span>
-          <button class="edit-btn" onclick="editMockTest(${i})">Edit</button>
-          <button class="del-btn" onclick="delMockTest(${i})">Del</button>
+          <span class="admin-actions">
+            <button class="act-btn edit" onclick="editMockTest(${i})" aria-label="Edit mock test" title="Edit mock test"><i class="fas fa-pen"></i></button>
+            <button class="act-btn del" onclick="delMockTest(${i})" aria-label="Delete mock test" title="Delete mock test"><i class="fas fa-trash"></i></button>
+          </span>
         </div>`).join('');
     }
   }
@@ -3473,8 +3475,10 @@ function renderExistingTests() {
         const path = [cat && cat.name, sub && sub.name, topic && topic.name].filter(Boolean).join(' › ') || 'Topic removed';
         return '<div class="admin-item">' +
           '<span><strong>' + esc(test.name) + '</strong> — ' + esc(path) + ', ' + test.duration + ' min, ' + test.totalMarks + ' marks, ' + (test.questionIds || []).length + ' questions</span>' +
-          '<button class="edit-btn" onclick="editTopicTest(' + i + ')">Edit</button>' +
-          '<button class="del-btn" onclick="delTopicTest(' + i + ')">Del</button>' +
+          '<span class="admin-actions">' +
+            '<button class="act-btn edit" onclick="editTopicTest(' + i + ')" aria-label="Edit topic test" title="Edit topic test"><i class="fas fa-pen"></i></button>' +
+            '<button class="act-btn del" onclick="delTopicTest(' + i + ')" aria-label="Delete topic test" title="Delete topic test"><i class="fas fa-trash"></i></button>' +
+          '</span>' +
           '</div>';
       }).join('');
     }
