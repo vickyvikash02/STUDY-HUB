@@ -1482,6 +1482,44 @@ function linkDriveFolder() {
   renderDriveFolders();
 }
 
+function ebookForDriveFile(fileId) {
+  return (data.ebooks || []).find(ebook => {
+    const url = String((ebook && ebook.url) || '');
+    return url.includes('id=' + fileId) || url.includes(fileId);
+  }) || null;
+}
+
+function editDriveFolder(idx) {
+  const folder = data.driveFolders && data.driveFolders[idx];
+  if (!folder) return;
+  const name = prompt('Folder label / display name:', folder.name);
+  if (name === null) return;
+  const clean = name.trim();
+  if (!clean) { alert('Folder label cannot be empty.'); return; }
+  folder.name = clean;
+  saveData();
+  renderDriveFolders();
+}
+
+function refreshEbookAdminCounts() {
+  const exams = getEbookExams();
+  document.querySelectorAll('#adminExamList .admin-option-row').forEach((row, index) => {
+    const name = exams[index];
+    const countEl = row.querySelector('.admin-option-count');
+    if (!name || !countEl) return;
+    const count = ebookCollectionCount('exam', name);
+    countEl.textContent = count + ' E-Book' + (count === 1 ? '' : 's');
+  });
+  const languages = getEbookLanguages();
+  document.querySelectorAll('#adminLanguageList .admin-option-row').forEach((row, index) => {
+    const name = languages[index];
+    const countEl = row.querySelector('.admin-option-count');
+    if (!name || !countEl) return;
+    const count = ebookCollectionCount('language', name);
+    countEl.textContent = count + ' E-Book' + (count === 1 ? '' : 's');
+  });
+}
+
 async function renderDriveFolders() {
   const container = document.getElementById('driveFolderList');
   const apiKey = localStorage.getItem('gdrive_api_key');
@@ -1494,6 +1532,7 @@ async function renderDriveFolders() {
     const idx = data.driveFolders.indexOf(folder);
     html += '<div class="admin-item" style="flex-direction:column;align-items:stretch;gap:6px;margin-top:8px;">';
     html += '<div style="display:flex;align-items:center;gap:8px;"><strong><i class="fas fa-folder"></i> ' + esc(folder.name) + '</strong>';
+    html += '<button class="act-btn edit" onclick="editDriveFolder(' + idx + ')" title="Rename linked folder label"><i class="fas fa-pen"></i> Edit</button>';
     html += '<button class="del-btn" onclick="unlinkDriveFolder(' + idx + ')" style="margin-left:auto;">Unlink</button></div>';
     if (apiKey) {
       try {
@@ -1501,19 +1540,21 @@ async function renderDriveFolders() {
         if (pdfs.length) {
           const defaultCategory = ebookFallback('exam');
           const defaultLanguage = ebookFallback('language');
-          const examOptions = ebookSelectOptionsHtml(getEbookExams(), defaultCategory);
-          const languageOptions = ebookSelectOptionsHtml(getEbookLanguages(), defaultLanguage);
           html += '<div class="drive-folder-import">';
-          html += '<div class="folder-import-toolbar"><label>Exam <select class="folder-default-category">' + ebookSelectOptionsHtml(getEbookExams(), defaultCategory) + '</select></label><label>Language <select class="folder-default-language">' + ebookSelectOptionsHtml(getEbookLanguages(), defaultLanguage) + '</select></label><button type="button" class="act-btn edit folder-apply-defaults" onclick="applyFolderImportDefaults(this)"><i class="fas fa-check-double"></i> Apply to rows</button></div>';
+          html += '<div class="folder-import-toolbar"><label>Exam <select class="folder-default-category">' + ebookSelectOptionsHtml(getEbookExams(), defaultCategory) + '</select></label><label>Language <select class="folder-default-language">' + ebookSelectOptionsHtml(getEbookLanguages(), defaultLanguage) + '</select></label><button type="button" class="act-btn edit folder-apply-defaults" onclick="applyFolderImportDefaults(this)"><i class="fas fa-check-double"></i> Apply to rows</button><p>Existing rows can be edited here; changes are saved automatically.</p></div>';
           html += '<div class="admin-import-list">';
           pdfs.forEach(f => {
-            const defaultName = String(f.name || '').replace(/\.pdf$/i, '').trim() || 'Untitled E-Book';
-            const exists = data.ebooks.some(e => e.url && e.url.includes(f.id));
-            html += '<div class="admin-import-row' + (exists ? ' admin-import-row-locked' : '') + '" data-id="' + esc(f.id) + '">';
-            html += '<div class="admin-import-source"><label><input type="checkbox" class="folder-pdf-check" data-id="' + esc(f.id) + '"' + (exists ? ' checked disabled' : '') + '> <span class="folder-pdf-source-name">' + esc(f.name) + '</span>' + (exists ? '<small>(added)</small>' : '') + '</label></div>';
-            html += '<input type="text" class="folder-pdf-name" value="' + esc(defaultName) + '" placeholder="E-Book name"' + (exists ? ' disabled' : '') + '>';
-            html += '<select class="folder-pdf-category"' + (exists ? ' disabled' : '') + '>' + examOptions + '</select>';
-            html += '<select class="folder-pdf-language"' + (exists ? ' disabled' : '') + '>' + languageOptions + '</select>';
+            const existing = ebookForDriveFile(f.id);
+            const defaultName = existing ? existing.name : (String(f.name || '').replace(/\.pdf$/i, '').trim() || 'Untitled E-Book');
+            const rowCategory = existing ? ebookCategory(existing) : defaultCategory;
+            const rowLanguage = existing ? ebookLanguage(existing) : defaultLanguage;
+            const rowExamOptions = ebookSelectOptionsHtml(getEbookExams(), rowCategory);
+            const rowLanguageOptions = ebookSelectOptionsHtml(getEbookLanguages(), rowLanguage);
+            html += '<div class="admin-import-row' + (existing ? ' admin-import-row-existing' : '') + '" data-id="' + esc(f.id) + '" data-existing-id="' + (existing ? esc(String(existing.id)) : '') + '">';
+            html += '<div class="admin-import-source"><label><input type="checkbox" class="folder-pdf-check" data-id="' + esc(f.id) + '"' + (existing ? ' checked disabled' : '') + '> <span class="folder-pdf-source-name">' + esc(f.name) + '</span>' + (existing ? '<small>(added)</small>' : '') + '</label></div>';
+            html += '<input type="text" class="folder-pdf-name" value="' + esc(defaultName) + '" placeholder="E-Book name">';
+            html += '<select class="folder-pdf-category">' + rowExamOptions + '</select>';
+            html += '<select class="folder-pdf-language">' + rowLanguageOptions + '</select>';
             html += '</div>';
           });
           html += '</div><div class="admin-import-footer"><button class="btn-primary" onclick="addSelectedFromFolder(this)"><i class="fas fa-plus"></i> Add Selected</button></div></div>';
@@ -1554,17 +1595,56 @@ async function unlinkDriveFolder(idx) {
   renderDriveFolders();
 }
 
+function updateDriveImportRow(row) {
+  const id = row.dataset.existingId;
+  const ebook = id ? (data.ebooks || []).find(item => String(item.id) === String(id)) : null;
+  if (!ebook) return false;
+  const nameInput = row.querySelector('.folder-pdf-name');
+  const categorySelect = row.querySelector('.folder-pdf-category');
+  const languageSelect = row.querySelector('.folder-pdf-language');
+  if (nameInput) {
+    const value = nameInput.value.trim();
+    if (!value) {
+      alert('E-Book name cannot be blank.');
+      nameInput.value = ebook.name;
+    } else {
+      ebook.name = value;
+    }
+  }
+  if (categorySelect) ebook.category = categorySelect.value;
+  if (languageSelect) ebook.language = languageSelect.value;
+  return true;
+}
+
+function saveDriveImportRow(row) {
+  if (!updateDriveImportRow(row)) return;
+  saveData();
+  refreshEbookAdminCounts();
+  const list = document.getElementById('adminEbookList');
+  if (list) renderEbookList(true, 'adminEbookList');
+  renderEbook();
+}
+
 function applyFolderImportDefaults(button) {
   const scope = button && button.closest('.drive-folder-import');
   if (!scope) return;
   const category = scope.querySelector('.folder-default-category')?.value;
   const language = scope.querySelector('.folder-default-language')?.value;
-  scope.querySelectorAll('.admin-import-row:not(.admin-import-row-locked)').forEach(row => {
+  let changedExisting = false;
+  scope.querySelectorAll('.admin-import-row').forEach(row => {
     const categorySelect = row.querySelector('.folder-pdf-category');
     const languageSelect = row.querySelector('.folder-pdf-language');
     if (category && categorySelect) categorySelect.value = category;
     if (language && languageSelect) languageSelect.value = language;
+    if (row.dataset.existingId && updateDriveImportRow(row)) changedExisting = true;
   });
+  if (changedExisting) {
+    saveData();
+    refreshEbookAdminCounts();
+    const list = document.getElementById('adminEbookList');
+    if (list) renderEbookList(true, 'adminEbookList');
+    renderEbook();
+  }
 }
 
 async function addSelectedFromFolder(button) {
@@ -1572,7 +1652,7 @@ async function addSelectedFromFolder(button) {
   const rows = Array.from((scope || document).querySelectorAll('.admin-import-row'));
   const selected = rows.filter(row => {
     const check = row.querySelector('.folder-pdf-check');
-    return check && check.checked && !check.disabled && !row.classList.contains('admin-import-row-locked');
+    return check && check.checked && !check.disabled && !row.dataset.existingId;
   });
   if (!selected.length) { alert('Select at least one new PDF.'); return; }
 
@@ -4480,6 +4560,13 @@ async function init() {
   }
   document.addEventListener('keydown', function (event) {
     if (event.key === 'Escape') closeEbookModal();
+  });
+  document.addEventListener('change', function (event) {
+    const row = event.target.closest('.admin-import-row');
+    if (!row || !row.dataset.existingId) return;
+    if (event.target.matches('.folder-pdf-name, .folder-pdf-category, .folder-pdf-language')) {
+      saveDriveImportRow(row);
+    }
   });
 
   // Admin tabs
