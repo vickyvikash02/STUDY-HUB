@@ -565,16 +565,72 @@ function openQuestionBank(catId, subId, topicId) {
   }
 
   function renderQBList(qs) {
-    list.innerHTML = '';
-    qs.forEach((q, i) => {
-      const item = buildQBItem(q, i);
-      list.appendChild(item);
-    });
-    if (!qs.length) list.innerHTML = '<div class="empty-state"><i class="fas fa-search"></i><p>No questions match your search.</p></div>';
-    updateQBSelection();
+    renderQBTypeGroups(list, qs);
   }
 
   renderQBList(qs);
+}
+
+function qbGroupQuestions(qs, topic) {
+  const groups = [];
+  const byId = new Map();
+  if (topic) {
+    sortedKeys(getTopicTypes(topic)).forEach((typeId, i) => {
+      const type = getTopicTypes(topic)[typeId];
+      const group = { id: typeId, name: type.name || typeId, order: i + 1, questions: [] };
+      groups.push(group);
+      byId.set(typeId, group);
+    });
+  }
+  const untyped = { id: '__untyped__', name: 'Untyped', order: groups.length + 1, questions: [] };
+  (qs || []).forEach(q => {
+    const group = q.type ? byId.get(q.type) : null;
+    if (group) group.questions.push(q);
+    else untyped.questions.push(q);
+  });
+  const result = groups.filter(g => g.questions.length);
+  if (untyped.questions.length) result.push(untyped);
+  return result;
+}
+
+function renderQBTypeGroups(list, qs) {
+  list.innerHTML = '';
+  if (!qs.length) {
+    list.innerHTML = '<div class="empty-state"><i class="fas fa-search"></i><p>No questions match your search.</p></div>';
+    updateQBSelection();
+    return;
+  }
+  const topic = _qbContext
+    ? data.categories[_qbContext.catId]?.subcategories[_qbContext.subId]?.topics[_qbContext.topicId]
+    : null;
+  const groups = qbGroupQuestions(qs, topic);
+  // Topics that have no types at all: keep the plain list, no pointless header.
+  if (groups.length === 1 && groups[0].id === '__untyped__') {
+    groups[0].questions.forEach((q, i) => list.appendChild(buildQBItem(q, i)));
+    updateQBSelection();
+    return;
+  }
+  let n = 0;
+  let typeNo = 0;
+  groups.forEach(group => {
+    const section = document.createElement('div');
+    section.className = 'qb-type-group';
+    const untyped = group.id === '__untyped__';
+    if (!untyped) typeNo++;
+    const head = document.createElement('div');
+    head.className = 'qb-type-head';
+    head.innerHTML =
+      '<span class="qb-type-index' + (untyped ? ' untyped' : '') + '">' + (untyped ? 'Other' : 'Type ' + typeNo) + '</span>' +
+      '<strong>' + esc(group.name) + '</strong>' +
+      '<span class="qb-type-count">' + group.questions.length + ' question' + (group.questions.length === 1 ? '' : 's') + '</span>';
+    section.appendChild(head);
+    group.questions.forEach(q => {
+      section.appendChild(buildQBItem(q, n));
+      n++;
+    });
+    list.appendChild(section);
+  });
+  updateQBSelection();
 }
 
 function toggleQBSelectAll(checked) {
@@ -772,14 +828,8 @@ function filterQBQuestions(val) {
   const qs = window._qbAllQs || [];
   const list = document.getElementById('qbQuestionList');
   if (!list) return;
-  list.innerHTML = '';
   const filtered = qs.filter(x => x.question.toLowerCase().includes(q) || (x.explanation || '').toLowerCase().includes(q));
-  filtered.forEach((x, i) => {
-    const item = buildQBItem(x, i);
-    list.appendChild(item);
-  });
-  if (!filtered.length) list.innerHTML = '<div class="empty-state"><i class="fas fa-search"></i><p>No questions match your search.</p></div>';
-  updateQBSelection();
+  renderQBTypeGroups(list, filtered);
 }
 
 // ======================== E-BOOK ========================
@@ -1486,6 +1536,12 @@ function renderAdminQuestions(container) {
   html += '<div class="admin-row"><input type="file" id="adminQExpImg" accept="image/*" style="flex:1;"><span id="adminQExpImgName" style="font-size:12px;color:var(--text2);"></span></div>';
   html += '<input type="hidden" id="adminQEditId"><input type="hidden" id="adminQEditCat"><input type="hidden" id="adminQEditSub"><input type="hidden" id="adminQEditTopic"><button class="btn-primary" id="adminAddQBtn">Add Question</button></div>';
 
+  html += '<div class="admin-import">';
+  html += '<div class="admin-import-head"><h4><i class="fas fa-file-word"></i> Import from Word</h4><span>Add many questions at once from a .docx file</span></div>';
+  html += '<div class="admin-row"><input type="file" id="adminQImportFile" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style="flex:1;"><button class="btn-secondary" id="adminQImportBtn"><i class="fas fa-file-import"></i> Import Questions</button></div>';
+  html += '<details class="admin-import-help"><summary>Show supported Word format</summary><pre>Type: Arithmetic\n\nQ1. What is 12 + 8?\nA) 18\nB) 20\nC) 22\nD) 24\nAnswer: B\nExplanation: 12 + 8 = 20.\n\nQ2. What is 7 × 6?\nA) 36\nB) 40\nC) 42\nD) 48\nAnswer: C\nExplanation: 7 × 6 = 42.\n\nNotes:\n- Each question starts with Q1., Q2. or 1., 2.\n- Options use A), B), C), D) (2 to 6 options supported).\n- Answer can be A, B, C, D or 1, 2, 3, 4.\n- "Type: Name" applies to the questions that follow; "Type 1 - Name" section headers also work.\n- If a question has no Type line, the Type selected above is used.\n- Explanation is optional.</pre></details>';
+  html += '</div>';
+
   html += '</div>';
 
   html += '<div class="admin-section"><h3>All Questions</h3>';
@@ -1509,6 +1565,7 @@ function renderAdminQuestions(container) {
   container.innerHTML = html;
 
   document.getElementById('adminAddQBtn').addEventListener('click', addAdminQ);
+  document.getElementById('adminQImportBtn').addEventListener('click', importQuestionsFromWord);
 
   document.getElementById('adminQCat').addEventListener('change', function () {
     const subSel = document.getElementById('adminQSub');
@@ -1763,6 +1820,235 @@ async function addAdminQ() {
     btn.disabled = false; btn.textContent = editId ? 'Update Question' : 'Add Question';
   }
   btn.disabled = false; btn.textContent = editId ? 'Update Question' : 'Add Question';
+}
+
+// ======================== WORD IMPORT ========================
+// Loaded on demand so the main app never waits for the CDN.
+const MAMMOTH_URL = 'https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js';
+let _mammothPromise = null;
+
+function loadMammoth() {
+  if (typeof mammoth !== 'undefined') return Promise.resolve(mammoth);
+  if (_mammothPromise) return _mammothPromise;
+  _mammothPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = MAMMOTH_URL;
+    script.onload = function () {
+      if (typeof mammoth !== 'undefined') resolve(mammoth);
+      else reject(new Error('The Word import library did not start.'));
+    };
+    script.onerror = function () {
+      _mammothPromise = null;
+      reject(new Error('Could not load the Word import library. Check your internet connection and try again.'));
+    };
+    document.head.appendChild(script);
+  });
+  return _mammothPromise;
+}
+
+function ensureTopicType(topic, name) {
+  if (!topic) return '';
+  if (!topic.types || typeof topic.types !== 'object') topic.types = {};
+  const clean = String(name || '').trim();
+  if (!clean) return '';
+  const found = Object.keys(topic.types).find(k => String(topic.types[k].name || '').toLowerCase() === clean.toLowerCase());
+  if (found) return found;
+  let base = clean.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'type';
+  let id = base;
+  let n = 2;
+  while (topic.types[id]) id = base + '-' + n++;
+  topic.types[id] = { id, name: clean, order: nextTypeOrder(topic) };
+  return id;
+}
+
+function parseAnswerIndex(raw, options) {
+  const choices = options || [];
+  const candidates = [String(raw || '').trim(), String(raw || '').replace(/^option\s+/i, '').trim()];
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    let m = candidate.match(/^\(?([a-z])\)?(?:\s*[\).:\-–—]|\s|$)/i);
+    if (m) {
+      const i = m[1].toUpperCase().charCodeAt(0) - 65;
+      if (i >= 0 && i < choices.length) return i;
+    }
+    m = candidate.match(/^(\d+)(?:\s*[\).:\-–—]|\s|$)/);
+    if (m) {
+      const i = parseInt(m[1], 10) - 1;
+      if (i >= 0 && i < choices.length) return i;
+    }
+    const lower = candidate.toLowerCase();
+    for (let i = 0; i < choices.length; i++) {
+      if (String(choices[i] || '').trim().toLowerCase() === lower) return i;
+    }
+  }
+  return -1;
+}
+
+// Reads a plain-text version of a Word document (from mammoth) and turns it
+// into question objects. Expected shape is shown in the Admin panel.
+function parseWordQuestions(text) {
+  const lines = String(text || '')
+    .replace(/\r/g, '')
+    .split('\n')
+    .map(l => l.replace(/\u00a0/g, ' ').trim())
+    .filter(Boolean);
+
+  const questions = [];
+  let skipped = 0;
+  let cur = null;
+  let pendingType = '';
+  let mode = '';
+
+  function finish() {
+    if (!cur) return;
+    const options = (cur.options || []).map(o => o.trim()).filter(Boolean);
+    if (cur.question && options.length >= 2 && cur.answered && cur.answer >= 0 && cur.answer < options.length) {
+      questions.push({
+        question: cur.question.replace(/\s+/g, ' ').trim(),
+        options,
+        answer: cur.answer,
+        explanation: (cur.explanation || '').replace(/\s+/g, ' ').trim(),
+        typeName: (cur.typeName || pendingType || '').trim()
+      });
+    } else {
+      skipped++;
+    }
+    cur = null;
+    mode = '';
+  }
+
+  lines.forEach(line => {
+    const typeMatch = line.match(/^type\s*(?:\d+)?\s*[:\-–—]\s*(.+)$/i);
+    if (typeMatch) {
+      const name = typeMatch[1].trim();
+      if (cur && !cur.answered) cur.typeName = name;
+      else {
+        if (cur) finish();
+        pendingType = name;
+      }
+      return;
+    }
+
+    const answerMatch = line.match(/^(?:correct\s+)?(?:answer|ans)\s*[:\-–—.]?\s*(.*)$/i);
+    if (answerMatch && cur) {
+      cur.answer = parseAnswerIndex(answerMatch[1], cur.options || []);
+      cur.answered = true;
+      mode = 'answer';
+      return;
+    }
+
+    const expMatch = line.match(/^(?:explanation|explain|solution)\s*[:\-–—.]?\s*(.*)$/i);
+    if (expMatch && cur) {
+      cur.explanation = expMatch[1].trim();
+      mode = 'explanation';
+      return;
+    }
+
+    const optMatch = line.match(/^\(([a-z])\)\s*(.*)$/i) || line.match(/^([a-z])[\).:\-–—]\s*(.*)$/i);
+    if (optMatch && cur && !cur.answered) {
+      cur.options.push(optMatch[2].trim());
+      mode = 'option';
+      return;
+    }
+
+    const qMatch = line.match(/^(?:q(?:uestion)?\s*[.\-:]?\s*)?(\d+)\s*[\).:\-]\s*(.+)$/i);
+    if (qMatch && (!cur || cur.answered || (cur.options && cur.options.length))) {
+      if (cur) finish();
+      cur = { question: qMatch[2].trim(), options: [], answer: -1, answered: false, explanation: '', typeName: '' };
+      mode = 'question';
+      return;
+    }
+
+    if (!cur) return;
+    if (mode === 'explanation') {
+      cur.explanation += (cur.explanation ? ' ' : '') + line;
+    } else if (mode === 'answer') {
+      cur.explanation = (cur.explanation ? cur.explanation + ' ' : '') + line;
+    } else if (mode === 'option' && cur.options.length) {
+      cur.options[cur.options.length - 1] += ' ' + line;
+    } else {
+      cur.question += ' ' + line;
+    }
+  });
+
+  finish();
+  return { questions, skipped };
+}
+
+function addParsedQuestions(parsed, catId, subId, topicId, defaultTypeId) {
+  const topic = data.categories[catId]?.subcategories[subId]?.topics[topicId];
+  if (!topic) return { added: 0, createdTypes: 0 };
+  if (!Array.isArray(topic.questions)) topic.questions = [];
+  let createdTypes = 0;
+  parsed.forEach(item => {
+    let typeId = '';
+    if (item.typeName) {
+      const before = Object.keys(getTopicTypes(topic)).length;
+      typeId = ensureTopicType(topic, item.typeName);
+      if (Object.keys(getTopicTypes(topic)).length > before) createdTypes++;
+    } else if (defaultTypeId && getTopicTypes(topic)[defaultTypeId]) {
+      typeId = defaultTypeId;
+    }
+    const q = {
+      id: genId(),
+      question: item.question,
+      options: item.options,
+      answer: item.answer,
+      explanation: item.explanation || '',
+      image: '',
+      expImage: ''
+    };
+    if (typeId) q.type = typeId;
+    topic.questions.push(q);
+  });
+  return { added: parsed.length, createdTypes };
+}
+
+async function importQuestionsFromWord() {
+  const catId = document.getElementById('adminQCat').value;
+  const subId = document.getElementById('adminQSub').value;
+  const topicId = document.getElementById('adminQTopic').value;
+  const fileInput = document.getElementById('adminQImportFile');
+  const btn = document.getElementById('adminQImportBtn');
+  const file = fileInput && fileInput.files ? fileInput.files[0] : null;
+
+  if (!catId || !subId || !topicId) { alert('Select Category, Subcategory and Topic first.'); return; }
+  if (!file) { alert('Choose a Word (.docx) file to import.'); return; }
+  if (!/\.docx$/i.test(file.name)) { alert('Please choose a .docx Word document (save older .doc files as .docx first).'); return; }
+
+  const topic = data.categories[catId]?.subcategories[subId]?.topics[topicId];
+  if (!topic) return;
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Reading...'; }
+  try {
+    const lib = await loadMammoth();
+    const arrayBuffer = await file.arrayBuffer();
+    const result = await lib.extractRawText({ arrayBuffer });
+    const parsed = parseWordQuestions(result.value || '');
+    if (!parsed.questions.length) {
+      alert('No valid questions found in this document.' +
+        (parsed.skipped ? '\n\n' + parsed.skipped + ' block(s) were skipped because options or an answer were missing.' : ''));
+      return;
+    }
+
+    let message = 'Found ' + parsed.questions.length + ' question' + (parsed.questions.length === 1 ? '' : 's') + ' in "' + file.name + '".';
+    if (parsed.skipped) message += '\n' + parsed.skipped + ' block(s) will be skipped (missing options or answer).';
+    message += '\n\nImport into "' + topic.name + '"?';
+    if (!confirm(message)) return;
+
+    const defaultTypeId = document.getElementById('adminQType').value;
+    const res = addParsedQuestions(parsed.questions, catId, subId, topicId, defaultTypeId);
+    await saveData();
+    renderDashboard();
+    updateStats();
+    renderAdmin();
+    alert('Imported ' + res.added + ' question' + (res.added === 1 ? '' : 's') + ' into "' + topic.name + '"' +
+      (res.createdTypes ? ' and created ' + res.createdTypes + ' new type' + (res.createdTypes === 1 ? '' : 's') : '') + '.');
+  } catch (e) {
+    alert(/Word import library/.test(e.message || '') ? e.message : 'Could not read the Word document: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-file-import"></i> Import Questions'; }
+  }
 }
 
 function clearAdminQForm() {
