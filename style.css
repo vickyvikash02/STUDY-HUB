@@ -1156,7 +1156,6 @@ input, select, textarea, button { font-family: inherit; }
   transition: all var(--transition);
 }
 .qb-type-card:hover .qb-type-card-go { background: var(--primary); color: #fff; }
-.qb-type-card.all .qb-type-card-tag { color: var(--text2); }
 .qb-type-card.untyped .qb-type-card-tag { color: #d98a1f; }
 
 .qb-type-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }

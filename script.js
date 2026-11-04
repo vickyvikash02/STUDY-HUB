@@ -502,7 +502,7 @@ function qbAllGroups(topic) {
 function makeQBTypeCard(info) {
   const card = document.createElement('button');
   card.type = 'button';
-  card.className = 'qb-type-card' + (info.all ? ' all' : '') + (info.untyped ? ' untyped' : '');
+  card.className = 'qb-type-card' + (info.untyped ? ' untyped' : '');
   card.innerHTML =
     '<span class="qb-type-card-tag">' + esc(info.tag) + '</span>' +
     '<span class="qb-type-card-name">' + esc(info.name) + '</span>' +
@@ -582,19 +582,8 @@ function renderQBView() {
 
 function renderQBTypePicker(container, topic, groups) {
   container.innerHTML = '';
-  container.appendChild(qbViewHead('Choose a type', topic.name, 'All topics', function () {
-    renderQBTopics(_qbContext.catId, _qbContext.subId);
-  }));
-
   const row = document.createElement('div');
   row.className = 'qb-types-row';
-  row.appendChild(makeQBTypeCard({
-    id: 'all',
-    tag: 'All',
-    name: 'All Questions',
-    count: (topic.questions || []).length,
-    all: true
-  }));
 
   let typeNo = 0;
   groups.forEach(group => {
