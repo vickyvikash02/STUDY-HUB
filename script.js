@@ -1200,6 +1200,7 @@ function ebookKindSelectHtml(id, selected) {
 function setEbookView(kind) {
   if (kind !== 'ebook' && kind !== 'answer-key') return;
   _ebookView = kind;
+  if (kind === 'answer-key') _ebookSubject = 'All';
   renderEbook();
 }
 
@@ -1373,9 +1374,10 @@ function ebookFilterMatches(ebook) {
   const category = ebookCategory(ebook);
   const language = ebookLanguage(ebook);
   const subject = ebookSubject(ebook);
+  const subjectFilter = _ebookView === 'answer-key' ? 'All' : _ebookSubject;
   return (_ebookCategory === 'All' || category === _ebookCategory) &&
     (_ebookLanguage === 'All' || language === _ebookLanguage) &&
-    (_ebookSubject === 'All' || subject === _ebookSubject);
+    (subjectFilter === 'All' || subject === subjectFilter);
 }
 
 function ebookCoverHTML(ebook, type) {
@@ -1450,11 +1452,14 @@ function renderEbook() {
   const visible = kindItems.filter(item => ebookFilterMatches(item.ebook));
   const total = visible.length;
   html += '<div class="ebook-filter-panel">';
-  html += '<div class="ebook-filter-block"><span class="ebook-filter-label">Subject</span><div class="ebook-filter-row">' + renderEbookFilterButtons(ebookAllFilters('subject'), _ebookSubject, 'subject') + '</div></div>';
+  if (!isAnswerKeyView) {
+    html += '<div class="ebook-filter-block"><span class="ebook-filter-label">Subject</span><div class="ebook-filter-row">' + renderEbookFilterButtons(ebookAllFilters('subject'), _ebookSubject, 'subject') + '</div></div>';
+  }
   html += '<div class="ebook-filter-block"><span class="ebook-filter-label">Exam</span><div class="ebook-filter-row">' + renderEbookFilterButtons(ebookAllFilters('exam'), _ebookCategory, 'category') + '</div></div>';
   html += '<div class="ebook-filter-block"><span class="ebook-filter-label">Language</span><div class="ebook-filter-row">' + renderEbookFilterButtons(ebookAllFilters('language'), _ebookLanguage, 'language') + '</div></div>';
   html += '</div>';
-  const scopeLabel = _ebookSubject !== 'All' ? _ebookSubject : _ebookCategory !== 'All' ? _ebookCategory : 'All';
+  const subjectScope = isAnswerKeyView ? 'All' : _ebookSubject;
+  const scopeLabel = subjectScope !== 'All' ? subjectScope : _ebookCategory !== 'All' ? _ebookCategory : 'All';
   html += '<div class="ebook-results-head"><div><strong>' + esc(scopeLabel) + '</strong> ' + noun + 's</div><span>' + total + ' result' + (total === 1 ? '' : 's') + '</span></div>';
 
   if (!kindItems.length) {
@@ -1472,7 +1477,7 @@ function renderEbook() {
   }
 
   html += '<div class="ebook-grid">';
-  if (_ebookSubject === 'All') {
+  if (subjectScope === 'All') {
     // Browse subject-wise: group cards under each subject heading.
     const groups = new Map();
     getEbookSubjects().forEach(subject => groups.set(subject, []));
