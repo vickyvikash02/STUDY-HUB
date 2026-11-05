@@ -1568,6 +1568,9 @@ function renderAdminEbook(container) {
   html += '<div style="flex:1;min-width:110px;">' + ebookLanguageSelectHtml('ebookLanguage') + '</div>';
   html += '<input type="number" id="ebookPages" min="1" placeholder="Pages" style="width:100px;"><input type="text" id="ebookSize" placeholder="Size (e.g. 2.02 MB)" style="flex:1;min-width:130px;"><input type="text" id="ebookCover" placeholder="Cover image URL (optional)" style="flex:2;min-width:220px;"><button class="btn-secondary" id="ebookAddFileBtn"><i class="fas fa-upload"></i> Upload PDF</button></div>';
   html += '<div class="admin-row" style="flex-wrap:wrap;gap:8px;"><input type="text" id="ebookDescription" placeholder="Short description (optional)" style="flex:1;min-width:300px;"></div></div>';
+  html += '<div class="admin-section"><h3>Uploaded PDFs</h3>';
+  html += '<p style="color:var(--text2);font-size:12px;margin:-2px 0 10px;">View, edit or remove the PDFs in your library. Type, Subject, Exam and Language changes save automatically.</p>';
+  html += '<div class="admin-pdf-list">' + renderUploadedPdfRows() + '</div></div>';
   html += '<div class="admin-section"><h3>Linked Drive Folders</h3>';
   html += '<p style="color:var(--text2);font-size:12px;margin:-2px 0 10px;">Tick a PDF to add it to the library. Untick an added PDF to remove it from the library. The PDF stays in Google Drive.</p>';
   html += '<div class="admin-row" style="flex-wrap:wrap;gap:8px;">';
@@ -1915,7 +1918,90 @@ async function addEbookFile() {
   });
   refreshEbookAdminCounts();
   renderEbook();
+  const activeTab = document.querySelector('.admin-tab.active');
+  if (activeTab && activeTab.dataset.admin === 'ebook') renderAdmin();
   alert('"' + ebook.name + '" uploaded.');
+}
+
+function uploadedPdfRowInfo(button) {
+  const row = button && button.closest('.admin-pdf-row');
+  if (!row) return null;
+  const ebook = (data.ebooks || []).find(item => String(item.id) === String(row.dataset.ebookId));
+  return ebook ? { row, ebook } : null;
+}
+
+function renderUploadedPdfRows() {
+  const ebooks = Array.isArray(data.ebooks) ? data.ebooks : [];
+  if (!ebooks.length) {
+    return '<div class="admin-pdf-empty">No PDFs added yet. Upload one above or import from a linked Drive folder.</div>';
+  }
+  return ebooks.map(ebook => {
+    const kind = ebookKind(ebook);
+    const meta = [ebookKindLabel(kind), ebookSizeText(ebook), ebook.uploaded ? 'Added ' + ebook.uploaded : ''].filter(Boolean).join(' · ');
+    return '<div class="admin-pdf-row" data-ebook-id="' + esc(String(ebook.id)) + '">' +
+      '<div class="admin-pdf-info"><span class="admin-pdf-icon"><i class="fas fa-file-pdf"></i></span><div class="admin-pdf-text"><strong title="' + esc(ebook.name) + '">' + esc(ebook.name) + '</strong><small class="admin-pdf-meta">' + esc(meta) + '</small></div></div>' +
+      '<select class="uploaded-pdf-kind" aria-label="Type">' + ebookKindOptionsHtml(kind) + '</select>' +
+      '<select class="uploaded-pdf-subject" aria-label="Subject">' + ebookSelectOptionsHtml(getEbookSubjects(), ebookSubject(ebook)) + '</select>' +
+      '<select class="uploaded-pdf-category" aria-label="Exam">' + ebookSelectOptionsHtml(getEbookExams(), ebookCategory(ebook)) + '</select>' +
+      '<select class="uploaded-pdf-language" aria-label="Language">' + ebookSelectOptionsHtml(getEbookLanguages(), ebookLanguage(ebook)) + '</select>' +
+      '<div class="admin-pdf-actions">' +
+        '<button type="button" class="act-btn" onclick="openUploadedPdf(this)" title="View PDF" aria-label="View PDF"><i class="fas fa-eye"></i></button>' +
+        '<button type="button" class="act-btn edit" onclick="renameUploadedPdf(this)" title="Edit name" aria-label="Edit name"><i class="fas fa-pen"></i></button>' +
+        '<button type="button" class="act-btn del" onclick="deleteUploadedPdf(this)" title="Delete" aria-label="Delete"><i class="fas fa-trash"></i></button>' +
+      '</div></div>';
+  }).join('');
+}
+
+function openUploadedPdf(button) {
+  const info = uploadedPdfRowInfo(button);
+  if (!info) return;
+  const index = data.ebooks.indexOf(info.ebook);
+  if (index !== -1) openPdf(index, false);
+}
+
+function renameUploadedPdf(button) {
+  const info = uploadedPdfRowInfo(button);
+  if (!info) return;
+  const name = prompt('PDF name:', info.ebook.name);
+  if (name === null) return;
+  const clean = name.trim();
+  if (!clean) { alert('Name cannot be empty.'); return; }
+  info.ebook.name = clean;
+  saveData();
+  const title = info.row.querySelector('.admin-pdf-text strong');
+  if (title) {
+    title.textContent = clean;
+    title.title = clean;
+  }
+  refreshEbookAdminCounts();
+  renderEbook();
+}
+
+async function updateUploadedPdfRow(row) {
+  const id = row && row.dataset.ebookId;
+  const ebook = id ? (data.ebooks || []).find(item => String(item.id) === String(id)) : null;
+  if (!ebook) return;
+  ebook.kind = row.querySelector('.uploaded-pdf-kind')?.value === 'answer-key' ? 'answer-key' : 'ebook';
+  ebook.subject = row.querySelector('.uploaded-pdf-subject')?.value || ebookFallback('subject');
+  ebook.category = row.querySelector('.uploaded-pdf-category')?.value || ebookFallback('exam');
+  ebook.language = row.querySelector('.uploaded-pdf-language')?.value || ebookFallback('language');
+  await saveData();
+  const meta = row.querySelector('.admin-pdf-meta');
+  if (meta) meta.textContent = [ebookKindLabel(ebook.kind), ebookSizeText(ebook), ebook.uploaded ? 'Added ' + ebook.uploaded : ''].filter(Boolean).join(' · ');
+  refreshEbookAdminCounts();
+  renderEbook();
+}
+
+async function deleteUploadedPdf(button) {
+  const info = uploadedPdfRowInfo(button);
+  if (!info) return;
+  if (!confirm('Delete "' + info.ebook.name + '" from the library?')) return;
+  data.ebooks = (data.ebooks || []).filter(item => item !== info.ebook);
+  await saveData();
+  refreshEbookAdminCounts();
+  renderEbook();
+  const activeTab = document.querySelector('.admin-tab.active');
+  if (activeTab && activeTab.dataset.admin === 'ebook') renderAdmin();
 }
 
 function renderEbookList(showDelete, containerId) {
@@ -4795,6 +4881,11 @@ async function init() {
       removeAddedDriveEbook(toggleRow).then(removed => {
         if (removed === false) toggle.checked = true;
       });
+      return;
+    }
+    const pdfRow = event.target.closest('.admin-pdf-row');
+    if (pdfRow && event.target.matches('.uploaded-pdf-kind, .uploaded-pdf-subject, .uploaded-pdf-category, .uploaded-pdf-language')) {
+      updateUploadedPdfRow(pdfRow);
       return;
     }
     const row = event.target.closest('.admin-import-row');
