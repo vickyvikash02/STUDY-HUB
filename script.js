@@ -1170,12 +1170,12 @@ let _ebookLanguage = 'All';
 let _selectedEbookIdx = -1;
 
 function getEbookExams() {
-  data.exams = normalizeNameList(data.exams, DEFAULT_EBOOK_EXAMS);
+  if (!Array.isArray(data.exams)) data.exams = normalizeNameList(data.exams, DEFAULT_EBOOK_EXAMS);
   return data.exams;
 }
 
 function getEbookLanguages() {
-  data.languages = normalizeNameList(data.languages, DEFAULT_EBOOK_LANGUAGES);
+  if (!Array.isArray(data.languages)) data.languages = normalizeNameList(data.languages, DEFAULT_EBOOK_LANGUAGES);
   return data.languages;
 }
 
@@ -1242,10 +1242,10 @@ function editEbookCollectionItem(type, index) {
     return;
   }
   if (newName === oldName) return;
-  values[index] = newName;
   (data.ebooks || []).forEach(ebook => {
     if (ebookMatchesCollection(ebook, type, oldName)) setEbookCollectionValue(ebook, type, newName);
   });
+  values[index] = newName;
   if (type === 'exam' && _ebookCategory === oldName) _ebookCategory = newName;
   if (type === 'language' && _ebookLanguage === oldName) _ebookLanguage = newName;
   saveData();
@@ -1261,18 +1261,21 @@ function deleteEbookCollectionItem(type, index) {
     return;
   }
   const affected = ebookCollectionCount(type, oldName);
+  if (!affected) {
+    values.splice(index, 1);
+    saveData();
+    renderAdmin();
+    return;
+  }
   const fallback = values.filter((_, i) => i !== index).includes('Others') && type === 'exam'
     ? 'Others'
     : values.filter((_, i) => i !== index)[0];
-  const kind = type === 'exam' ? 'Exam' : 'Language';
-  const message = affected
-    ? 'Remove "' + oldName + '"?\n\nIt is used by ' + affected + ' E-Book(s). They will move to "' + fallback + '".'
-    : 'Remove "' + oldName + '" from ' + kind + '?';
+  const message = 'Remove "' + oldName + '"?\n\nIt is used by ' + affected + ' E-Book(s). They will move to "' + fallback + '".';
   if (!confirm(message)) return;
-  values.splice(index, 1);
   (data.ebooks || []).forEach(ebook => {
     if (ebookMatchesCollection(ebook, type, oldName)) setEbookCollectionValue(ebook, type, fallback);
   });
+  values.splice(index, 1);
   if (type === 'exam' && _ebookCategory === oldName) _ebookCategory = 'All';
   if (type === 'language' && _ebookLanguage === oldName) _ebookLanguage = 'All';
   saveData();
@@ -1448,13 +1451,13 @@ function renderAdminEbook(container) {
   html += '<input type="number" id="ebookPages" min="1" placeholder="Pages" style="width:100px;"><input type="text" id="ebookSize" placeholder="Size (e.g. 2.02 MB)" style="flex:1;min-width:130px;"><input type="text" id="ebookCover" placeholder="Cover image URL (optional)" style="flex:2;min-width:220px;"><button class="btn-secondary" id="ebookAddUrlBtn"><i class="fas fa-plus"></i> Add E-Book</button></div>';
   html += '<div class="admin-row" style="flex-wrap:wrap;gap:8px;"><input type="text" id="ebookDescription" placeholder="Short description (optional)" style="flex:1;min-width:300px;"></div></div>';
   html += '<div class="admin-section"><h3>Linked Drive Folders</h3>';
+  html += '<p style="color:var(--text2);font-size:12px;margin:-2px 0 10px;">Tick a PDF to add it to the library. Untick an added PDF to remove it from the library. The PDF stays in Google Drive.</p>';
   html += '<div class="admin-row" style="flex-wrap:wrap;gap:8px;">';
   html += '<input type="text" id="driveFolderName" placeholder="Label (e.g. Maths Books)" style="flex:1;min-width:140px;">';
   html += '<input type="text" id="driveFolderLink" placeholder="Google Drive folder URL or ID" style="flex:2;min-width:200px;">';
   html += '<input type="text" id="driveFolderApiKey" placeholder="API Key (one-time)" style="flex:1;min-width:140px;" value="' + esc(apiKey) + '">';
   html += '<button class="btn-secondary" id="linkDriveFolderBtn"><i class="fas fa-folder-plus"></i> Link Folder</button></div>';
   html += '<div id="driveFolderList"></div></div>';
-  html += '<div class="admin-section"><h3>All E-Books <span style="font-weight:400;font-size:13px;color:var(--text2);">(' + (data.ebooks || []).length + ')</span></h3><div id="adminEbookList"></div></div>';
   container.innerHTML = html;
   document.getElementById('ebookAddUrlBtn').addEventListener('click', addEbookUrl);
   document.getElementById('linkDriveFolderBtn').addEventListener('click', linkDriveFolder);
@@ -1463,7 +1466,6 @@ function renderAdminEbook(container) {
   document.getElementById('adminExamInput').addEventListener('keydown', event => { if (event.key === 'Enter') addEbookCollectionItem('exam'); });
   document.getElementById('adminLanguageInput').addEventListener('keydown', event => { if (event.key === 'Enter') addEbookCollectionItem('language'); });
   renderDriveFolders();
-  renderEbookList(true, 'adminEbookList');
 }
 
 function linkDriveFolder() {
@@ -1555,7 +1557,8 @@ async function renderDriveFolders() {
             const rowExamOptions = ebookSelectOptionsHtml(getEbookExams(), rowCategory);
             const rowLanguageOptions = ebookSelectOptionsHtml(getEbookLanguages(), rowLanguage);
             html += '<div class="admin-import-row' + (existing ? ' admin-import-row-existing' : '') + '" data-id="' + esc(f.id) + '" data-existing-id="' + (existing ? esc(String(existing.id)) : '') + '">';
-            html += '<div class="admin-import-source"><label><input type="checkbox" class="folder-pdf-check" data-id="' + esc(f.id) + '"' + (existing ? ' checked disabled' : '') + '> <span class="folder-pdf-source-name">' + esc(f.name) + '</span>' + (existing ? '<small>(added)</small>' : '') + '</label></div>';
+            const checkTitle = existing ? 'Untick to remove this E-Book from the library' : 'Tick to select this PDF';
+            html += '<div class="admin-import-source"><label><input type="checkbox" class="folder-pdf-check" data-id="' + esc(f.id) + '" title="' + checkTitle + '" aria-label="' + checkTitle + '"' + (existing ? ' checked' : '') + '> <span class="folder-pdf-source-name">' + esc(f.name) + '</span>' + (existing ? '<small>(added)</small>' : '') + '</label></div>';
             html += '<input type="text" class="folder-pdf-name" value="' + esc(defaultName) + '" placeholder="E-Book name">';
             html += '<select class="folder-pdf-category">' + rowExamOptions + '</select>';
             html += '<select class="folder-pdf-language">' + rowLanguageOptions + '</select>';
@@ -1599,6 +1602,33 @@ async function unlinkDriveFolder(idx) {
   renderDriveFolders();
 }
 
+async function removeAddedDriveEbook(row) {
+  const existingId = row && row.dataset.existingId;
+  if (!existingId) return;
+  const ebook = (data.ebooks || []).find(item => String(item.id) === String(existingId));
+  if (!ebook) {
+    row.dataset.existingId = '';
+    row.classList.remove('admin-import-row-existing');
+    return;
+  }
+  if (!confirm('Remove "' + ebook.name + '" from E-Books?\n\nThe PDF stays in Google Drive and can be added again.')) return false;
+  data.ebooks = data.ebooks.filter(item => String(item.id) !== String(existingId));
+  await saveData();
+  row.dataset.existingId = '';
+  row.classList.remove('admin-import-row-existing');
+  const marker = row.querySelector('.admin-import-source small');
+  if (marker) marker.remove();
+  const checkbox = row.querySelector('.folder-pdf-check');
+  if (checkbox) {
+    checkbox.checked = false;
+    checkbox.title = 'Tick to select this PDF';
+    checkbox.setAttribute('aria-label', 'Tick to select this PDF');
+  }
+  refreshEbookAdminCounts();
+  renderEbook();
+  return true;
+}
+
 function updateDriveImportRow(row) {
   const id = row.dataset.existingId;
   const ebook = id ? (data.ebooks || []).find(item => String(item.id) === String(id)) : null;
@@ -1624,8 +1654,6 @@ function saveDriveImportRow(row) {
   if (!updateDriveImportRow(row)) return;
   saveData();
   refreshEbookAdminCounts();
-  const list = document.getElementById('adminEbookList');
-  if (list) renderEbookList(true, 'adminEbookList');
   renderEbook();
 }
 
@@ -1645,8 +1673,6 @@ function applyFolderImportDefaults(button) {
   if (changedExisting) {
     saveData();
     refreshEbookAdminCounts();
-    const list = document.getElementById('adminEbookList');
-    if (list) renderEbookList(true, 'adminEbookList');
     renderEbook();
   }
 }
@@ -1718,7 +1744,7 @@ function addEbookUrl() {
   ['ebookName', 'ebookManualUrl', 'ebookPages', 'ebookSize', 'ebookCover', 'ebookDescription'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
-  renderEbookList(true, 'adminEbookList');
+  renderEbook();
 }
 
 function renderEbookList(showDelete, containerId) {
@@ -1804,7 +1830,6 @@ function editEbook(idx) {
   ebook.cover = String(cover || '').trim();
   ebook.description = String(description || '').trim();
   saveData();
-  renderEbookList(true, 'adminEbookList');
   if (document.getElementById('ebookList')) renderEbook();
 }
 
@@ -4570,6 +4595,15 @@ async function init() {
     if (event.key === 'Escape') closeEbookModal();
   });
   document.addEventListener('change', function (event) {
+    const toggle = event.target.closest('.folder-pdf-check');
+    if (toggle) {
+      const toggleRow = toggle.closest('.admin-import-row');
+      if (!toggleRow || !toggleRow.dataset.existingId || toggle.checked) return;
+      removeAddedDriveEbook(toggleRow).then(removed => {
+        if (removed === false) toggle.checked = true;
+      });
+      return;
+    }
     const row = event.target.closest('.admin-import-row');
     if (!row || !row.dataset.existingId) return;
     if (event.target.matches('.folder-pdf-name, .folder-pdf-category, .folder-pdf-language')) {
