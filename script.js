@@ -3,8 +3,9 @@ const THEME_KEY = 'studyhub_theme';
 
 const DEFAULT_EBOOK_EXAMS = ['SSC', 'Railways', 'UPPBPB', 'IB', 'RPF', 'Others'];
 const DEFAULT_EBOOK_LANGUAGES = ['English', 'Hindi'];
+const DEFAULT_EBOOK_SUBJECTS = ['Maths', 'Reasoning', 'English', 'General Awareness', 'Current Affairs', 'Computer', 'Others'];
 
-let data = { categories: {}, ebooks: [], driveFolders: [], exams: DEFAULT_EBOOK_EXAMS.slice(), languages: DEFAULT_EBOOK_LANGUAGES.slice() };
+let data = { categories: {}, ebooks: [], driveFolders: [], exams: DEFAULT_EBOOK_EXAMS.slice(), languages: DEFAULT_EBOOK_LANGUAGES.slice(), subjects: DEFAULT_EBOOK_SUBJECTS.slice() };
 let mockTests = [];
 let topicTests = [];
 let qidCounter = 0;
@@ -33,7 +34,8 @@ async function loadData() {
         ebooks: d.ebooks || [],
         driveFolders: d.driveFolders || [],
         exams: normalizeNameList(d.exams, DEFAULT_EBOOK_EXAMS),
-        languages: normalizeNameList(d.languages, DEFAULT_EBOOK_LANGUAGES)
+        languages: normalizeNameList(d.languages, DEFAULT_EBOOK_LANGUAGES),
+        subjects: normalizeNameList(d.subjects, DEFAULT_EBOOK_SUBJECTS)
       };
       mockTests = d.mockTests || [];
       topicTests = d.topicTests || [];
@@ -45,6 +47,7 @@ async function loadData() {
   if (!Array.isArray(topicTests)) topicTests = [];
   data.exams = normalizeNameList(data.exams, DEFAULT_EBOOK_EXAMS);
   data.languages = normalizeNameList(data.languages, DEFAULT_EBOOK_LANGUAGES);
+  data.subjects = normalizeNameList(data.subjects, DEFAULT_EBOOK_SUBJECTS);
   if (normalizeQuestionTypes()) saveData();
   syncIds();
 }
@@ -57,6 +60,7 @@ async function saveData() {
       driveFolders: data.driveFolders || [],
       exams: data.exams || DEFAULT_EBOOK_EXAMS,
       languages: data.languages || DEFAULT_EBOOK_LANGUAGES,
+      subjects: data.subjects || DEFAULT_EBOOK_SUBJECTS,
       mockTests,
       topicTests
     }));
@@ -1167,6 +1171,7 @@ function filterQBQuestions(val) {
 // ======================== E-BOOK ========================
 let _ebookCategory = 'All';
 let _ebookLanguage = 'All';
+let _ebookSubject = 'All';
 let _selectedEbookIdx = -1;
 
 function getEbookExams() {
@@ -1179,10 +1184,15 @@ function getEbookLanguages() {
   return data.languages;
 }
 
+function getEbookSubjects() {
+  if (!Array.isArray(data.subjects)) data.subjects = normalizeNameList(data.subjects, DEFAULT_EBOOK_SUBJECTS);
+  return data.subjects;
+}
+
 function ebookFallback(type) {
-  const values = type === 'exam' ? getEbookExams() : getEbookLanguages();
-  if (type === 'exam' && values.includes('Others')) return 'Others';
-  return values[0] || (type === 'exam' ? DEFAULT_EBOOK_EXAMS[0] : DEFAULT_EBOOK_LANGUAGES[0]);
+  const values = type === 'exam' ? getEbookExams() : type === 'subject' ? getEbookSubjects() : getEbookLanguages();
+  if ((type === 'exam' || type === 'subject') && values.includes('Others')) return 'Others';
+  return values[0] || (type === 'exam' ? DEFAULT_EBOOK_EXAMS[0] : type === 'subject' ? DEFAULT_EBOOK_SUBJECTS[0] : DEFAULT_EBOOK_LANGUAGES[0]);
 }
 
 function ebookCategory(ebook) {
@@ -1197,16 +1207,27 @@ function ebookLanguage(ebook) {
   return languages.includes(value) ? value : ebookFallback('language');
 }
 
+function ebookSubject(ebook) {
+  const subjects = getEbookSubjects();
+  const value = String((ebook && ebook.subject) || '').trim();
+  return subjects.includes(value) ? value : ebookFallback('subject');
+}
+
 function ebookCollectionValues(type) {
-  return type === 'exam' ? getEbookExams() : getEbookLanguages();
+  return type === 'exam' ? getEbookExams() : type === 'subject' ? getEbookSubjects() : getEbookLanguages();
+}
+
+function ebookCollectionLabel(type) {
+  return type === 'exam' ? 'Exam' : type === 'subject' ? 'Subject' : 'Language';
 }
 
 function ebookMatchesCollection(ebook, type, name) {
-  return type === 'exam' ? ebookCategory(ebook) === name : ebookLanguage(ebook) === name;
+  return type === 'exam' ? ebookCategory(ebook) === name : type === 'subject' ? ebookSubject(ebook) === name : ebookLanguage(ebook) === name;
 }
 
 function setEbookCollectionValue(ebook, type, name) {
   if (type === 'exam') ebook.category = name;
+  else if (type === 'subject') ebook.subject = name;
   else ebook.language = name;
 }
 
@@ -1215,10 +1236,11 @@ function ebookCollectionCount(type, name) {
 }
 
 function addEbookCollectionItem(type) {
-  const input = document.getElementById(type === 'exam' ? 'adminExamInput' : 'adminLanguageInput');
+  const inputId = type === 'exam' ? 'adminExamInput' : type === 'subject' ? 'adminSubjectInput' : 'adminLanguageInput';
+  const input = document.getElementById(inputId);
   if (!input) return;
   const value = input.value.trim();
-  if (!value) { alert('Enter an exam or language name.'); return; }
+  if (!value) { alert('Enter an ' + ebookCollectionLabel(type).toLowerCase() + ' name.'); return; }
   const values = ebookCollectionValues(type);
   if (values.some(item => item.toLowerCase() === value.toLowerCase())) {
     alert('"' + value + '" already exists.');
@@ -1233,7 +1255,7 @@ function editEbookCollectionItem(type, index) {
   const values = ebookCollectionValues(type);
   const oldName = values[index];
   if (!oldName) return;
-  const value = prompt((type === 'exam' ? 'Exam' : 'Language') + ' name:', oldName);
+  const value = prompt(ebookCollectionLabel(type) + ' name:', oldName);
   if (value === null) return;
   const newName = value.trim();
   if (!newName) { alert('Name cannot be empty.'); return; }
@@ -1248,6 +1270,7 @@ function editEbookCollectionItem(type, index) {
   values[index] = newName;
   if (type === 'exam' && _ebookCategory === oldName) _ebookCategory = newName;
   if (type === 'language' && _ebookLanguage === oldName) _ebookLanguage = newName;
+  if (type === 'subject' && _ebookSubject === oldName) _ebookSubject = newName;
   saveData();
   renderAdmin();
 }
@@ -1256,8 +1279,9 @@ function deleteEbookCollectionItem(type, index) {
   const values = ebookCollectionValues(type);
   const oldName = values[index];
   if (!oldName) return;
+  const label = ebookCollectionLabel(type).toLowerCase();
   if (values.length <= 1) {
-    alert('Keep at least one ' + (type === 'exam' ? 'exam' : 'language') + '.');
+    alert('Keep at least one ' + label + '.');
     return;
   }
   const affected = ebookCollectionCount(type, oldName);
@@ -1267,9 +1291,8 @@ function deleteEbookCollectionItem(type, index) {
     renderAdmin();
     return;
   }
-  const fallback = values.filter((_, i) => i !== index).includes('Others') && type === 'exam'
-    ? 'Others'
-    : values.filter((_, i) => i !== index)[0];
+  const remaining = values.filter((_, i) => i !== index);
+  const fallback = (type === 'exam' || type === 'subject') && remaining.includes('Others') ? 'Others' : remaining[0];
   const message = 'Remove "' + oldName + '"?\n\nIt is used by ' + affected + ' E-Book(s). They will move to "' + fallback + '".';
   if (!confirm(message)) return;
   (data.ebooks || []).forEach(ebook => {
@@ -1278,6 +1301,7 @@ function deleteEbookCollectionItem(type, index) {
   values.splice(index, 1);
   if (type === 'exam' && _ebookCategory === oldName) _ebookCategory = 'All';
   if (type === 'language' && _ebookLanguage === oldName) _ebookLanguage = 'All';
+  if (type === 'subject' && _ebookSubject === oldName) _ebookSubject = 'All';
   saveData();
   renderAdmin();
 }
@@ -1319,7 +1343,10 @@ function ebookSizeText(ebook) {
 function ebookFilterMatches(ebook) {
   const category = ebookCategory(ebook);
   const language = ebookLanguage(ebook);
-  return (_ebookCategory === 'All' || category === _ebookCategory) && (_ebookLanguage === 'All' || language === _ebookLanguage);
+  const subject = ebookSubject(ebook);
+  return (_ebookCategory === 'All' || category === _ebookCategory) &&
+    (_ebookLanguage === 'All' || language === _ebookLanguage) &&
+    (_ebookSubject === 'All' || subject === _ebookSubject);
 }
 
 function ebookCoverHTML(ebook, type) {
@@ -1335,28 +1362,40 @@ function ebookCoverHTML(ebook, type) {
     '<div class="ebook-cover-brand">STUDY HUB</div>' +
     '<div class="ebook-cover-title">' + esc(title) + '</div>' +
     '<div class="ebook-cover-rule"></div>' +
-    '<div class="ebook-cover-foot">' + esc(ebookCategory(ebook)) + ' · ' + esc(ebookLanguage(ebook)) + '</div>' +
+    '<div class="ebook-cover-foot">' + esc(ebookSubject(ebook)) + ' · ' + esc(ebookCategory(ebook)) + '</div>' +
     '</div>';
 }
 
 function ebookAllFilters(type) {
-  return ['All'].concat(type === 'exam' ? getEbookExams() : getEbookLanguages());
+  return ['All'].concat(type === 'exam' ? getEbookExams() : type === 'subject' ? getEbookSubjects() : getEbookLanguages());
 }
 
 function setEbookFilter(type, value) {
   if (type === 'category' && ebookAllFilters('exam').includes(value)) _ebookCategory = value;
   if (type === 'language' && ebookAllFilters('language').includes(value)) _ebookLanguage = value;
+  if (type === 'subject' && ebookAllFilters('subject').includes(value)) _ebookSubject = value;
   renderEbook();
 }
 
 function clearEbookFilters() {
   _ebookCategory = 'All';
   _ebookLanguage = 'All';
+  _ebookSubject = 'All';
   renderEbook();
 }
 
 function renderEbookFilterButtons(values, active, type) {
   return values.map(value => '<button type="button" class="ebook-filter-pill' + (active === value ? ' active' : '') + '" onclick="setEbookFilter(\'' + type + '\', \'' + value + '\')">' + esc(value) + '</button>').join('');
+}
+
+function ebookCardHTML(ebook, index) {
+  const meta = [ebookPagesText(ebook), ebookSizeText(ebook)].filter(Boolean).join(' · ');
+  let html = '<article class="ebook-shop-card"><div class="ebook-cover">' + ebookCoverHTML(ebook, 'card') + '</div>';
+  html += '<div class="ebook-shop-body"><div class="ebook-card-tags"><span class="ebook-tag-subject">' + esc(ebookSubject(ebook)) + '</span><span>' + esc(ebookCategory(ebook)) + '</span><span>' + esc(ebookLanguage(ebook)) + '</span></div>';
+  html += '<h3 class="ebook-shop-title">' + esc(ebook.name) + '</h3>';
+  html += '<div class="ebook-shop-meta">' + esc(meta || 'PDF e-book') + '</div>';
+  html += '<button type="button" class="ebook-read-btn" onclick="openEbookModal(' + index + ')">Read more <i class="fas fa-arrow-right"></i></button></div></article>';
+  return html;
 }
 
 function renderEbook() {
@@ -1370,9 +1409,13 @@ function renderEbook() {
   const visible = ebooks.map((ebook, index) => ({ ebook, index })).filter(item => ebookFilterMatches(item.ebook));
   const total = visible.length;
   let html = '<div class="ebook-library">';
-  html += '<div class="ebook-filter-panel"><div class="ebook-filter-block"><span class="ebook-filter-label">Exam</span><div class="ebook-filter-row">' + renderEbookFilterButtons(ebookAllFilters('exam'), _ebookCategory, 'category') + '</div></div>';
-  html += '<div class="ebook-filter-block"><span class="ebook-filter-label">Language</span><div class="ebook-filter-row">' + renderEbookFilterButtons(ebookAllFilters('language'), _ebookLanguage, 'language') + '</div></div></div>';
-  html += '<div class="ebook-results-head"><div><strong>' + esc(_ebookCategory) + '</strong> e-books</div><span>' + total + ' result' + (total === 1 ? '' : 's') + '</span></div>';
+  html += '<div class="ebook-filter-panel">';
+  html += '<div class="ebook-filter-block"><span class="ebook-filter-label">Subject</span><div class="ebook-filter-row">' + renderEbookFilterButtons(ebookAllFilters('subject'), _ebookSubject, 'subject') + '</div></div>';
+  html += '<div class="ebook-filter-block"><span class="ebook-filter-label">Exam</span><div class="ebook-filter-row">' + renderEbookFilterButtons(ebookAllFilters('exam'), _ebookCategory, 'category') + '</div></div>';
+  html += '<div class="ebook-filter-block"><span class="ebook-filter-label">Language</span><div class="ebook-filter-row">' + renderEbookFilterButtons(ebookAllFilters('language'), _ebookLanguage, 'language') + '</div></div>';
+  html += '</div>';
+  const scopeLabel = _ebookSubject !== 'All' ? _ebookSubject : _ebookCategory !== 'All' ? _ebookCategory : 'All';
+  html += '<div class="ebook-results-head"><div><strong>' + esc(scopeLabel) + '</strong> e-books</div><span>' + total + ' result' + (total === 1 ? '' : 's') + '</span></div>';
 
   if (!visible.length) {
     html += '<div class="ebook-empty-filter"><i class="fas fa-filter-circle-xmark"></i><p>No e-books in this filter yet.</p><button type="button" class="btn-secondary" onclick="clearEbookFilters()">Clear filters</button></div></div>';
@@ -1381,14 +1424,23 @@ function renderEbook() {
   }
 
   html += '<div class="ebook-grid">';
-  visible.forEach(({ ebook, index }) => {
-    const meta = [ebookPagesText(ebook), ebookSizeText(ebook)].filter(Boolean).join(' · ');
-    html += '<article class="ebook-shop-card"><div class="ebook-cover">' + ebookCoverHTML(ebook, 'card') + '</div>';
-    html += '<div class="ebook-shop-body"><div class="ebook-card-tags"><span>' + esc(ebookCategory(ebook)) + '</span><span>' + esc(ebookLanguage(ebook)) + '</span></div>';
-    html += '<h3 class="ebook-shop-title">' + esc(ebook.name) + '</h3>';
-    html += '<div class="ebook-shop-meta">' + esc(meta || 'PDF e-book') + '</div>';
-    html += '<button type="button" class="ebook-read-btn" onclick="openEbookModal(' + index + ')">Read more <i class="fas fa-arrow-right"></i></button></div></article>';
-  });
+  if (_ebookSubject === 'All') {
+    // Browse subject-wise: group cards under each subject heading.
+    const groups = new Map();
+    getEbookSubjects().forEach(subject => groups.set(subject, []));
+    visible.forEach(item => {
+      const subject = ebookSubject(item.ebook);
+      if (!groups.has(subject)) groups.set(subject, []);
+      groups.get(subject).push(item);
+    });
+    groups.forEach((items, subject) => {
+      if (!items.length) return;
+      html += '<div class="ebook-subject-head"><span class="ebook-subject-kicker">Subject</span><strong>' + esc(subject) + '</strong><small>' + items.length + ' book' + (items.length === 1 ? '' : 's') + '</small></div>';
+      items.forEach(({ ebook, index }) => { html += ebookCardHTML(ebook, index); });
+    });
+  } else {
+    visible.forEach(({ ebook, index }) => { html += ebookCardHTML(ebook, index); });
+  }
   html += '</div></div>';
   container.innerHTML = html;
 }
@@ -1408,7 +1460,7 @@ function openEbookModal(idx) {
   if (!modal || !cover || !chips || !title || !meta || !description || !view || !download) return;
 
   cover.innerHTML = ebookCoverHTML(ebook, 'modal');
-  chips.innerHTML = '<span>' + esc(ebookCategory(ebook)) + '</span><span>' + esc(ebookLanguage(ebook)) + '</span><span>PDF</span>';
+  chips.innerHTML = '<span class="ebook-chip-subject">' + esc(ebookSubject(ebook)) + '</span><span>' + esc(ebookCategory(ebook)) + '</span><span>' + esc(ebookLanguage(ebook)) + '</span><span>PDF</span>';
   title.textContent = ebook.name;
   meta.textContent = [ebookPagesText(ebook), ebookSizeText(ebook), ebook.uploaded ? 'Added ' + ebook.uploaded : ''].filter(Boolean).join(' · ');
   description.textContent = (ebook.description || '').trim();
@@ -1427,8 +1479,14 @@ function closeEbookModal() {
 
 function renderAdminEbook(container) {
   const apiKey = localStorage.getItem('gdrive_api_key') || '';
-  let html = '<div class="admin-section"><div class="admin-section-head"><div><h3>Exams &amp; Languages</h3><p>Control the filter categories shown in the public E-Book library.</p></div></div>';
+  let html = '<div class="admin-section"><div class="admin-section-head"><div><h3>Subjects, Exams &amp; Languages</h3><p>Control the filters and subject groups shown in the public E-Book library.</p></div></div>';
   html += '<div class="admin-split">';
+
+  html += '<div class="admin-subsection">';
+  html += '<div class="admin-subsection-head"><div><h4>Subjects</h4><span>' + getEbookSubjects().length + ' configured</span></div></div>';
+  html += '<div class="admin-inline-add"><input type="text" id="adminSubjectInput" placeholder="Add subject (e.g. History)"><button type="button" class="btn-secondary" id="adminAddSubjectBtn"><i class="fas fa-plus"></i> Add Subject</button></div>';
+  html += '<div id="adminSubjectList" class="admin-option-list">' + renderEbookCollectionList('subject') + '</div>';
+  html += '</div>';
 
   html += '<div class="admin-subsection">';
   html += '<div class="admin-subsection-head"><div><h4>Exams</h4><span>' + getEbookExams().length + ' configured</span></div></div>';
@@ -1446,7 +1504,8 @@ function renderAdminEbook(container) {
   html += '<div class="admin-section"><h3>Add E-Book</h3>';
   html += '<div class="admin-row" style="flex-wrap:wrap;gap:8px;"><input type="text" id="ebookName" placeholder="E-Book name" style="flex:2;min-width:220px;">';
   html += '<input type="text" id="ebookManualUrl" placeholder="Paste a Google Drive / direct PDF URL" style="flex:2;min-width:260px;"></div>';
-  html += '<div class="admin-row" style="flex-wrap:wrap;gap:8px;"><div style="flex:1;min-width:135px;">' + ebookSelectHtml('ebookCategory', getEbookExams()) + '</div>';
+  html += '<div class="admin-row" style="flex-wrap:wrap;gap:8px;"><div style="flex:1;min-width:135px;">' + ebookSelectHtml('ebookSubject', getEbookSubjects()) + '</div>';
+  html += '<div style="flex:1;min-width:135px;">' + ebookSelectHtml('ebookCategory', getEbookExams()) + '</div>';
   html += '<div style="flex:1;min-width:110px;">' + ebookLanguageSelectHtml('ebookLanguage') + '</div>';
   html += '<input type="number" id="ebookPages" min="1" placeholder="Pages" style="width:100px;"><input type="text" id="ebookSize" placeholder="Size (e.g. 2.02 MB)" style="flex:1;min-width:130px;"><input type="text" id="ebookCover" placeholder="Cover image URL (optional)" style="flex:2;min-width:220px;"><button class="btn-secondary" id="ebookAddUrlBtn"><i class="fas fa-plus"></i> Add E-Book</button></div>';
   html += '<div class="admin-row" style="flex-wrap:wrap;gap:8px;"><input type="text" id="ebookDescription" placeholder="Short description (optional)" style="flex:1;min-width:300px;"></div></div>';
@@ -1461,8 +1520,10 @@ function renderAdminEbook(container) {
   container.innerHTML = html;
   document.getElementById('ebookAddUrlBtn').addEventListener('click', addEbookUrl);
   document.getElementById('linkDriveFolderBtn').addEventListener('click', linkDriveFolder);
+  document.getElementById('adminAddSubjectBtn').addEventListener('click', () => addEbookCollectionItem('subject'));
   document.getElementById('adminAddExamBtn').addEventListener('click', () => addEbookCollectionItem('exam'));
   document.getElementById('adminAddLanguageBtn').addEventListener('click', () => addEbookCollectionItem('language'));
+  document.getElementById('adminSubjectInput').addEventListener('keydown', event => { if (event.key === 'Enter') addEbookCollectionItem('subject'); });
   document.getElementById('adminExamInput').addEventListener('keydown', event => { if (event.key === 'Enter') addEbookCollectionItem('exam'); });
   document.getElementById('adminLanguageInput').addEventListener('keydown', event => { if (event.key === 'Enter') addEbookCollectionItem('language'); });
   renderDriveFolders();
@@ -1508,6 +1569,14 @@ function editDriveFolder(idx) {
 }
 
 function refreshEbookAdminCounts() {
+  const subjects = getEbookSubjects();
+  document.querySelectorAll('#adminSubjectList .admin-option-row').forEach((row, index) => {
+    const name = subjects[index];
+    const countEl = row.querySelector('.admin-option-count');
+    if (!name || !countEl) return;
+    const count = ebookCollectionCount('subject', name);
+    countEl.textContent = count + ' E-Book' + (count === 1 ? '' : 's');
+  });
   const exams = getEbookExams();
   document.querySelectorAll('#adminExamList .admin-option-row').forEach((row, index) => {
     const name = exams[index];
@@ -1544,22 +1613,26 @@ async function renderDriveFolders() {
       try {
         const pdfs = await scanDriveFolder(folder.folderId, apiKey);
         if (pdfs.length) {
+          const defaultSubject = ebookFallback('subject');
           const defaultCategory = ebookFallback('exam');
           const defaultLanguage = ebookFallback('language');
           html += '<div class="drive-folder-import">';
-          html += '<div class="folder-import-toolbar"><label>Exam <select class="folder-default-category">' + ebookSelectOptionsHtml(getEbookExams(), defaultCategory) + '</select></label><label>Language <select class="folder-default-language">' + ebookSelectOptionsHtml(getEbookLanguages(), defaultLanguage) + '</select></label><button type="button" class="act-btn action-wide folder-apply-defaults" onclick="applyFolderImportDefaults(this)" title="Apply selected exam and language to all rows"><i class="fas fa-check-double"></i> Apply to rows</button><p>Existing rows can be edited here; changes are saved automatically.</p></div>';
+          html += '<div class="folder-import-toolbar"><label>Subject <select class="folder-default-subject">' + ebookSelectOptionsHtml(getEbookSubjects(), defaultSubject) + '</select></label><label>Exam <select class="folder-default-category">' + ebookSelectOptionsHtml(getEbookExams(), defaultCategory) + '</select></label><label>Language <select class="folder-default-language">' + ebookSelectOptionsHtml(getEbookLanguages(), defaultLanguage) + '</select></label><button type="button" class="act-btn action-wide folder-apply-defaults" onclick="applyFolderImportDefaults(this)" title="Apply selected subject, exam and language to all rows"><i class="fas fa-check-double"></i> Apply to rows</button><p>Existing rows can be edited here; changes are saved automatically.</p></div>';
           html += '<div class="admin-import-list">';
           pdfs.forEach(f => {
             const existing = ebookForDriveFile(f.id);
             const defaultName = existing ? existing.name : (String(f.name || '').replace(/\.pdf$/i, '').trim() || 'Untitled E-Book');
+            const rowSubject = existing ? ebookSubject(existing) : defaultSubject;
             const rowCategory = existing ? ebookCategory(existing) : defaultCategory;
             const rowLanguage = existing ? ebookLanguage(existing) : defaultLanguage;
+            const rowSubjectOptions = ebookSelectOptionsHtml(getEbookSubjects(), rowSubject);
             const rowExamOptions = ebookSelectOptionsHtml(getEbookExams(), rowCategory);
             const rowLanguageOptions = ebookSelectOptionsHtml(getEbookLanguages(), rowLanguage);
             html += '<div class="admin-import-row' + (existing ? ' admin-import-row-existing' : '') + '" data-id="' + esc(f.id) + '" data-existing-id="' + (existing ? esc(String(existing.id)) : '') + '">';
             const checkTitle = existing ? 'Untick to remove this E-Book from the library' : 'Tick to select this PDF';
             html += '<div class="admin-import-source"><label><input type="checkbox" class="folder-pdf-check" data-id="' + esc(f.id) + '" title="' + checkTitle + '" aria-label="' + checkTitle + '"' + (existing ? ' checked' : '') + '> <span class="folder-pdf-source-name">' + esc(f.name) + '</span>' + (existing ? '<small>(added)</small>' : '') + '</label></div>';
             html += '<input type="text" class="folder-pdf-name" value="' + esc(defaultName) + '" placeholder="E-Book name">';
+            html += '<select class="folder-pdf-subject">' + rowSubjectOptions + '</select>';
             html += '<select class="folder-pdf-category">' + rowExamOptions + '</select>';
             html += '<select class="folder-pdf-language">' + rowLanguageOptions + '</select>';
             html += '</div>';
@@ -1634,6 +1707,7 @@ function updateDriveImportRow(row) {
   const ebook = id ? (data.ebooks || []).find(item => String(item.id) === String(id)) : null;
   if (!ebook) return false;
   const nameInput = row.querySelector('.folder-pdf-name');
+  const subjectSelect = row.querySelector('.folder-pdf-subject');
   const categorySelect = row.querySelector('.folder-pdf-category');
   const languageSelect = row.querySelector('.folder-pdf-language');
   if (nameInput) {
@@ -1645,6 +1719,7 @@ function updateDriveImportRow(row) {
       ebook.name = value;
     }
   }
+  if (subjectSelect) ebook.subject = subjectSelect.value;
   if (categorySelect) ebook.category = categorySelect.value;
   if (languageSelect) ebook.language = languageSelect.value;
   return true;
@@ -1660,12 +1735,15 @@ function saveDriveImportRow(row) {
 function applyFolderImportDefaults(button) {
   const scope = button && button.closest('.drive-folder-import');
   if (!scope) return;
+  const subject = scope.querySelector('.folder-default-subject')?.value;
   const category = scope.querySelector('.folder-default-category')?.value;
   const language = scope.querySelector('.folder-default-language')?.value;
   let changedExisting = false;
   scope.querySelectorAll('.admin-import-row').forEach(row => {
+    const subjectSelect = row.querySelector('.folder-pdf-subject');
     const categorySelect = row.querySelector('.folder-pdf-category');
     const languageSelect = row.querySelector('.folder-pdf-language');
+    if (subject && subjectSelect) subjectSelect.value = subject;
     if (category && categorySelect) categorySelect.value = category;
     if (language && languageSelect) languageSelect.value = language;
     if (row.dataset.existingId && updateDriveImportRow(row)) changedExisting = true;
@@ -1691,6 +1769,7 @@ async function addSelectedFromFolder(button) {
     const id = row.dataset.id;
     const nameInput = row.querySelector('.folder-pdf-name');
     const name = nameInput ? nameInput.value.trim() : '';
+    const subject = row.querySelector('.folder-pdf-subject')?.value || ebookFallback('subject');
     const category = row.querySelector('.folder-pdf-category')?.value || ebookFallback('exam');
     const language = row.querySelector('.folder-pdf-language')?.value || ebookFallback('language');
     if (!name) {
@@ -1698,7 +1777,7 @@ async function addSelectedFromFolder(button) {
       if (nameInput) nameInput.focus();
       return;
     }
-    plans.push({ id, name, url: 'https://drive.google.com/uc?export=download&id=' + id, category, language });
+    plans.push({ id, name, url: 'https://drive.google.com/uc?export=download&id=' + id, subject, category, language });
   }
 
   plans.forEach((plan, index) => {
@@ -1707,6 +1786,7 @@ async function addSelectedFromFolder(button) {
       name: plan.name,
       url: plan.url,
       uploaded: new Date().toLocaleDateString(),
+      subject: plan.subject,
       category: plan.category,
       language: plan.language,
       pages: '',
@@ -1733,6 +1813,7 @@ function addEbookUrl() {
     name,
     url,
     uploaded: new Date().toLocaleDateString(),
+    subject: document.getElementById('ebookSubject')?.value || ebookFallback('subject'),
     category: document.getElementById('ebookCategory')?.value || 'Others',
     language: document.getElementById('ebookLanguage')?.value || 'English',
     pages: parseInt(document.getElementById('ebookPages')?.value, 10) || '',
@@ -1754,7 +1835,7 @@ function renderEbookList(showDelete, containerId) {
     return;
   }
   container.innerHTML = data.ebooks.map((e, i) => {
-    const meta = [ebookCategory(e), ebookLanguage(e), ebookPagesText(e), ebookSizeText(e)].filter(Boolean).join(' · ');
+    const meta = [ebookSubject(e), ebookCategory(e), ebookLanguage(e), ebookPagesText(e), ebookSizeText(e)].filter(Boolean).join(' · ');
     const thumbnail = e.cover
       ? '<img class="ebook-admin-cover" src="' + esc(e.cover) + '" alt="">'
       : '<div class="ebook-admin-cover ebook-admin-cover-fallback"><i class="fas fa-file-pdf"></i></div>';
@@ -1803,8 +1884,11 @@ function editEbook(idx) {
   const name = prompt('E-Book title:', ebook.name);
   if (name === null) return;
   if (!name.trim()) { alert('Title cannot be empty.'); return; }
+  const knownSubjects = getEbookSubjects();
   const knownCategories = getEbookExams();
   const knownLanguages = getEbookLanguages();
+  const subject = prompt('Subject (' + knownSubjects.join(', ') + '):', ebookSubject(ebook));
+  if (subject === null) return;
   const category = prompt('Category (' + knownCategories.join(', ') + '):', ebookCategory(ebook));
   if (category === null) return;
   const language = prompt('Language (' + knownLanguages.join(', ') + '):', ebookLanguage(ebook));
@@ -1818,11 +1902,14 @@ function editEbook(idx) {
   const description = prompt('Short description (optional):', ebook.description || '');
   if (description === null) return;
 
+  const normalizedSubjectValue = String(subject || '').trim();
+  const normalizedSubject = knownSubjects.find(item => item.toLowerCase() === normalizedSubjectValue.toLowerCase()) || ebookFallback('subject');
   const normalizedCategoryValue = String(category || '').trim();
   const normalizedCategory = knownCategories.find(item => item.toLowerCase() === normalizedCategoryValue.toLowerCase()) || ebookFallback('exam');
   const normalizedLanguageValue = String(language || '').trim().toLowerCase();
   const normalizedLanguage = knownLanguages.find(item => item.toLowerCase() === normalizedLanguageValue) || ebookFallback('language');
   ebook.name = name.trim();
+  ebook.subject = normalizedSubject;
   ebook.category = normalizedCategory;
   ebook.language = normalizedLanguage;
   ebook.pages = parseInt(pages, 10) || '';
@@ -4606,7 +4693,7 @@ async function init() {
     }
     const row = event.target.closest('.admin-import-row');
     if (!row || !row.dataset.existingId) return;
-    if (event.target.matches('.folder-pdf-name, .folder-pdf-category, .folder-pdf-language')) {
+    if (event.target.matches('.folder-pdf-name, .folder-pdf-subject, .folder-pdf-category, .folder-pdf-language')) {
       saveDriveImportRow(row);
     }
   });
