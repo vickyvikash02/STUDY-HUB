@@ -64,7 +64,10 @@ async function saveData() {
       mockTests,
       topicTests
     }));
-  } catch { }
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function uploadFile(file, folder) {
@@ -1556,14 +1559,14 @@ function renderAdminEbook(container) {
 
   html += '</div></div>';
   html += '<div class="admin-section"><h3>Add E-Book or Answer Key</h3>';
-  html += '<p style="color:var(--text2);font-size:12px;margin:-2px 0 10px;">Choose the type, then add a manual PDF or import from a linked Drive folder.</p>';
+  html += '<p style="color:var(--text2);font-size:12px;margin:-2px 0 10px;">Choose the type, upload a PDF from your device, or import from a linked Drive folder.</p>';
   html += '<div class="admin-row" style="flex-wrap:wrap;gap:8px;"><input type="text" id="ebookName" placeholder="E-Book / Answer Key name" style="flex:2;min-width:220px;">';
-  html += '<input type="text" id="ebookManualUrl" placeholder="Paste a Google Drive / direct PDF URL" style="flex:2;min-width:260px;"></div>';
+  html += '<input type="file" id="ebookPdfFile" accept="application/pdf,.pdf" style="flex:2;min-width:240px;"></div>';
   html += '<div class="admin-row" style="flex-wrap:wrap;gap:8px;"><div style="flex:1;min-width:125px;">' + ebookKindSelectHtml('ebookKind') + '</div>';
   html += '<div style="flex:1;min-width:135px;">' + ebookSelectHtml('ebookSubject', getEbookSubjects()) + '</div>';
   html += '<div style="flex:1;min-width:135px;">' + ebookSelectHtml('ebookCategory', getEbookExams()) + '</div>';
   html += '<div style="flex:1;min-width:110px;">' + ebookLanguageSelectHtml('ebookLanguage') + '</div>';
-  html += '<input type="number" id="ebookPages" min="1" placeholder="Pages" style="width:100px;"><input type="text" id="ebookSize" placeholder="Size (e.g. 2.02 MB)" style="flex:1;min-width:130px;"><input type="text" id="ebookCover" placeholder="Cover image URL (optional)" style="flex:2;min-width:220px;"><button class="btn-secondary" id="ebookAddUrlBtn"><i class="fas fa-plus"></i> Add PDF</button></div>';
+  html += '<input type="number" id="ebookPages" min="1" placeholder="Pages" style="width:100px;"><input type="text" id="ebookSize" placeholder="Size (e.g. 2.02 MB)" style="flex:1;min-width:130px;"><input type="text" id="ebookCover" placeholder="Cover image URL (optional)" style="flex:2;min-width:220px;"><button class="btn-secondary" id="ebookAddFileBtn"><i class="fas fa-upload"></i> Upload PDF</button></div>';
   html += '<div class="admin-row" style="flex-wrap:wrap;gap:8px;"><input type="text" id="ebookDescription" placeholder="Short description (optional)" style="flex:1;min-width:300px;"></div></div>';
   html += '<div class="admin-section"><h3>Linked Drive Folders</h3>';
   html += '<p style="color:var(--text2);font-size:12px;margin:-2px 0 10px;">Tick a PDF to add it to the library. Untick an added PDF to remove it from the library. The PDF stays in Google Drive.</p>';
@@ -1574,7 +1577,9 @@ function renderAdminEbook(container) {
   html += '<button class="btn-secondary" id="linkDriveFolderBtn"><i class="fas fa-folder-plus"></i> Link Folder</button></div>';
   html += '<div id="driveFolderList"></div></div>';
   container.innerHTML = html;
-  document.getElementById('ebookAddUrlBtn').addEventListener('click', addEbookUrl);
+  document.getElementById('ebookAddFileBtn').addEventListener('click', addEbookFile);
+  const ebookPdfInput = document.getElementById('ebookPdfFile');
+  if (ebookPdfInput) ebookPdfInput.addEventListener('change', handleEbookPdfSelected);
   document.getElementById('linkDriveFolderBtn').addEventListener('click', linkDriveFolder);
   document.getElementById('adminAddSubjectBtn').addEventListener('click', () => addEbookCollectionItem('subject'));
   document.getElementById('adminAddExamBtn').addEventListener('click', () => addEbookCollectionItem('exam'));
@@ -1840,15 +1845,50 @@ async function addSelectedFromFolder(button) {
   alert('Added ' + plans.length + ' PDF' + (plans.length === 1 ? '' : 's') + ' from Drive.');
 }
 
-function addEbookUrl() {
-  const name = document.getElementById('ebookName').value.trim();
-  let url = document.getElementById('ebookManualUrl').value.trim();
+const MAX_EBOOK_PDF_BYTES = 3 * 1024 * 1024;
+
+function formatFileSize(bytes) {
+  if (!bytes) return '';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+}
+
+function handleEbookPdfSelected() {
+  const file = this.files && this.files[0];
+  if (!file) return;
+  const nameInput = document.getElementById('ebookName');
+  if (nameInput && !nameInput.value.trim()) {
+    nameInput.value = String(file.name || '').replace(/\.pdf$/i, '').trim();
+  }
+  const sizeInput = document.getElementById('ebookSize');
+  if (sizeInput) sizeInput.value = formatFileSize(file.size);
+}
+
+async function addEbookFile() {
+  const nameInput = document.getElementById('ebookName');
+  const fileInput = document.getElementById('ebookPdfFile');
+  const name = nameInput ? nameInput.value.trim() : '';
+  const file = fileInput && fileInput.files ? fileInput.files[0] : null;
   if (!name) { alert('Enter a name.'); return; }
-  if (!url) { alert('Paste a URL.'); return; }
-  // Convert Google Drive share link to direct download
-  const m = url.match(/drive\.google\.com\/.*[?&]id=([^&]+)/) || url.match(/drive\.google\.com\/file\/d\/([^/]+)/);
-  if (m) url = 'https://drive.google.com/uc?export=download&id=' + m[1];
-  data.ebooks.push({
+  if (!file) { alert('Choose a PDF file to upload.'); return; }
+  if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name)) {
+    alert('Please choose a PDF file.');
+    return;
+  }
+  if (file.size > MAX_EBOOK_PDF_BYTES) {
+    alert('This PDF is too large to save in the browser. Please choose a PDF under 3 MB.');
+    return;
+  }
+  let url;
+  try {
+    url = await uploadFile(file, 'ebooks');
+  } catch (e) {
+    alert('Could not read this PDF. Please try again.');
+    return;
+  }
+  const sizeInput = document.getElementById('ebookSize');
+  const fileSize = (sizeInput && sizeInput.value.trim()) || formatFileSize(file.size);
+  const ebook = {
     id: Date.now(),
     name,
     url,
@@ -1858,15 +1898,24 @@ function addEbookUrl() {
     category: document.getElementById('ebookCategory')?.value || 'Others',
     language: document.getElementById('ebookLanguage')?.value || 'English',
     pages: parseInt(document.getElementById('ebookPages')?.value, 10) || '',
-    size: (document.getElementById('ebookSize')?.value || '').trim(),
+    size: fileSize,
     cover: (document.getElementById('ebookCover')?.value || '').trim(),
     description: (document.getElementById('ebookDescription')?.value || '').trim()
-  });
-  saveData();
-  ['ebookName', 'ebookManualUrl', 'ebookPages', 'ebookSize', 'ebookCover', 'ebookDescription'].forEach(id => {
+  };
+  data.ebooks.push(ebook);
+  const saved = await saveData();
+  if (!saved) {
+    data.ebooks = data.ebooks.filter(item => item !== ebook);
+    alert('Could not save this PDF because browser storage is full. Remove some E-Books or upload a smaller PDF.');
+    return;
+  }
+  if (fileInput) fileInput.value = '';
+  ['ebookName', 'ebookPages', 'ebookSize', 'ebookCover', 'ebookDescription'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
+  refreshEbookAdminCounts();
   renderEbook();
+  alert('"' + ebook.name + '" uploaded.');
 }
 
 function renderEbookList(showDelete, containerId) {
@@ -1889,18 +1938,34 @@ function renderEbookList(showDelete, containerId) {
   }).join('');
 }
 
+function dataUrlToBlobUrl(url) {
+  if (!url || !/^data:/.test(url)) return url;
+  try {
+    const parts = url.split(',');
+    const meta = parts[0] || '';
+    const mime = (meta.match(/^data:([^;]+)/) || [])[1] || 'application/pdf';
+    const binary = atob(parts[1] || '');
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return URL.createObjectURL(new Blob([bytes], { type: mime }));
+  } catch (e) {
+    return url;
+  }
+}
+
 function openPdf(idx, download) {
   const ebook = data.ebooks[idx];
   if (!ebook) return;
+  const target = dataUrlToBlobUrl(ebook.url);
   if (download) {
     const a = document.createElement('a');
-    a.href = ebook.url;
+    a.href = target;
     a.download = ebook.name + '.pdf';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
   } else {
-    window.open(viewUrl(ebook.url), '_blank');
+    window.open(viewUrl(target), '_blank');
   }
 }
 
