@@ -1172,7 +1172,36 @@ function filterQBQuestions(val) {
 let _ebookCategory = 'All';
 let _ebookLanguage = 'All';
 let _ebookSubject = 'All';
+let _ebookView = 'ebook';
 let _selectedEbookIdx = -1;
+
+function ebookKind(ebook) {
+  return ebook && ebook.kind === 'answer-key' ? 'answer-key' : 'ebook';
+}
+
+function ebookKindLabel(kind) {
+  return kind === 'answer-key' ? 'Answer Key' : 'E-Book';
+}
+
+function ebookKindCount(kind) {
+  return (data.ebooks || []).filter(ebook => ebookKind(ebook) === kind).length;
+}
+
+function ebookKindOptionsHtml(selected) {
+  const kind = selected === 'answer-key' ? 'answer-key' : 'ebook';
+  return '<option value="ebook"' + (kind === 'ebook' ? ' selected' : '') + '>E-Book</option>' +
+    '<option value="answer-key"' + (kind === 'answer-key' ? ' selected' : '') + '>Answer Key</option>';
+}
+
+function ebookKindSelectHtml(id, selected) {
+  return '<select id="' + id + '">' + ebookKindOptionsHtml(selected) + '</select>';
+}
+
+function setEbookView(kind) {
+  if (kind !== 'ebook' && kind !== 'answer-key') return;
+  _ebookView = kind;
+  renderEbook();
+}
 
 function getEbookExams() {
   if (!Array.isArray(data.exams)) data.exams = normalizeNameList(data.exams, DEFAULT_EBOOK_EXAMS);
@@ -1293,7 +1322,7 @@ function deleteEbookCollectionItem(type, index) {
   }
   const remaining = values.filter((_, i) => i !== index);
   const fallback = (type === 'exam' || type === 'subject') && remaining.includes('Others') ? 'Others' : remaining[0];
-  const message = 'Remove "' + oldName + '"?\n\nIt is used by ' + affected + ' E-Book(s). They will move to "' + fallback + '".';
+  const message = 'Remove "' + oldName + '"?\n\nIt is used by ' + affected + ' PDF(s). They will move to "' + fallback + '".';
   if (!confirm(message)) return;
   (data.ebooks || []).forEach(ebook => {
     if (ebookMatchesCollection(ebook, type, oldName)) setEbookCollectionValue(ebook, type, fallback);
@@ -1310,7 +1339,7 @@ function renderEbookCollectionList(type) {
   const values = ebookCollectionValues(type);
   return values.map((name, index) => {
     const count = ebookCollectionCount(type, name);
-    return '<div class="admin-option-row"><div><span class="admin-option-name">' + esc(name) + '</span><span class="admin-option-count">' + count + ' E-Book' + (count === 1 ? '' : 's') + '</span></div><span><button type="button" class="act-btn edit" onclick="editEbookCollectionItem(\'' + type + '\',' + index + ')" aria-label="Edit"><i class="fas fa-pen"></i></button><button type="button" class="act-btn del" onclick="deleteEbookCollectionItem(\'' + type + '\',' + index + ')" aria-label="Remove"><i class="fas fa-trash"></i></button></span></div>';
+    return '<div class="admin-option-row"><div><span class="admin-option-name">' + esc(name) + '</span><span class="admin-option-count">' + count + ' PDF' + (count === 1 ? '' : 's') + '</span></div><span><button type="button" class="act-btn edit" onclick="editEbookCollectionItem(\'' + type + '\',' + index + ')" aria-label="Edit"><i class="fas fa-pen"></i></button><button type="button" class="act-btn del" onclick="deleteEbookCollectionItem(\'' + type + '\',' + index + ')" aria-label="Remove"><i class="fas fa-trash"></i></button></span></div>';
   }).join('');
 }
 
@@ -1390,8 +1419,9 @@ function renderEbookFilterButtons(values, active, type) {
 
 function ebookCardHTML(ebook, index) {
   const meta = [ebookPagesText(ebook), ebookSizeText(ebook)].filter(Boolean).join(' · ');
+  const kindTag = ebookKind(ebook) === 'answer-key' ? '<span class="ebook-tag-kind">Answer Key</span>' : '';
   let html = '<article class="ebook-shop-card"><div class="ebook-cover">' + ebookCoverHTML(ebook, 'card') + '</div>';
-  html += '<div class="ebook-shop-body"><div class="ebook-card-tags"><span class="ebook-tag-subject">' + esc(ebookSubject(ebook)) + '</span><span>' + esc(ebookCategory(ebook)) + '</span><span>' + esc(ebookLanguage(ebook)) + '</span></div>';
+  html += '<div class="ebook-shop-body"><div class="ebook-card-tags">' + kindTag + '<span class="ebook-tag-subject">' + esc(ebookSubject(ebook)) + '</span><span>' + esc(ebookCategory(ebook)) + '</span><span>' + esc(ebookLanguage(ebook)) + '</span></div>';
   html += '<h3 class="ebook-shop-title">' + esc(ebook.name) + '</h3>';
   html += '<div class="ebook-shop-meta">' + esc(meta || 'PDF e-book') + '</div>';
   html += '<button type="button" class="ebook-read-btn" onclick="openEbookModal(' + index + ')">Read more <i class="fas fa-arrow-right"></i></button></div></article>';
@@ -1402,23 +1432,41 @@ function renderEbook() {
   const container = document.getElementById('ebookList');
   if (!container) return;
   const ebooks = Array.isArray(data.ebooks) ? data.ebooks : [];
+  const isAnswerKeyView = _ebookView === 'answer-key';
+  const noun = isAnswerKeyView ? 'answer key' : 'e-book';
+  let html = '<div class="ebook-library">';
+  html += '<div class="ebook-view-switch" role="tablist" aria-label="Library type">' +
+    '<button type="button" class="ebook-view-btn' + (!isAnswerKeyView ? ' active' : '') + '" role="tab" aria-selected="' + (!isAnswerKeyView) + '" onclick="setEbookView(\'ebook\')"><i class="fas fa-book-open"></i> E-Books <span>' + ebookKindCount('ebook') + '</span></button>' +
+    '<button type="button" class="ebook-view-btn' + (isAnswerKeyView ? ' active' : '') + '" role="tab" aria-selected="' + (isAnswerKeyView) + '" onclick="setEbookView(\'answer-key\')"><i class="fas fa-file-circle-check"></i> Answer Keys <span>' + ebookKindCount('answer-key') + '</span></button>' +
+    '</div>';
+
   if (!ebooks.length) {
-    container.innerHTML = '<div class="empty-state ebook-library-empty"><i class="fas fa-book-open"></i><p>No e-books published yet.</p></div>';
+    html += '<div class="empty-state ebook-library-empty"><i class="fas fa-book-open"></i><p>No e-books or answer keys published yet.</p></div></div>';
+    container.innerHTML = html;
     return;
   }
-  const visible = ebooks.map((ebook, index) => ({ ebook, index })).filter(item => ebookFilterMatches(item.ebook));
+
+  const kindItems = ebooks.map((ebook, index) => ({ ebook, index })).filter(item => ebookKind(item.ebook) === _ebookView);
+  const visible = kindItems.filter(item => ebookFilterMatches(item.ebook));
   const total = visible.length;
-  let html = '<div class="ebook-library">';
   html += '<div class="ebook-filter-panel">';
   html += '<div class="ebook-filter-block"><span class="ebook-filter-label">Subject</span><div class="ebook-filter-row">' + renderEbookFilterButtons(ebookAllFilters('subject'), _ebookSubject, 'subject') + '</div></div>';
   html += '<div class="ebook-filter-block"><span class="ebook-filter-label">Exam</span><div class="ebook-filter-row">' + renderEbookFilterButtons(ebookAllFilters('exam'), _ebookCategory, 'category') + '</div></div>';
   html += '<div class="ebook-filter-block"><span class="ebook-filter-label">Language</span><div class="ebook-filter-row">' + renderEbookFilterButtons(ebookAllFilters('language'), _ebookLanguage, 'language') + '</div></div>';
   html += '</div>';
   const scopeLabel = _ebookSubject !== 'All' ? _ebookSubject : _ebookCategory !== 'All' ? _ebookCategory : 'All';
-  html += '<div class="ebook-results-head"><div><strong>' + esc(scopeLabel) + '</strong> e-books</div><span>' + total + ' result' + (total === 1 ? '' : 's') + '</span></div>';
+  html += '<div class="ebook-results-head"><div><strong>' + esc(scopeLabel) + '</strong> ' + noun + 's</div><span>' + total + ' result' + (total === 1 ? '' : 's') + '</span></div>';
+
+  if (!kindItems.length) {
+    html += '<div class="ebook-empty-filter"><i class="fas fa-file-circle-plus"></i><p>No ' + noun + 's added yet.</p>' +
+      (isAnswerKeyView && ebookKindCount('ebook') ? '<button type="button" class="btn-secondary" onclick="setEbookView(\'ebook\')">Browse E-Books</button>' : '') +
+      '</div></div>';
+    container.innerHTML = html;
+    return;
+  }
 
   if (!visible.length) {
-    html += '<div class="ebook-empty-filter"><i class="fas fa-filter-circle-xmark"></i><p>No e-books in this filter yet.</p><button type="button" class="btn-secondary" onclick="clearEbookFilters()">Clear filters</button></div></div>';
+    html += '<div class="ebook-empty-filter"><i class="fas fa-filter-circle-xmark"></i><p>No ' + noun + 's in this filter yet.</p><button type="button" class="btn-secondary" onclick="clearEbookFilters()">Clear filters</button></div></div>';
     container.innerHTML = html;
     return;
   }
@@ -1435,7 +1483,7 @@ function renderEbook() {
     });
     groups.forEach((items, subject) => {
       if (!items.length) return;
-      html += '<div class="ebook-subject-head"><span class="ebook-subject-kicker">Subject</span><strong>' + esc(subject) + '</strong><small>' + items.length + ' book' + (items.length === 1 ? '' : 's') + '</small></div>';
+      html += '<div class="ebook-subject-head"><span class="ebook-subject-kicker">Subject</span><strong>' + esc(subject) + '</strong><small>' + items.length + ' ' + noun + (items.length === 1 ? '' : 's') + '</small></div>';
       items.forEach(({ ebook, index }) => { html += ebookCardHTML(ebook, index); });
     });
   } else {
@@ -1460,7 +1508,8 @@ function openEbookModal(idx) {
   if (!modal || !cover || !chips || !title || !meta || !description || !view || !download) return;
 
   cover.innerHTML = ebookCoverHTML(ebook, 'modal');
-  chips.innerHTML = '<span class="ebook-chip-subject">' + esc(ebookSubject(ebook)) + '</span><span>' + esc(ebookCategory(ebook)) + '</span><span>' + esc(ebookLanguage(ebook)) + '</span><span>PDF</span>';
+  const kindChip = ebookKind(ebook) === 'answer-key' ? '<span class="ebook-chip-kind">Answer Key</span>' : '';
+  chips.innerHTML = kindChip + '<span class="ebook-chip-subject">' + esc(ebookSubject(ebook)) + '</span><span>' + esc(ebookCategory(ebook)) + '</span><span>' + esc(ebookLanguage(ebook)) + '</span><span>PDF</span>';
   title.textContent = ebook.name;
   meta.textContent = [ebookPagesText(ebook), ebookSizeText(ebook), ebook.uploaded ? 'Added ' + ebook.uploaded : ''].filter(Boolean).join(' · ');
   description.textContent = (ebook.description || '').trim();
@@ -1501,13 +1550,15 @@ function renderAdminEbook(container) {
   html += '</div>';
 
   html += '</div></div>';
-  html += '<div class="admin-section"><h3>Add E-Book</h3>';
-  html += '<div class="admin-row" style="flex-wrap:wrap;gap:8px;"><input type="text" id="ebookName" placeholder="E-Book name" style="flex:2;min-width:220px;">';
+  html += '<div class="admin-section"><h3>Add E-Book or Answer Key</h3>';
+  html += '<p style="color:var(--text2);font-size:12px;margin:-2px 0 10px;">Choose the type, then add a manual PDF or import from a linked Drive folder.</p>';
+  html += '<div class="admin-row" style="flex-wrap:wrap;gap:8px;"><input type="text" id="ebookName" placeholder="E-Book / Answer Key name" style="flex:2;min-width:220px;">';
   html += '<input type="text" id="ebookManualUrl" placeholder="Paste a Google Drive / direct PDF URL" style="flex:2;min-width:260px;"></div>';
-  html += '<div class="admin-row" style="flex-wrap:wrap;gap:8px;"><div style="flex:1;min-width:135px;">' + ebookSelectHtml('ebookSubject', getEbookSubjects()) + '</div>';
+  html += '<div class="admin-row" style="flex-wrap:wrap;gap:8px;"><div style="flex:1;min-width:125px;">' + ebookKindSelectHtml('ebookKind') + '</div>';
+  html += '<div style="flex:1;min-width:135px;">' + ebookSelectHtml('ebookSubject', getEbookSubjects()) + '</div>';
   html += '<div style="flex:1;min-width:135px;">' + ebookSelectHtml('ebookCategory', getEbookExams()) + '</div>';
   html += '<div style="flex:1;min-width:110px;">' + ebookLanguageSelectHtml('ebookLanguage') + '</div>';
-  html += '<input type="number" id="ebookPages" min="1" placeholder="Pages" style="width:100px;"><input type="text" id="ebookSize" placeholder="Size (e.g. 2.02 MB)" style="flex:1;min-width:130px;"><input type="text" id="ebookCover" placeholder="Cover image URL (optional)" style="flex:2;min-width:220px;"><button class="btn-secondary" id="ebookAddUrlBtn"><i class="fas fa-plus"></i> Add E-Book</button></div>';
+  html += '<input type="number" id="ebookPages" min="1" placeholder="Pages" style="width:100px;"><input type="text" id="ebookSize" placeholder="Size (e.g. 2.02 MB)" style="flex:1;min-width:130px;"><input type="text" id="ebookCover" placeholder="Cover image URL (optional)" style="flex:2;min-width:220px;"><button class="btn-secondary" id="ebookAddUrlBtn"><i class="fas fa-plus"></i> Add PDF</button></div>';
   html += '<div class="admin-row" style="flex-wrap:wrap;gap:8px;"><input type="text" id="ebookDescription" placeholder="Short description (optional)" style="flex:1;min-width:300px;"></div></div>';
   html += '<div class="admin-section"><h3>Linked Drive Folders</h3>';
   html += '<p style="color:var(--text2);font-size:12px;margin:-2px 0 10px;">Tick a PDF to add it to the library. Untick an added PDF to remove it from the library. The PDF stays in Google Drive.</p>';
@@ -1575,7 +1626,7 @@ function refreshEbookAdminCounts() {
     const countEl = row.querySelector('.admin-option-count');
     if (!name || !countEl) return;
     const count = ebookCollectionCount('subject', name);
-    countEl.textContent = count + ' E-Book' + (count === 1 ? '' : 's');
+    countEl.textContent = count + ' PDF' + (count === 1 ? '' : 's');
   });
   const exams = getEbookExams();
   document.querySelectorAll('#adminExamList .admin-option-row').forEach((row, index) => {
@@ -1583,7 +1634,7 @@ function refreshEbookAdminCounts() {
     const countEl = row.querySelector('.admin-option-count');
     if (!name || !countEl) return;
     const count = ebookCollectionCount('exam', name);
-    countEl.textContent = count + ' E-Book' + (count === 1 ? '' : 's');
+    countEl.textContent = count + ' PDF' + (count === 1 ? '' : 's');
   });
   const languages = getEbookLanguages();
   document.querySelectorAll('#adminLanguageList .admin-option-row').forEach((row, index) => {
@@ -1591,7 +1642,7 @@ function refreshEbookAdminCounts() {
     const countEl = row.querySelector('.admin-option-count');
     if (!name || !countEl) return;
     const count = ebookCollectionCount('language', name);
-    countEl.textContent = count + ' E-Book' + (count === 1 ? '' : 's');
+    countEl.textContent = count + ' PDF' + (count === 1 ? '' : 's');
   });
 }
 
@@ -1613,25 +1664,29 @@ async function renderDriveFolders() {
       try {
         const pdfs = await scanDriveFolder(folder.folderId, apiKey);
         if (pdfs.length) {
+          const defaultKind = 'ebook';
           const defaultSubject = ebookFallback('subject');
           const defaultCategory = ebookFallback('exam');
           const defaultLanguage = ebookFallback('language');
           html += '<div class="drive-folder-import">';
-          html += '<div class="folder-import-toolbar"><label>Subject <select class="folder-default-subject">' + ebookSelectOptionsHtml(getEbookSubjects(), defaultSubject) + '</select></label><label>Exam <select class="folder-default-category">' + ebookSelectOptionsHtml(getEbookExams(), defaultCategory) + '</select></label><label>Language <select class="folder-default-language">' + ebookSelectOptionsHtml(getEbookLanguages(), defaultLanguage) + '</select></label><button type="button" class="act-btn action-wide folder-apply-defaults" onclick="applyFolderImportDefaults(this)" title="Apply selected subject, exam and language to all rows"><i class="fas fa-check-double"></i> Apply to rows</button><p>Existing rows can be edited here; changes are saved automatically.</p></div>';
+          html += '<div class="folder-import-toolbar"><label>Type <select class="folder-default-kind">' + ebookKindOptionsHtml(defaultKind) + '</select></label><label>Subject <select class="folder-default-subject">' + ebookSelectOptionsHtml(getEbookSubjects(), defaultSubject) + '</select></label><label>Exam <select class="folder-default-category">' + ebookSelectOptionsHtml(getEbookExams(), defaultCategory) + '</select></label><label>Language <select class="folder-default-language">' + ebookSelectOptionsHtml(getEbookLanguages(), defaultLanguage) + '</select></label><button type="button" class="act-btn action-wide folder-apply-defaults" onclick="applyFolderImportDefaults(this)" title="Apply selected type, subject, exam and language to all rows"><i class="fas fa-check-double"></i> Apply to rows</button><p>Existing rows can be edited here; changes are saved automatically.</p></div>';
           html += '<div class="admin-import-list">';
           pdfs.forEach(f => {
             const existing = ebookForDriveFile(f.id);
-            const defaultName = existing ? existing.name : (String(f.name || '').replace(/\.pdf$/i, '').trim() || 'Untitled E-Book');
+            const defaultName = existing ? existing.name : (String(f.name || '').replace(/\.pdf$/i, '').trim() || 'Untitled PDF');
+            const rowKind = existing ? ebookKind(existing) : defaultKind;
             const rowSubject = existing ? ebookSubject(existing) : defaultSubject;
             const rowCategory = existing ? ebookCategory(existing) : defaultCategory;
             const rowLanguage = existing ? ebookLanguage(existing) : defaultLanguage;
+            const rowKindOptions = ebookKindOptionsHtml(rowKind);
             const rowSubjectOptions = ebookSelectOptionsHtml(getEbookSubjects(), rowSubject);
             const rowExamOptions = ebookSelectOptionsHtml(getEbookExams(), rowCategory);
             const rowLanguageOptions = ebookSelectOptionsHtml(getEbookLanguages(), rowLanguage);
             html += '<div class="admin-import-row' + (existing ? ' admin-import-row-existing' : '') + '" data-id="' + esc(f.id) + '" data-existing-id="' + (existing ? esc(String(existing.id)) : '') + '">';
-            const checkTitle = existing ? 'Untick to remove this E-Book from the library' : 'Tick to select this PDF';
+            const checkTitle = existing ? 'Untick to remove this item from the library' : 'Tick to select this PDF';
             html += '<div class="admin-import-source"><label><input type="checkbox" class="folder-pdf-check" data-id="' + esc(f.id) + '" title="' + checkTitle + '" aria-label="' + checkTitle + '"' + (existing ? ' checked' : '') + '> <span class="folder-pdf-source-name">' + esc(f.name) + '</span>' + (existing ? '<small>(added)</small>' : '') + '</label></div>';
-            html += '<input type="text" class="folder-pdf-name" value="' + esc(defaultName) + '" placeholder="E-Book name">';
+            html += '<input type="text" class="folder-pdf-name" value="' + esc(defaultName) + '" placeholder="E-Book / Answer Key name">';
+            html += '<select class="folder-pdf-kind">' + rowKindOptions + '</select>';
             html += '<select class="folder-pdf-subject">' + rowSubjectOptions + '</select>';
             html += '<select class="folder-pdf-category">' + rowExamOptions + '</select>';
             html += '<select class="folder-pdf-language">' + rowLanguageOptions + '</select>';
@@ -1684,7 +1739,7 @@ async function removeAddedDriveEbook(row) {
     row.classList.remove('admin-import-row-existing');
     return;
   }
-  if (!confirm('Remove "' + ebook.name + '" from E-Books?\n\nThe PDF stays in Google Drive and can be added again.')) return false;
+  if (!confirm('Remove "' + ebook.name + '" from the library?\n\nThe PDF stays in Google Drive and can be added again.')) return false;
   data.ebooks = data.ebooks.filter(item => String(item.id) !== String(existingId));
   await saveData();
   row.dataset.existingId = '';
@@ -1707,18 +1762,20 @@ function updateDriveImportRow(row) {
   const ebook = id ? (data.ebooks || []).find(item => String(item.id) === String(id)) : null;
   if (!ebook) return false;
   const nameInput = row.querySelector('.folder-pdf-name');
+  const kindSelect = row.querySelector('.folder-pdf-kind');
   const subjectSelect = row.querySelector('.folder-pdf-subject');
   const categorySelect = row.querySelector('.folder-pdf-category');
   const languageSelect = row.querySelector('.folder-pdf-language');
   if (nameInput) {
     const value = nameInput.value.trim();
     if (!value) {
-      alert('E-Book name cannot be blank.');
+      alert('Name cannot be blank.');
       nameInput.value = ebook.name;
     } else {
       ebook.name = value;
     }
   }
+  if (kindSelect) ebook.kind = kindSelect.value === 'answer-key' ? 'answer-key' : 'ebook';
   if (subjectSelect) ebook.subject = subjectSelect.value;
   if (categorySelect) ebook.category = categorySelect.value;
   if (languageSelect) ebook.language = languageSelect.value;
@@ -1738,11 +1795,14 @@ function applyFolderImportDefaults(button) {
   const subject = scope.querySelector('.folder-default-subject')?.value;
   const category = scope.querySelector('.folder-default-category')?.value;
   const language = scope.querySelector('.folder-default-language')?.value;
+  const kind = scope.querySelector('.folder-default-kind')?.value;
   let changedExisting = false;
   scope.querySelectorAll('.admin-import-row').forEach(row => {
+    const kindSelect = row.querySelector('.folder-pdf-kind');
     const subjectSelect = row.querySelector('.folder-pdf-subject');
     const categorySelect = row.querySelector('.folder-pdf-category');
     const languageSelect = row.querySelector('.folder-pdf-language');
+    if (kind && kindSelect) kindSelect.value = kind;
     if (subject && subjectSelect) subjectSelect.value = subject;
     if (category && categorySelect) categorySelect.value = category;
     if (language && languageSelect) languageSelect.value = language;
@@ -1769,15 +1829,16 @@ async function addSelectedFromFolder(button) {
     const id = row.dataset.id;
     const nameInput = row.querySelector('.folder-pdf-name');
     const name = nameInput ? nameInput.value.trim() : '';
+    const kind = row.querySelector('.folder-pdf-kind')?.value === 'answer-key' ? 'answer-key' : 'ebook';
     const subject = row.querySelector('.folder-pdf-subject')?.value || ebookFallback('subject');
     const category = row.querySelector('.folder-pdf-category')?.value || ebookFallback('exam');
     const language = row.querySelector('.folder-pdf-language')?.value || ebookFallback('language');
     if (!name) {
-      alert('Enter an E-Book name for every selected PDF.');
+      alert('Enter a name for every selected PDF.');
       if (nameInput) nameInput.focus();
       return;
     }
-    plans.push({ id, name, url: 'https://drive.google.com/uc?export=download&id=' + id, subject, category, language });
+    plans.push({ id, name, url: 'https://drive.google.com/uc?export=download&id=' + id, kind, subject, category, language });
   }
 
   plans.forEach((plan, index) => {
@@ -1786,6 +1847,7 @@ async function addSelectedFromFolder(button) {
       name: plan.name,
       url: plan.url,
       uploaded: new Date().toLocaleDateString(),
+      kind: plan.kind,
       subject: plan.subject,
       category: plan.category,
       language: plan.language,
@@ -1797,13 +1859,13 @@ async function addSelectedFromFolder(button) {
   });
   await saveData();
   renderAdmin();
-  alert('Added ' + plans.length + ' E-Book' + (plans.length === 1 ? '' : 's') + ' from Drive.');
+  alert('Added ' + plans.length + ' PDF' + (plans.length === 1 ? '' : 's') + ' from Drive.');
 }
 
 function addEbookUrl() {
   const name = document.getElementById('ebookName').value.trim();
   let url = document.getElementById('ebookManualUrl').value.trim();
-  if (!name) { alert('Enter an e-book name.'); return; }
+  if (!name) { alert('Enter a name.'); return; }
   if (!url) { alert('Paste a URL.'); return; }
   // Convert Google Drive share link to direct download
   const m = url.match(/drive\.google\.com\/.*[?&]id=([^&]+)/) || url.match(/drive\.google\.com\/file\/d\/([^/]+)/);
@@ -1813,6 +1875,7 @@ function addEbookUrl() {
     name,
     url,
     uploaded: new Date().toLocaleDateString(),
+    kind: document.getElementById('ebookKind')?.value === 'answer-key' ? 'answer-key' : 'ebook',
     subject: document.getElementById('ebookSubject')?.value || ebookFallback('subject'),
     category: document.getElementById('ebookCategory')?.value || 'Others',
     language: document.getElementById('ebookLanguage')?.value || 'English',
@@ -1835,7 +1898,7 @@ function renderEbookList(showDelete, containerId) {
     return;
   }
   container.innerHTML = data.ebooks.map((e, i) => {
-    const meta = [ebookSubject(e), ebookCategory(e), ebookLanguage(e), ebookPagesText(e), ebookSizeText(e)].filter(Boolean).join(' · ');
+    const meta = [ebookKindLabel(ebookKind(e)), ebookSubject(e), ebookCategory(e), ebookLanguage(e), ebookPagesText(e), ebookSizeText(e)].filter(Boolean).join(' · ');
     const thumbnail = e.cover
       ? '<img class="ebook-admin-cover" src="' + esc(e.cover) + '" alt="">'
       : '<div class="ebook-admin-cover ebook-admin-cover-fallback"><i class="fas fa-file-pdf"></i></div>';
@@ -4693,7 +4756,7 @@ async function init() {
     }
     const row = event.target.closest('.admin-import-row');
     if (!row || !row.dataset.existingId) return;
-    if (event.target.matches('.folder-pdf-name, .folder-pdf-subject, .folder-pdf-category, .folder-pdf-language')) {
+    if (event.target.matches('.folder-pdf-name, .folder-pdf-kind, .folder-pdf-subject, .folder-pdf-category, .folder-pdf-language')) {
       saveDriveImportRow(row);
     }
   });
