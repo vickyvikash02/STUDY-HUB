@@ -1669,7 +1669,6 @@ async function renderDriveFolders() {
           const defaultCategory = ebookFallback('exam');
           const defaultLanguage = ebookFallback('language');
           html += '<div class="drive-folder-import">';
-          html += '<div class="folder-import-toolbar"><label>Type <select class="folder-default-kind">' + ebookKindOptionsHtml(defaultKind) + '</select></label><label>Subject <select class="folder-default-subject">' + ebookSelectOptionsHtml(getEbookSubjects(), defaultSubject) + '</select></label><label>Exam <select class="folder-default-category">' + ebookSelectOptionsHtml(getEbookExams(), defaultCategory) + '</select></label><label>Language <select class="folder-default-language">' + ebookSelectOptionsHtml(getEbookLanguages(), defaultLanguage) + '</select></label><button type="button" class="act-btn action-wide folder-apply-defaults" onclick="applyFolderImportDefaults(this)" title="Apply selected type, subject, exam and language to all rows"><i class="fas fa-check-double"></i> Apply to rows</button><p>Existing rows can be edited here; changes are saved automatically.</p></div>';
           html += '<div class="admin-import-list">';
           pdfs.forEach(f => {
             const existing = ebookForDriveFile(f.id);
@@ -1787,32 +1786,6 @@ function saveDriveImportRow(row) {
   saveData();
   refreshEbookAdminCounts();
   renderEbook();
-}
-
-function applyFolderImportDefaults(button) {
-  const scope = button && button.closest('.drive-folder-import');
-  if (!scope) return;
-  const subject = scope.querySelector('.folder-default-subject')?.value;
-  const category = scope.querySelector('.folder-default-category')?.value;
-  const language = scope.querySelector('.folder-default-language')?.value;
-  const kind = scope.querySelector('.folder-default-kind')?.value;
-  let changedExisting = false;
-  scope.querySelectorAll('.admin-import-row').forEach(row => {
-    const kindSelect = row.querySelector('.folder-pdf-kind');
-    const subjectSelect = row.querySelector('.folder-pdf-subject');
-    const categorySelect = row.querySelector('.folder-pdf-category');
-    const languageSelect = row.querySelector('.folder-pdf-language');
-    if (kind && kindSelect) kindSelect.value = kind;
-    if (subject && subjectSelect) subjectSelect.value = subject;
-    if (category && categorySelect) categorySelect.value = category;
-    if (language && languageSelect) languageSelect.value = language;
-    if (row.dataset.existingId && updateDriveImportRow(row)) changedExisting = true;
-  });
-  if (changedExisting) {
-    saveData();
-    refreshEbookAdminCounts();
-    renderEbook();
-  }
 }
 
 async function addSelectedFromFolder(button) {
