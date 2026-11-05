@@ -5070,7 +5070,19 @@ async function init() {
     });
   }
   document.addEventListener('keydown', function (event) {
-    if (event.key === 'Escape') closeEbookModal();
+    if (event.key === 'Escape') {
+      closeEbookModal();
+      const sidebar = document.getElementById('sidebar');
+      if (sidebar) sidebar.classList.remove('open');
+    }
+  });
+  document.addEventListener('click', function (event) {
+    const sidebar = document.getElementById('sidebar');
+    if (!sidebar) return;
+    if (window.innerWidth > 1024) return;
+    if (!sidebar.classList.contains('open')) return;
+    if (event.target.closest('#sidebar') || event.target.closest('#hamburger')) return;
+    sidebar.classList.remove('open');
   });
   document.addEventListener('change', function (event) {
     const toggle = event.target.closest('.folder-pdf-check');
