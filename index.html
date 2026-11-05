@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-<link rel="stylesheet" href="style.css?v=38">
+<link rel="stylesheet" href="style.css?v=40">
 </head>
 <body>
 
@@ -513,10 +513,29 @@
 
       <!-- ===================== ADMIN ===================== -->
       <section id="page-admin" class="page">
-        <div class="page-head">
-          <span class="section-kicker">Control room</span>
-          <h1>Admin Panel</h1>
-          <p>Manage categories, subcategories, topics &amp; questions.</p>
+        <!-- Admin sign-in gate (only the admin account can use this page) -->
+        <div id="adminLoginBox" class="hidden">
+          <div class="page-head">
+            <span class="section-kicker">Control room</span>
+            <h1>Admin Login</h1>
+            <p>Sign in with the admin account to manage content.</p>
+          </div>
+          <form class="admin-login" id="adminLoginForm" onsubmit="adminLogin(event)">
+            <input type="email" id="adminEmail" placeholder="Admin email" autocomplete="username" required>
+            <input type="password" id="adminPassword" placeholder="Password" autocomplete="current-password" required>
+            <button class="btn-primary" type="submit"><i class="fas fa-right-to-bracket"></i> Sign in</button>
+            <p class="admin-login-error" id="adminLoginError"></p>
+          </form>
+        </div>
+        <!-- Admin panel (visible after sign-in) -->
+        <div id="adminPanel" class="hidden">
+        <div class="page-head admin-page-head">
+          <div>
+            <span class="section-kicker">Control room</span>
+            <h1>Admin Panel</h1>
+            <p>Manage categories, subcategories, topics &amp; questions.</p>
+          </div>
+          <button class="btn-secondary" id="adminSignOutBtn"><i class="fas fa-right-from-bracket"></i> Sign out</button>
         </div>
         <div class="admin-tabs">
           <button class="admin-tab active" data-admin="categories">Categories</button>
@@ -572,12 +591,27 @@
             <div id="builderTopicTestList"></div>
           </div>
         </div>
+        <div class="admin-section">
+          <h3>Backup &amp; Cloud Sync</h3>
+          <p style="color:var(--text2);font-size:12px;margin:-2px 0 10px;">Download a backup of this browser's data, or push/reload it to your Supabase cloud. Use Export before Sync if this browser holds the only copy of your content.</p>
+          <div class="admin-row" style="flex-wrap:wrap;gap:8px;">
+            <button class="btn-secondary" id="adminExportBackupBtn"><i class="fas fa-download"></i> Export backup</button>
+            <button class="btn-secondary" id="adminImportBackupBtn"><i class="fas fa-upload"></i> Restore backup</button>
+            <input type="file" id="adminBackupFile" accept="application/json,.json" class="hidden">
+            <button class="btn-primary" id="adminSyncToCloudBtn"><i class="fas fa-cloud-arrow-up"></i> Sync to cloud</button>
+            <button class="btn-secondary" id="adminReloadFromCloudBtn"><i class="fas fa-cloud-arrow-down"></i> Reload from cloud</button>
+          </div>
+          <p class="admin-sync-note" id="adminSyncNote"></p>
+        </div>
+        </div><!-- /adminPanel -->
       </section>
 
     </div>
   </main>
 </div>
 
-<script src="script.js?v=38"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js?v=40"></script>
+<script src="script.js?v=40"></script>
 </body>
 </html>

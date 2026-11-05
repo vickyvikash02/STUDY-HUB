@@ -9,6 +9,36 @@ let data = { categories: {}, ebooks: [], driveFolders: [], exams: DEFAULT_EBOOK_
 let mockTests = [];
 let topicTests = [];
 let qidCounter = 0;
+let _supabaseReady = false;
+let _adminSession = null;
+let _saveQueue = Promise.resolve();
+
+function cloneState() {
+  return {
+    categories: data.categories,
+    ebooks: data.ebooks,
+    driveFolders: data.driveFolders || [],
+    exams: data.exams || DEFAULT_EBOOK_EXAMS,
+    languages: data.languages || DEFAULT_EBOOK_LANGUAGES,
+    subjects: data.subjects || DEFAULT_EBOOK_SUBJECTS,
+    mockTests,
+    topicTests
+  };
+}
+
+function applyState(d) {
+  if (!d || typeof d !== 'object') return;
+  data = {
+    categories: d.categories || {},
+    ebooks: d.ebooks || [],
+    driveFolders: d.driveFolders || [],
+    exams: normalizeNameList(d.exams, DEFAULT_EBOOK_EXAMS),
+    languages: normalizeNameList(d.languages, DEFAULT_EBOOK_LANGUAGES),
+    subjects: normalizeNameList(d.subjects, DEFAULT_EBOOK_SUBJECTS)
+  };
+  mockTests = Array.isArray(d.mockTests) ? d.mockTests : [];
+  topicTests = Array.isArray(d.topicTests) ? d.topicTests : [];
+}
 
 function normalizeNameList(list, fallback) {
   const seen = {};
@@ -25,22 +55,29 @@ function normalizeNameList(list, fallback) {
 }
 
 async function loadData() {
-  try {
-    const r = localStorage.getItem('studyhub_data');
-    if (r) {
-      const d = JSON.parse(r);
-      data = {
-        categories: d.categories || {},
-        ebooks: d.ebooks || [],
-        driveFolders: d.driveFolders || [],
-        exams: normalizeNameList(d.exams, DEFAULT_EBOOK_EXAMS),
-        languages: normalizeNameList(d.languages, DEFAULT_EBOOK_LANGUAGES),
-        subjects: normalizeNameList(d.subjects, DEFAULT_EBOOK_SUBJECTS)
-      };
-      mockTests = d.mockTests || [];
-      topicTests = d.topicTests || [];
+  let remote = null;
+  if (sb) {
+    try {
+      const res = await sb.from(APP_STATE_TABLE).select('data').eq('id', APP_STATE_ID).single();
+      if (!res.error && res.data && res.data.data && Object.keys(res.data.data).length) {
+        remote = res.data.data;
+      }
+    } catch (e) {
+      console.warn('Supabase load failed, falling back to local storage:', e);
     }
-  } catch {}
+  }
+  if (remote) {
+    try {
+      localStorage.setItem('studyhub_data', JSON.stringify(remote));
+    } catch (e) {}
+    applyState(remote);
+    _supabaseReady = true;
+  } else {
+    try {
+      const r = localStorage.getItem('studyhub_data');
+      if (r) applyState(JSON.parse(r));
+    } catch {}
+  }
   if (!data.categories) data.categories = {};
   if (!Array.isArray(data.ebooks)) data.ebooks = [];
   if (!Array.isArray(mockTests)) mockTests = [];
@@ -52,35 +89,82 @@ async function loadData() {
   syncIds();
 }
 
-async function saveData() {
+async function persistState() {
+  const state = cloneState();
+  let localOk = true;
   try {
-    localStorage.setItem('studyhub_data', JSON.stringify({
-      categories: data.categories,
-      ebooks: data.ebooks,
-      driveFolders: data.driveFolders || [],
-      exams: data.exams || DEFAULT_EBOOK_EXAMS,
-      languages: data.languages || DEFAULT_EBOOK_LANGUAGES,
-      subjects: data.subjects || DEFAULT_EBOOK_SUBJECTS,
-      mockTests,
-      topicTests
-    }));
+    localStorage.setItem('studyhub_data', JSON.stringify(state));
+  } catch (e) {
+    localOk = false;
+  }
+  if (!sb) return localOk;
+  try {
+    const res = await sb.from(APP_STATE_TABLE).upsert({
+      id: APP_STATE_ID,
+      data: state,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'id' });
+    if (res.error) {
+      console.warn('Supabase save failed:', res.error.message);
+      return false;
+    }
     return true;
+  } catch (e) {
+    console.warn('Supabase save failed:', e);
+    return false;
+  }
+}
+
+async function saveData() {
+  const job = _saveQueue.then(persistState, persistState);
+  _saveQueue = job.then(() => {}, () => {});
+  try {
+    return await job;
   } catch {
     return false;
   }
 }
 
+function storagePath(folder, filename) {
+  const safe = String(filename || 'file')
+    .replace(/[^\w.\- ]+/g, '_')
+    .replace(/\s+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  const prefix = String(folder || 'ebooks').replace(/^\/+|\/+$/g, '');
+  return prefix + '/' + Date.now() + '-' + (safe || 'file');
+}
+
+function publicFileUrl(path) {
+  return sb.storage.from(EBOOK_BUCKET).getPublicUrl(path).data.publicUrl;
+}
+
+function storagePathFromUrl(url) {
+  if (!url || !SUPABASE_URL) return null;
+  if (!String(url).startsWith(SUPABASE_URL + '/storage/v1/object/public/' + EBOOK_BUCKET + '/')) return null;
+  return decodeURIComponent(String(url).split('/object/public/' + EBOOK_BUCKET + '/')[1] || '');
+}
+
 async function uploadFile(file, folder) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(new Error('Failed to read file'));
-    reader.readAsDataURL(file);
-  });
+  if (!sb) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsDataURL(file);
+    });
+  }
+  const path = storagePath(folder, file.name);
+  const res = await sb.storage.from(EBOOK_BUCKET).upload(path, file, { upsert: true });
+  if (res.error) throw res.error;
+  return publicFileUrl(path);
 }
 
 async function deleteUploadedFile(url) {
-  // Data URLs are embedded in the JSON — no server file to delete
+  if (!sb) return;
+  const path = storagePathFromUrl(url);
+  if (path) {
+    try { await sb.storage.from(EBOOK_BUCKET).remove([path]); } catch (e) {}
+  }
 }
 
 function imgUrl(url) {
@@ -241,6 +325,108 @@ async function seedData() {
     }
   };
   await saveData();
+}
+
+// ======================== ADMIN AUTH & BACKUP ========================
+function isAdmin() { return !!_adminSession; }
+
+async function initAdminAuth() {
+  if (!sb) return;
+  try {
+    const { data } = await sb.auth.getSession();
+    _adminSession = data.session || null;
+  } catch (e) {
+    _adminSession = null;
+  }
+  sb.auth.onAuthStateChange((_event, session) => {
+    _adminSession = session || null;
+    if (document.querySelector('.admin-tab')) renderAdmin();
+  });
+}
+
+async function adminLogin(event) {
+  if (event && event.preventDefault) event.preventDefault();
+  const errorEl = document.getElementById('adminLoginError');
+  if (!sb) { if (errorEl) errorEl.textContent = 'Supabase is not connected yet.'; return; }
+  const email = (document.getElementById('adminEmail') || {}).value?.trim() || '';
+  const password = (document.getElementById('adminPassword') || {}).value || '';
+  if (errorEl) errorEl.textContent = '';
+  const { data: signIn, error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) { if (errorEl) errorEl.textContent = error.message; return; }
+  _adminSession = signIn.session;
+  const pw = document.getElementById('adminPassword');
+  if (pw) pw.value = '';
+  renderAdmin();
+}
+
+async function adminSignOut() {
+  if (sb) { try { await sb.auth.signOut(); } catch (e) {} }
+  _adminSession = null;
+  renderAdmin();
+}
+
+function adminSyncNote(message) {
+  const el = document.getElementById('adminSyncNote');
+  if (el) el.textContent = message || '';
+}
+
+function exportLocalBackup() {
+  const state = cloneState();
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'studyhub-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+  adminSyncNote('Backup downloaded.');
+}
+
+function refreshAllViews() {
+  renderDashboard();
+  updateStats();
+  renderEbook();
+  const activeTab = document.querySelector('.admin-tab.active');
+  if (activeTab && activeTab.dataset.admin !== 'builder') renderAdmin();
+}
+
+async function importLocalBackup(file) {
+  try {
+    const text = await file.text();
+    const d = JSON.parse(text);
+    if (!d || typeof d !== 'object') throw new Error('Not a valid Study Hub backup');
+    applyState(d);
+    normalizeQuestionTypes();
+    syncIds();
+    const saved = await saveData();
+    if (!saved) { adminSyncNote('Restored in this browser, but saving to Supabase failed. Check your admin sign-in.'); return; }
+    refreshAllViews();
+    adminSyncNote('Backup restored and synced to cloud.');
+  } catch (e) {
+    adminSyncNote('Restore failed: ' + e.message);
+  }
+}
+
+async function syncToCloud() {
+  if (!sb) { adminSyncNote('Supabase is not connected.'); return; }
+  if (!isAdmin()) { adminSyncNote('Sign in as admin first.'); return; }
+  if (!confirm('Push this browser\'s current data to Supabase?\n\nThis overwrites what is stored in the cloud.')) return;
+  adminSyncNote('Syncing to cloud…');
+  const saved = await saveData();
+  adminSyncNote(saved ? 'Done. Your phone/laptop will now see this content.' : 'Sync failed. Check your connection and sign-in.');
+}
+
+async function reloadFromCloud() {
+  if (!sb) { adminSyncNote('Supabase is not connected.'); return; }
+  if (!confirm('Reload data from Supabase?\n\nThis discards any unsaved local changes.')) return;
+  const res = await sb.from(APP_STATE_TABLE).select('data').eq('id', APP_STATE_ID).single();
+  if (res.error) { adminSyncNote('Cloud reload failed: ' + res.error.message); return; }
+  applyState(res.data && res.data.data ? res.data.data : {});
+  try { localStorage.setItem('studyhub_data', JSON.stringify(cloneState())); } catch (e) {}
+  syncIds();
+  refreshAllViews();
+  adminSyncNote('Reloaded from cloud.');
 }
 
 // ======================== NAVIGATION ========================
@@ -1848,7 +2034,7 @@ async function addSelectedFromFolder(button) {
   alert('Added ' + plans.length + ' PDF' + (plans.length === 1 ? '' : 's') + ' from Drive.');
 }
 
-const MAX_EBOOK_PDF_BYTES = 3 * 1024 * 1024;
+const MAX_EBOOK_PDF_BYTES = sb ? 25 * 1024 * 1024 : 3 * 1024 * 1024;
 
 function formatFileSize(bytes) {
   if (!bytes) return '';
@@ -1879,7 +2065,7 @@ async function addEbookFile() {
     return;
   }
   if (file.size > MAX_EBOOK_PDF_BYTES) {
-    alert('This PDF is too large to save in the browser. Please choose a PDF under 3 MB.');
+    alert('This PDF is too large. Please choose a PDF under ' + (sb ? '25' : '3') + ' MB.');
     return;
   }
   let url;
@@ -1909,7 +2095,8 @@ async function addEbookFile() {
   const saved = await saveData();
   if (!saved) {
     data.ebooks = data.ebooks.filter(item => item !== ebook);
-    alert('Could not save this PDF because browser storage is full. Remove some E-Books or upload a smaller PDF.');
+    await deleteUploadedFile(url);
+    alert('Could not save this PDF. Please sign in as admin and try again, or choose a smaller PDF.');
     return;
   }
   if (fileInput) fileInput.value = '';
@@ -2177,6 +2364,17 @@ function normalizeQuestionTypes() {
 
 function renderAdmin() {
   const container = document.getElementById('adminContent');
+  const loginBox = document.getElementById('adminLoginBox');
+  const panel = document.getElementById('adminPanel');
+  if (loginBox && panel && !isAdmin()) {
+    loginBox.classList.remove('hidden');
+    panel.classList.add('hidden');
+    return;
+  }
+  if (loginBox && panel) {
+    loginBox.classList.add('hidden');
+    panel.classList.remove('hidden');
+  }
   const activeTab = document.querySelector('.admin-tab.active');
   const tab = activeTab ? activeTab.dataset.admin : 'categories';
   const builderPane = document.getElementById('adminBuilderPane');
@@ -4822,6 +5020,7 @@ async function init() {
     await loadData();
     loadTheme();
     await seedData();
+    if (sb) await initAdminAuth();
   } catch (e) { console.error('Init error:', e); }
   renderDashboard();
   updateStats();
@@ -4894,6 +5093,16 @@ async function init() {
       saveDriveImportRow(row);
     }
   });
+
+  // Admin auth + backup/sync
+  const bindEl = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
+  bindEl('adminSignOutBtn', adminSignOut);
+  bindEl('adminExportBackupBtn', exportLocalBackup);
+  bindEl('adminImportBackupBtn', () => { const inp = document.getElementById('adminBackupFile'); if (inp) inp.click(); });
+  bindEl('adminSyncToCloudBtn', syncToCloud);
+  bindEl('adminReloadFromCloudBtn', reloadFromCloud);
+  const backupInput = document.getElementById('adminBackupFile');
+  if (backupInput) backupInput.addEventListener('change', function () { const f = this.files && this.files[0]; if (f) importLocalBackup(f); this.value = ''; });
 
   // Admin tabs
   document.querySelectorAll('.admin-tab').forEach(t => t.addEventListener('click', function () {
