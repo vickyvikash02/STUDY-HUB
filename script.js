@@ -2936,7 +2936,7 @@ function renderAdminQuestions(container) {
   html += '<div class="admin-import">';
   html += '<div class="admin-import-head"><h4><i class="fas fa-file-word"></i> Import from Word</h4><span>Add many questions at once from a .docx file</span></div>';
   html += '<div class="admin-row" style="flex-wrap:wrap;gap:8px;"><a class="btn-secondary" href="sample-questions-v2.docx?v=47" download="studyhub-sample-questions.docx"><i class="fas fa-download"></i> Download sample Word file</a><input type="file" id="adminQImportFile" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style="flex:1;"><button class="btn-secondary" id="adminQImportBtn"><i class="fas fa-file-import"></i> Import Questions</button></div>';
-  html += '<details class="admin-import-help"><summary>Show supported Word format</summary><pre>Category: Quantitative Aptitude\nSubcategory: Arithmetic\nTopic: Percentage\nType: Basics\n\nQ1. What is 20% of 450?\nA) 70\nB) 80\nC) 90\nD) 100\nAnswer: C\nExplanation: 20% of 450 = 90.\n\nQ2. If 30% of a number is 150, what is it?\nA) 400\nB) 450\nC) 500\nD) 550\nAnswer: C\nExplanation: 30% of 500 = 150.\n\nCategory: General Awareness\nSubcategory: Geography\nTopic: Rivers\nType: Facts\n\nQ3. Which is the longest river?\nA) Amazon\nB) Nile\nC) Yangtze\nD) Mississippi\nAnswer: B\nExplanation: The Nile is about 6,650 km long.\n\nNotes:\n- Category, Subcategory and Topic lines decide where questions are saved.\n- Missing categories, subcategories, topics and types are created automatically.\n- You can repeat the Category / Subcategory / Topic lines anywhere to switch sections.\n- If the file has no Category/Subcategory/Topic lines, the selections in this form are used.\n- Each question starts with Q1., Q2. or 1., 2.\n- Options use A), B), C), D) (2 to 6 options supported).\n- Answer can be A, B, C, D or 1, 2, 3, 4.\n- Explanation is optional.\n- Download the sample Word file above to see a ready-made example.</pre></details>';
+  html += '<details class="admin-import-help"><summary>Show supported Word format</summary><pre>Category: Quantitative Aptitude\nSubcategory: Arithmetic\nTopic: Percentage\nType: Basics\n\nQ1. What is 20% of 450?\nA) 70\nB) 80\nC) 90\nD) 100\nAnswer: C\nExplanation: 20% of 450 = 90.\n\nQ2. If 30% of a number is 150, what is it?\nA) 400\nB) 450\nC) 500\nD) 550\nAnswer: C\nExplanation: 30% of 500 = 150.\n\nCategory: General Awareness\nSubcategory: Geography\nTopic: Rivers\nType: Facts\n\nQ3. Which is the longest river?\nA) Amazon\nB) Nile\nC) Yangtze\nD) Mississippi\nAnswer: B\nExplanation: The Nile is about 6,650 km long.\n\nNotes:\n- Category, Subcategory and Topic lines decide where questions are saved.\n- Missing categories, subcategories, topics and types are created automatically.\n- You can repeat the Category / Subcategory / Topic lines anywhere to switch sections.\n- If the file has no Category/Subcategory/Topic lines, the selections in this form are used.\n- Each question starts with Q1., Q2. or 1., 2.\n- Options use A), B), C), D) (2 to 6 options supported).\n- Answer can be A, B, C, D or 1, 2, 3, 4.\n- Explanation is optional.\n- Pictures in the document are uploaded and shown with the question or explanation.\n- Download the sample Word file above to see a ready-made example.</pre></details>';
   html += '</div>';
 
   html += '</div>';
@@ -3269,6 +3269,46 @@ function loadMammoth() {
   return _mammothPromise;
 }
 
+// Mammoth gives us HTML for Word files that contain pictures. Keep images in
+// document order as markers so the question parser can attach them correctly.
+function wordHtmlToLines(html) {
+  const holder = document.createElement('div');
+  holder.innerHTML = String(html || '');
+  holder.querySelectorAll('img').forEach(img => {
+    const src = img.getAttribute('src') || '';
+    const marker = document.createTextNode('\n[IMAGE:' + src + ']\n');
+    if (img.parentNode) img.parentNode.replaceChild(marker, img);
+  });
+  holder.querySelectorAll('p, div, h1, h2, h3, h4, h5, h6, li, tr, br').forEach(el => {
+    el.insertAdjacentText('afterend', '\n');
+  });
+  return holder.textContent
+    .replace(/\u00a0/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .split('\n')
+    .map(l => l.trim())
+    .filter(Boolean)
+    .join('\n');
+}
+
+async function makeWordImageConverter() {
+  let n = 0;
+  return async function (image) {
+    try {
+      const buffer = await image.read();
+      const type = String(image.contentType || 'image/png');
+      const ext = (type.split('/')[1] || 'png').replace(/[^a-z0-9]/gi, '') || 'png';
+      const blob = new Blob([buffer], { type });
+      blob.name = 'word-image-' + Date.now() + '-' + (++n) + '.' + ext;
+      const url = await uploadFile(blob, 'questions');
+      return { src: url };
+    } catch (e) {
+      console.warn('Word image upload failed:', e);
+      return { src: '' };
+    }
+  };
+}
+
 function ensureTopicType(topic, name) {
   if (!topic) return '';
   if (!topic.types || typeof topic.types !== 'object') topic.types = {};
@@ -3334,6 +3374,8 @@ function parseWordQuestions(text) {
         options,
         answer: cur.answer,
         explanation: (cur.explanation || '').replace(/\s+/g, ' ').trim(),
+        image: (cur.image || '').trim(),
+        expImage: (cur.expImage || '').trim(),
         typeName: (cur.typeName || pendingType || '').trim(),
         category: (cur.category || pendingCategory || '').trim(),
         subcategory: (cur.subcategory || pendingSubcategory || '').trim(),
@@ -3347,6 +3389,19 @@ function parseWordQuestions(text) {
   }
 
   lines.forEach(line => {
+    const imageMatch = line.match(/^\[IMAGE:(.+)\]$/i);
+    if (imageMatch && cur) {
+      const url = imageMatch[1].trim();
+      if (url) {
+        if (mode === 'explanation' || mode === 'answer') {
+          if (!cur.expImage) cur.expImage = url;
+        } else if (!cur.image) {
+          cur.image = url;
+        }
+      }
+      return;
+    }
+
     const pathMatch = line.match(/^(category|subject|subcategory|subcat|section|topic|chapter)\s*[:\-–—]\s*(.+)$/i);
     if (pathMatch) {
       const key = pathMatch[1].toLowerCase();
@@ -3401,7 +3456,7 @@ function parseWordQuestions(text) {
     const qMatch = line.match(/^(?:q(?:uestion)?\s*[.\-:]?\s*)?(\d+)\s*[\).:\-]\s*(.+)$/i);
     if (qMatch && (!cur || cur.answered || (cur.options && cur.options.length))) {
       if (cur) finish();
-      cur = { question: qMatch[2].trim(), options: [], answer: -1, answered: false, explanation: '', typeName: '' };
+      cur = { question: qMatch[2].trim(), options: [], answer: -1, answered: false, explanation: '', typeName: '', image: '', expImage: '' };
       mode = 'question';
       return;
     }
@@ -3442,8 +3497,8 @@ function addParsedQuestions(parsed, catId, subId, topicId, defaultTypeId) {
       options: item.options,
       answer: item.answer,
       explanation: item.explanation || '',
-      image: '',
-      expImage: ''
+      image: item.image || '',
+      expImage: item.expImage || ''
     };
     if (typeId) q.type = typeId;
     topic.questions.push(q);
@@ -3504,8 +3559,8 @@ function addWordQuestionsWithPaths(parsed, fallback) {
       options: item.options,
       answer: item.answer,
       explanation: item.explanation || '',
-      image: '',
-      expImage: ''
+      image: item.image || '',
+      expImage: item.expImage || ''
     };
     if (typeId) q.type = typeId;
     topic.questions.push(q);
@@ -3814,8 +3869,19 @@ async function importQuestionsFromWord() {
   try {
     const lib = await loadMammoth();
     const arrayBuffer = await file.arrayBuffer();
-    const result = await lib.extractRawText({ arrayBuffer });
-    const parsed = parseWordQuestions(result.value || '');
+    let wordText = '';
+    try {
+      const options = {};
+      if (lib.images && lib.images.imgElement) {
+        options.convertImage = lib.images.imgElement(await makeWordImageConverter());
+      }
+      const result = await lib.convertToHtml({ arrayBuffer }, options);
+      wordText = wordHtmlToLines(result.value || '');
+    } catch (imgErr) {
+      const result = await lib.extractRawText({ arrayBuffer });
+      wordText = result.value || '';
+    }
+    const parsed = parseWordQuestions(wordText);
     if (!parsed.questions.length) {
       alert('No valid questions found in this document.' +
         (parsed.skipped ? '\n\n' + parsed.skipped + ' block(s) were skipped because options or an answer were missing.' : ''));
