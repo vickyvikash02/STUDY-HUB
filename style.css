@@ -1172,7 +1172,6 @@ input, select, textarea, button { font-family: inherit; }
   transition: all var(--transition);
 }
 .qb-type-card:hover .qb-type-card-go { background: var(--primary); color: #fff; }
-.qb-type-card.untyped .qb-type-card-tag { color: #d98a1f; }
 
 .qb-type-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
 .qb-type-tab {
@@ -1284,7 +1283,6 @@ input, select, textarea, button { font-family: inherit; }
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
-.qb-type-index.untyped { background: var(--text2); }
 .qb-type-head strong { font-size: 13.5px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .qb-type-count { margin-left: auto; flex-shrink: 0; font-size: 11.5px; font-weight: 600; color: var(--text2); }
 .qb-type-assign { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-left: 10px; }
@@ -2793,7 +2791,6 @@ body.exam-active .page { animation: none; transform: none; }
   vertical-align: middle;
   white-space: nowrap;
 }
-.aq-type.untyped { background: var(--surface3); color: var(--text2); font-weight: 600; }
 .admin-question-item .aq-opts { margin-bottom: 4px; font-size: 11.5px; color: var(--text2); }
 .admin-question-item .aq-ans { font-size: 11.5px; font-weight: 600; color: #059669; }
 .admin-question-item .aq-actions { display: flex; gap: 8px; margin-top: 8px; }

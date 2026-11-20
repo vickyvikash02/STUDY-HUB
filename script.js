@@ -725,7 +725,7 @@ function qbAllGroups(topic) {
 }
 
 // One entry per box on the type picker: every registered type (even with no
-// questions yet), then stale/legacy type labels, then untyped questions.
+// questions yet), then stale/legacy type labels.
 function qbTypeEntries(topic, groups) {
   const entries = [];
   const typeIds = sortedKeys(getTopicTypes(topic));
@@ -747,10 +747,6 @@ function qbTypeEntries(topic, groups) {
         entries.push({ id: group.id, tag: 'Type ' + extraNo, name: group.name, count: group.questions.length });
       }
     });
-    const untyped = groups.find(g => g.id === '__untyped__');
-    if (untyped) {
-      entries.push({ id: untyped.id, tag: 'Other', name: untyped.name, count: untyped.questions.length, untyped: true });
-    }
   }
   return entries;
 }
@@ -801,6 +797,7 @@ function renderQBView() {
   const container = document.getElementById('qbContent');
   const typeIds = sortedKeys(getTopicTypes(topic));
   const groups = qbAllGroups(topic);
+  if (_qbTypeView === '__untyped__') _qbTypeView = 'all';
   const viewGroup = (_qbTypeView && _qbTypeView !== 'all')
     ? groups.find(g => g.id === _qbTypeView)
     : null;
@@ -877,8 +874,8 @@ function renderQBQuestionView(container, topic, view, groups) {
     tabs.appendChild(makeQBTypeTab('all', 'All', !isTypeView));
     let tabNo = 0;
     qbTypeEntries(topic, groups).forEach(entry => {
-      if (!entry.untyped) tabNo++;
-      tabs.appendChild(makeQBTypeTab(entry.id, entry.untyped ? entry.name : tabNo + '. ' + entry.name, entry.id === view));
+      tabNo++;
+      tabs.appendChild(makeQBTypeTab(entry.id, tabNo + '. ' + entry.name, entry.id === view));
     });
     container.appendChild(tabs);
   }
@@ -1073,9 +1070,9 @@ function makeQBTypeAssign(topic, getTargets, rerender) {
     const typeId = sel.value;
     if (!typeId) { alert('Choose a type first.'); return; }
     const targets = getTargets();
-    if (!targets.length) { alert('There are no untyped questions in this topic.'); return; }
+    if (!targets.length) { alert('There are no questions without a type in this topic.'); return; }
     const name = getTypeName(topic, typeId) || typeId;
-    if (!confirm('Assign type "' + name + '" to ' + targets.length + ' untyped question(s)?')) return;
+    if (!confirm('Assign type "' + name + '" to ' + targets.length + ' question(s) without a type?')) return;
     targets.forEach(q => { q.type = typeId; });
     saveData();
     renderDashboard();
@@ -1110,16 +1107,6 @@ function renderQBTypeGroups(list, qs) {
 
   // Drilled into a single type: show only its questions, as a flat list.
   if (topic && _qbTypeView && _qbTypeView !== 'all') {
-    const viewGroup = qbAllGroups(topic).find(g => g.id === _qbTypeView);
-    if (viewGroup && viewGroup.id === '__untyped__' && typeIds.length) {
-      const hint = document.createElement('div');
-      hint.className = 'qb-type-hint';
-      hint.innerHTML = '<span>These questions have no type yet. Assign one to organise them:</span>';
-      hint.appendChild(makeQBTypeAssign(topic, function () {
-        return (topic.questions || []).filter(q => !q.type || !getTopicTypes(topic)[q.type]);
-      }, refreshQBAfterTypeChange));
-      list.appendChild(hint);
-    }
     qs.forEach((q, i) => list.appendChild(buildQBItem(q, i)));
     updateQBSelection();
     return;
@@ -1132,7 +1119,7 @@ function renderQBTypeGroups(list, qs) {
     return (topic ? (topic.questions || []) : qs).filter(q => !q.type || !getTopicTypes(topic)[q.type]);
   };
 
-  // All questions are still untyped: show the type picker so grouping can start.
+  // No questions have a type yet: let the user assign one.
   if (topic && typeIds.length && !typedGroups.length) {
     const hint = document.createElement('div');
     hint.className = 'qb-type-hint';
@@ -1169,26 +1156,30 @@ function renderQBTypeGroups(list, qs) {
 
   let n = 0;
   let typeNo = 0;
-  groups.forEach(group => {
+  typedGroups.forEach(group => {
+    typeNo++;
     const section = document.createElement('div');
     section.className = 'qb-type-group';
-    const untyped = group.id === '__untyped__';
-    if (!untyped) typeNo++;
     const head = document.createElement('div');
     head.className = 'qb-type-head';
     head.innerHTML =
-      '<span class="qb-type-index' + (untyped ? ' untyped' : '') + '">' + (untyped ? 'Other' : 'Type ' + typeNo) + '</span>' +
+      '<span class="qb-type-index">' + 'Type ' + typeNo + '</span>' +
       '<strong>' + esc(group.name) + '</strong>' +
       '<span class="qb-type-count">' + group.questions.length + ' question' + (group.questions.length === 1 ? '' : 's') + '</span>';
-    if (untyped && topic && typeIds.length) {
-      head.appendChild(makeQBTypeAssign(topic, untypedTargets, rerender));
-    }
     section.appendChild(head);
     group.questions.forEach(q => {
       section.appendChild(buildQBItem(q, n));
       n++;
     });
     list.appendChild(section);
+  });
+
+  // Questions without a type stay visible under "All", without an extra card.
+  untypedGroups.forEach(group => {
+    group.questions.forEach(q => {
+      list.appendChild(buildQBItem(q, n));
+      n++;
+    });
   });
   updateQBSelection();
 }
@@ -2347,14 +2338,14 @@ function getTypeName(topic, typeId) {
 }
 
 function getQuestionTypeLabel(q, topic) {
-  return getTypeName(topic, q && q.type) || 'Untyped';
+  return getTypeName(topic, q && q.type) || '';
 }
 
 function questionTypeCounts(questions, topic) {
   const counts = {};
   (questions || []).forEach(q => {
     const t = getQuestionTypeLabel(q, topic);
-    counts[t] = (counts[t] || 0) + 1;
+    if (t) counts[t] = (counts[t] || 0) + 1;
   });
   return counts;
 }
@@ -2902,7 +2893,7 @@ function delType(catId, subId, topicId, typeId) {
   const type = topic && topic.types && topic.types[typeId];
   if (!type) return;
   const affected = (topic.questions || []).filter(q => q.type === typeId).length;
-  const msg = 'Delete type "' + type.name + '"?' + (affected ? ' ' + affected + ' question(s) will become Untyped.' : '');
+  const msg = 'Delete type "' + type.name + '"?' + (affected ? ' ' + affected + ' question(s) will have no type.' : '');
   if (!confirm(msg)) return;
   delete topic.types[typeId];
   (topic.questions || []).forEach(q => { if (q.type === typeId) delete q.type; });
@@ -3077,8 +3068,7 @@ function typeNamesInScope(cat, sub, topic) {
 }
 
 function typeFilterOptions(cat, sub, topic, selected) {
-  return typeNamesInScope(cat, sub, topic).map(name => '<option value="' + esc(name) + '"' + (name === selected ? ' selected' : '') + '>' + esc(name) + '</option>').join('') +
-    '<option value="__untyped__"' + (selected === '__untyped__' ? ' selected' : '') + '>Untyped</option>';
+  return typeNamesInScope(cat, sub, topic).map(name => '<option value="' + esc(name) + '"' + (name === selected ? ' selected' : '') + '>' + esc(name) + '</option>').join('');
 }
 
 function refreshAQTypeFilter() {
@@ -3128,7 +3118,7 @@ function applyAQFilters() {
     const matchSub = !sub || subId === sub;
     const matchTopic = !topic || topicId === topic;
     const typeLabel = getQuestionTypeLabel(q, topicObj);
-    const matchType = !type || typeLabel === (type === '__untyped__' ? 'Untyped' : type);
+    const matchType = !type || typeLabel === type;
     const matchSearch = !search || (q.question || '').toLowerCase().includes(search);
     if (!matchCat || !matchSub || !matchTopic || !matchType || !matchSearch) return;
 
@@ -3149,7 +3139,7 @@ function applyAQFilters() {
     topicCount++;
     const qTypeLabel = getQuestionTypeLabel(q, topicObj);
     html += '<div class="admin-question-item" data-cat="' + catId + '" data-sub="' + subId + '" data-topic="' + topicId + '">';
-    html += '<div class="aq-text">' + topicCount + '. ' + esc(q.question || '') + ' <span class="aq-type' + (qTypeLabel === 'Untyped' ? ' untyped' : '') + '">' + esc(qTypeLabel) + '</span></div>' + (q.image ? '<img class="aq-img" src="' + imgUrl(q.image) + '" alt="Question image">' : '');
+    html += '<div class="aq-text">' + topicCount + '. ' + esc(q.question || '') + (qTypeLabel ? ' <span class="aq-type">' + esc(qTypeLabel) + '</span>' : '') + '</div>' + (q.image ? '<img class="aq-img" src="' + imgUrl(q.image) + '" alt="Question image">' : '');
     html += '<div class="aq-opts">' + (q.options || []).map((o, oi) => (oi === q.answer ? '✅ ' : '') + String.fromCharCode(65 + oi) + '. ' + esc(o)).join(' | ') + '</div>';
     html += '<div class="aq-ans">Answer: ' + String.fromCharCode(65 + q.answer) + ' | ' + esc(q.explanation || '') + '</div>' + (q.expImage ? '<img class="aq-img" src="' + imgUrl(q.expImage) + '" alt="Explanation image">' : '');
     html += '<div class="aq-actions"><button class="act-btn edit" onclick="event.stopPropagation();editAdminQ(\'' + catId + '\',\'' + subId + '\',\'' + topicId + '\',' + q.id + ')" aria-label="Edit question" title="Edit question"><i class="fas fa-pen"></i></button>';
