@@ -2603,10 +2603,13 @@ function renderAdminTopics(container) {
   html += '<select id="adminTypeTopic"><option value="">Topic</option></select>';
   html += '<input type="text" id="adminTypeName" placeholder="Type name (e.g. MCQ, True / False)"><button class="btn-primary" id="adminAddTypeBtn">Add Type</button></div></div>';
 
-  // Excel import (structure only: categories, subcategories, topics and types)
-  html += '<div class="admin-section"><h3>Import Topics &amp; Types from Excel</h3>';
-  html += '<div class="admin-row"><input type="file" id="adminExcelFile" accept=".xlsx,.xls,.csv" style="flex:1;min-width:200px;"><button class="btn-secondary" id="adminExcelImportBtn"><i class="fas fa-file-excel"></i> Import Excel</button></div>';
-  html += '<details class="admin-import-help"><summary>Show Excel format</summary><pre>Header row (any order):\nCategory | Subcategory | Topic | Type\n\nExample:\nQuantitative Aptitude | Arithmetic | Percentage | Basics\nQuantitative Aptitude | Arithmetic | Percentage | Advanced\nQuantitative Aptitude | Arithmetic | Average\nReasoning | Verbal | Series | Alpha\n\nNotes:\n- Category, Subcategory and Topic are required on every row.\n- Type is optional. Leave it empty to only create the topic.\n- Existing categories, subcategories, topics and types are reused.\n- Missing ones are created automatically.\n- Questions are not imported here. Use the Questions tab to add them.\n- Supports .xlsx, .xls and .csv files.</pre></details></div>';
+  // Excel import (questions + topics/types)
+  html += '<div class="admin-section"><h3>Import Questions &amp; Topics from Excel</h3>';
+  html += '<div class="admin-row" style="flex-wrap:wrap;gap:8px;">';
+  html += '<button class="btn-secondary" id="adminExcelTemplateBtn"><i class="fas fa-download"></i> Download template</button>';
+  html += '<input type="file" id="adminExcelFile" accept=".xlsx,.xls,.csv" style="flex:1;min-width:200px;">';
+  html += '<button class="btn-secondary" id="adminExcelImportBtn"><i class="fas fa-file-excel"></i> Import Excel</button></div>';
+  html += '<details class="admin-import-help"><summary>Show Excel format</summary><pre>Header row (any order):\nCategory | Subcategory | Topic | Type | Question | Option A | Option B | Option C | Option D | Correct Answer | Explanation\n\nExample:\nQuantitative Aptitude | Arithmetic | Percentage | Basics | What is 20% of 450? | 70 | 80 | 90 | 100 | C | 20% of 450 = 90.\nGeneral Awareness | Geography | Rivers | Facts | Which is the longest river? | Amazon | Nile | Yangtze | Mississippi | B | The Nile is about 6,650 km long.\n\nNotes:\n- Category, Subcategory, Topic and Question are required to import a question.\n- Fill at least two Option cells and a Correct Answer.\n- Correct Answer can be A, B, C, D... or 1, 2, 3, 4... or the full option text.\n- Type is optional. A new type is created automatically if it does not exist.\n- Explanation is optional. Add it to show the solution after the answer.\n- Option E and Option F columns are also supported for 5/6-option questions.\n- Leave Question empty in a row to only create a topic/type.\n- Existing categories, subcategories, topics and types are reused.\n- Supports .xlsx, .xls and .csv files.</pre></details></div>';
 
   // Combined list
   html += '<div class="admin-section"><h3>Topics &amp; Types</h3>';
@@ -2657,6 +2660,7 @@ function renderAdminTopics(container) {
 
   document.getElementById('adminAddTopicBtn').addEventListener('click', addTopic);
   document.getElementById('adminExcelImportBtn').addEventListener('click', importFromExcel);
+  document.getElementById('adminExcelTemplateBtn').addEventListener('click', downloadExcelTemplate);
 
   document.getElementById('adminTopicCat').addEventListener('change', function () {
     const sel = document.getElementById('adminTopicSub');
@@ -3432,7 +3436,16 @@ const EXCEL_COLUMNS = {
   category: ['category', 'subject', 'cat'],
   subcategory: ['subcategory', 'subcat', 'section', 'unit'],
   topic: ['topic', 'chapter', 'lesson'],
-  type: ['type', 'questiontype', 'typeofquestion']
+  type: ['type', 'questiontype', 'typeofquestion'],
+  question: ['question', 'q', 'questiontext', 'questionname'],
+  optionA: ['optiona', 'a', 'choicea', 'option1', 'opa'],
+  optionB: ['optionb', 'b', 'choiceb', 'option2', 'opb'],
+  optionC: ['optionc', 'c', 'choicec', 'option3', 'opc'],
+  optionD: ['optiond', 'd', 'choiced', 'option4', 'opd'],
+  optionE: ['optione', 'e', 'choicee', 'option5', 'ope'],
+  optionF: ['optionf', 'f', 'choicef', 'option6', 'opf'],
+  answer: ['answer', 'correctanswer', 'correct', 'ans', 'answerkey'],
+  explanation: ['explanation', 'explain', 'solution', 'description']
 };
 
 function excelColumnIndexes(headerRow) {
@@ -3451,6 +3464,8 @@ function parseExcelSheets(XLSX, wb) {
   const rows = [];
   let skipped = 0;
   let headerFound = false;
+  let questionRows = 0;
+  let invalidQuestions = 0;
   (wb.SheetNames || []).forEach(sheetName => {
     const ws = wb.Sheets[sheetName];
     if (!ws) return;
@@ -3487,10 +3502,27 @@ function parseExcelSheets(XLSX, wb) {
         type: cell(row, 'type')
       };
       if (!item.category || !item.subcategory || !item.topic) { skipped++; continue; }
+
+      const questionText = cell(row, 'question');
+      if (questionText) {
+        const options = ['optionA', 'optionB', 'optionC', 'optionD', 'optionE', 'optionF']
+          .map(field => cell(row, field))
+          .filter(Boolean);
+        const answer = parseAnswerIndex(cell(row, 'answer'), options);
+        if (options.length >= 2 && answer >= 0 && answer < options.length) {
+          item.question = questionText;
+          item.options = options;
+          item.answer = answer;
+          item.explanation = cell(row, 'explanation');
+          questionRows++;
+        } else {
+          invalidQuestions++;
+        }
+      }
       rows.push(item);
     }
   });
-  return { rows, skipped, headerFound };
+  return { rows, skipped, headerFound, questionRows, invalidQuestions };
 }
 
 function findByNameIn(collection, name) {
@@ -3540,7 +3572,7 @@ function ensureImportTopic(sub, name) {
 }
 
 function importExcelRows(rows) {
-  const stats = { categories: 0, subcategories: 0, topics: 0, types: 0, rows: 0 };
+  const stats = { categories: 0, subcategories: 0, topics: 0, types: 0, questions: 0, rows: 0 };
   (rows || []).forEach(item => {
     stats.rows++;
     const catRes = ensureImportCategory(item.category);
@@ -3555,13 +3587,77 @@ function importExcelRows(rows) {
     if (topicRes.created) stats.topics++;
     const topic = sub.topics[topicRes.id];
 
+    let typeId = '';
     if (item.type) {
       const before = Object.keys(getTopicTypes(topic)).length;
-      ensureTopicType(topic, item.type);
+      typeId = ensureTopicType(topic, item.type);
       if (Object.keys(getTopicTypes(topic)).length > before) stats.types++;
+    }
+
+    if (item.question) {
+      const q = {
+        id: genId(),
+        question: item.question,
+        options: item.options,
+        answer: item.answer,
+        explanation: item.explanation || '',
+        image: '',
+        expImage: ''
+      };
+      if (typeId) q.type = typeId;
+      topic.questions.push(q);
+      stats.questions++;
     }
   });
   return stats;
+}
+
+async function downloadExcelTemplate() {
+  try {
+    const XLSX = await loadXLSX();
+    const header = [
+      'Category', 'Subcategory', 'Topic', 'Type', 'Question',
+      'Option A', 'Option B', 'Option C', 'Option D',
+      'Correct Answer', 'Explanation'
+    ];
+    const samples = [
+      ['Quantitative Aptitude', 'Arithmetic', 'Percentage', 'Basics',
+        'What is 20% of 450?', '70', '80', '90', '100', 'C', '20% of 450 = 90.'],
+      ['General Awareness', 'Geography', 'Rivers', 'Facts',
+        'Which is the longest river in the world?', 'Amazon', 'Nile', 'Yangtze',
+        'Mississippi', 'B', 'The Nile is about 6,650 km long.']
+    ];
+    const ws = XLSX.utils.aoa_to_sheet([header].concat(samples));
+    ws['!cols'] = [
+      { wch: 24 }, { wch: 20 }, { wch: 18 }, { wch: 16 }, { wch: 46 },
+      { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 44 }
+    ];
+    const guide = XLSX.utils.aoa_to_sheet([
+      ['STUDY HUB - QUESTION UPLOAD TEMPLATE'],
+      [''],
+      ['Fill one question per row in the "Questions" sheet. Keep the header row as it is.'],
+      [''],
+      ['Required columns: Category, Subcategory, Topic, Question, at least two Option cells, Correct Answer.'],
+      ['Optional columns: Type, Explanation, Option E, Option F.'],
+      [''],
+      ['Correct Answer can be: A, B, C, D... OR 1, 2, 3, 4... OR the full option text.'],
+      ['Example: C, or 3, or 90 all select the same option in the sample row.'],
+      [''],
+      ['Type is optional. A new type is created automatically if that name does not exist yet.'],
+      ['Explanation is optional, but adding it makes the answer clearer for students.'],
+      ['Leave the Question cell empty in a row if you only want to create a topic or type.'],
+      ['Existing categories, subcategories, topics and types are reused - duplicates are not created.'],
+      [''],
+      ['After filling the sheet: Admin > Categories > Import Questions & Topics from Excel > Import Excel.']
+    ]);
+    guide['!cols'] = [{ wch: 110 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Questions');
+    XLSX.utils.book_append_sheet(wb, guide, 'Instructions');
+    XLSX.writeFile(wb, 'studyhub-questions-template.xlsx');
+  } catch (e) {
+    alert('Could not create the Excel template: ' + e.message);
+  }
 }
 
 async function importFromExcel() {
@@ -3581,13 +3677,15 @@ async function importFromExcel() {
 
     if (!parsed.headerFound || !parsed.rows.length) {
       alert('No usable rows found.' +
-        '\n\nThe first row must contain headers: Category, Subcategory, Topic, Type.' +
+        '\n\nThe first row must contain headers: Category, Subcategory, Topic. To import questions, also add: Question, Option A, Option B, Option C, Option D, Correct Answer and Explanation.' +
         (parsed.skipped ? '\n\n' + parsed.skipped + ' row(s) were skipped because Category, Subcategory or Topic was empty.' : ''));
       return;
     }
 
     let message = 'Found ' + parsed.rows.length + ' row' + (parsed.rows.length === 1 ? '' : 's') + ' in "' + file.name + '".';
+    if (parsed.questionRows) message += '\nQuestions to add: ' + parsed.questionRows;
     if (parsed.skipped) message += '\n' + parsed.skipped + ' row(s) will be skipped (missing Category, Subcategory or Topic).';
+    if (parsed.invalidQuestions) message += '\n' + parsed.invalidQuestions + ' question(s) will be skipped (need a question, at least 2 options and a valid Correct Answer).';
     message += '\n\nImport now? Missing categories, subcategories, topics and types will be created.';
     if (!confirm(message)) return;
 
@@ -3599,6 +3697,7 @@ async function importFromExcel() {
 
     alert('Excel import complete.' +
       '\nRows processed: ' + stats.rows +
+      '\nQuestions added: ' + stats.questions +
       '\nTopics created: ' + stats.topics +
       '\nTypes created: ' + stats.types +
       (stats.categories ? '\nCategories created: ' + stats.categories : '') +
