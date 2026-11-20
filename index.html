@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-<link rel="stylesheet" href="style.css?v=50">
+<link rel="stylesheet" href="style.css?v=51">
 </head>
 <body>
 
@@ -136,14 +136,14 @@
             <span class="quick-body"><strong>Question Bank</strong><small>Practice topic-wise with explanations</small></span>
             <i class="fas fa-arrow-up-right-from-square quick-arrow"></i>
           </button>
-          <button class="quick-card" onclick="switchPage('mocks')">
-            <span class="quick-icon tone-emerald"><i class="fas fa-stopwatch"></i></span>
-            <span class="quick-body"><strong>Mock Tests</strong><small>Timed papers with an instant result</small></span>
-            <i class="fas fa-arrow-up-right-from-square quick-arrow"></i>
-          </button>
           <button class="quick-card" onclick="openTestBuilder()">
             <span class="quick-icon tone-amber"><i class="fas fa-wand-magic-sparkles"></i></span>
             <span class="quick-body"><strong>Test Builder</strong><small>Build a mock or topic test in minutes</small></span>
+            <i class="fas fa-arrow-up-right-from-square quick-arrow"></i>
+          </button>
+          <button class="quick-card" onclick="switchPage('mocks')">
+            <span class="quick-icon tone-emerald"><i class="fas fa-stopwatch"></i></span>
+            <span class="quick-body"><strong>Mock Tests</strong><small>Timed papers with an instant result</small></span>
             <i class="fas fa-arrow-up-right-from-square quick-arrow"></i>
           </button>
           <button class="quick-card" onclick="switchPage('ebook')">
@@ -541,8 +541,8 @@
           <button class="admin-tab active" data-admin="categories">Categories</button>
           <button class="admin-tab" data-admin="subcategories">Subcategories</button>
           <button class="admin-tab" data-admin="topics">Topics &amp; Types</button>
-          <button class="admin-tab" data-admin="builder">Test Builder</button>
           <button class="admin-tab" data-admin="questions">Questions</button>
+          <button class="admin-tab" data-admin="builder">Test Builder</button>
           <button class="admin-tab" data-admin="ebook">E-Book</button>
         </div>
         <div id="adminContent"></div>
@@ -611,7 +611,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="supabase-config.js?v=50"></script>
-<script src="script.js?v=50"></script>
+<script src="supabase-config.js?v=51"></script>
+<script src="script.js?v=51"></script>
 </body>
 </html>
