@@ -2936,7 +2936,7 @@ function renderAdminQuestions(container) {
   html += '<div class="admin-import">';
   html += '<div class="admin-import-head"><h4><i class="fas fa-file-word"></i> Import from Word</h4><span>Add many questions at once from a .docx file</span></div>';
   html += '<div class="admin-row" style="flex-wrap:wrap;gap:8px;"><a class="btn-secondary" href="sample-questions.docx" download="studyhub-sample-questions.docx"><i class="fas fa-download"></i> Download sample Word file</a><input type="file" id="adminQImportFile" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style="flex:1;"><button class="btn-secondary" id="adminQImportBtn"><i class="fas fa-file-import"></i> Import Questions</button></div>';
-  html += '<details class="admin-import-help"><summary>Show supported Word format</summary><pre>Type: Arithmetic\n\nQ1. What is 12 + 8?\nA) 18\nB) 20\nC) 22\nD) 24\nAnswer: B\nExplanation: 12 + 8 = 20.\n\nQ2. What is 7 × 6?\nA) 36\nB) 40\nC) 42\nD) 48\nAnswer: C\nExplanation: 7 × 6 = 42.\n\nNotes:\n- Each question starts with Q1., Q2. or 1., 2.\n- Options use A), B), C), D) (2 to 6 options supported).\n- Answer can be A, B, C, D or 1, 2, 3, 4.\n- "Type: Name" applies to the questions that follow; "Type 1 - Name" section headers also work.\n- If a question has no Type line, the Type selected above is used.\n- Explanation is optional.\n- Download the sample Word file above to see a ready-made example.</pre></details>';
+  html += '<details class="admin-import-help"><summary>Show supported Word format</summary><pre>Category: Quantitative Aptitude\nSubcategory: Arithmetic\nTopic: Percentage\nType: Basics\n\nQ1. What is 20% of 450?\nA) 70\nB) 80\nC) 90\nD) 100\nAnswer: C\nExplanation: 20% of 450 = 90.\n\nQ2. If 30% of a number is 150, what is it?\nA) 400\nB) 450\nC) 500\nD) 550\nAnswer: C\nExplanation: 30% of 500 = 150.\n\nCategory: General Awareness\nSubcategory: Geography\nTopic: Rivers\nType: Facts\n\nQ3. Which is the longest river?\nA) Amazon\nB) Nile\nC) Yangtze\nD) Mississippi\nAnswer: B\nExplanation: The Nile is about 6,650 km long.\n\nNotes:\n- Category, Subcategory and Topic lines decide where questions are saved.\n- Missing categories, subcategories, topics and types are created automatically.\n- You can repeat the Category / Subcategory / Topic lines anywhere to switch sections.\n- If the file has no Category/Subcategory/Topic lines, the selections in this form are used.\n- Each question starts with Q1., Q2. or 1., 2.\n- Options use A), B), C), D) (2 to 6 options supported).\n- Answer can be A, B, C, D or 1, 2, 3, 4.\n- Explanation is optional.\n- Download the sample Word file above to see a ready-made example.</pre></details>';
   html += '</div>';
 
   html += '</div>';
@@ -3320,6 +3320,9 @@ function parseWordQuestions(text) {
   let skipped = 0;
   let cur = null;
   let pendingType = '';
+  let pendingCategory = '';
+  let pendingSubcategory = '';
+  let pendingTopic = '';
   let mode = '';
 
   function finish() {
@@ -3331,7 +3334,10 @@ function parseWordQuestions(text) {
         options,
         answer: cur.answer,
         explanation: (cur.explanation || '').replace(/\s+/g, ' ').trim(),
-        typeName: (cur.typeName || pendingType || '').trim()
+        typeName: (cur.typeName || pendingType || '').trim(),
+        category: (cur.category || pendingCategory || '').trim(),
+        subcategory: (cur.subcategory || pendingSubcategory || '').trim(),
+        topic: (cur.topic || pendingTopic || '').trim()
       });
     } else {
       skipped++;
@@ -3341,6 +3347,24 @@ function parseWordQuestions(text) {
   }
 
   lines.forEach(line => {
+    const pathMatch = line.match(/^(category|subject|subcategory|subcat|section|topic|chapter)\s*[:\-–—]\s*(.+)$/i);
+    if (pathMatch) {
+      const key = pathMatch[1].toLowerCase();
+      const name = pathMatch[2].trim();
+      if (cur) finish();
+      if (key === 'category' || key === 'subject') {
+        pendingCategory = name;
+        pendingSubcategory = '';
+        pendingTopic = '';
+      } else if (key === 'subcategory' || key === 'subcat' || key === 'section') {
+        pendingSubcategory = name;
+        pendingTopic = '';
+      } else {
+        pendingTopic = name;
+      }
+      return;
+    }
+
     const typeMatch = line.match(/^type\s*(?:\d+)?\s*[:\-–—]\s*(.+)$/i);
     if (typeMatch) {
       const name = typeMatch[1].trim();
@@ -3425,6 +3449,69 @@ function addParsedQuestions(parsed, catId, subId, topicId, defaultTypeId) {
     topic.questions.push(q);
   });
   return { added: parsed.length, createdTypes };
+}
+
+// Imports Word questions that carry their own Category / Subcategory / Topic
+// lines. Missing folders are created; the selected admin values are only a
+// fallback for documents that do not provide their own paths.
+function addWordQuestionsWithPaths(parsed, fallback) {
+  const stats = { added: 0, skipped: 0, categories: 0, subcategories: 0, topics: 0, types: 0 };
+  const fb = fallback || {};
+  let currentCatId = fb.catId || '';
+  let currentSubId = fb.subId || '';
+  let currentTopicId = fb.topicId || '';
+
+  (parsed || []).forEach(item => {
+    if (item.category) {
+      const res = ensureImportCategory(item.category);
+      if (res.created) stats.categories++;
+      if (res.id !== currentCatId) { currentSubId = ''; currentTopicId = ''; }
+      currentCatId = res.id;
+    }
+    const cat = data.categories[currentCatId];
+    if (!cat) { stats.skipped++; return; }
+
+    if (item.subcategory) {
+      const res = ensureImportSubcategory(cat, item.subcategory);
+      if (res.created) stats.subcategories++;
+      if (res.id !== currentSubId) currentTopicId = '';
+      currentSubId = res.id;
+    }
+    const sub = cat.subcategories[currentSubId];
+    if (!sub) { stats.skipped++; return; }
+
+    if (item.topic) {
+      const res = ensureImportTopic(sub, item.topic);
+      if (res.created) stats.topics++;
+      currentTopicId = res.id;
+    }
+    const topic = sub.topics[currentTopicId];
+    if (!topic) { stats.skipped++; return; }
+    if (!Array.isArray(topic.questions)) topic.questions = [];
+
+    let typeId = fb.typeId || '';
+    if (item.typeName) {
+      const before = Object.keys(getTopicTypes(topic)).length;
+      typeId = ensureTopicType(topic, item.typeName);
+      if (Object.keys(getTopicTypes(topic)).length > before) stats.types++;
+    } else if (typeId && !getTopicTypes(topic)[typeId]) {
+      typeId = '';
+    }
+
+    const q = {
+      id: genId(),
+      question: item.question,
+      options: item.options,
+      answer: item.answer,
+      explanation: item.explanation || '',
+      image: '',
+      expImage: ''
+    };
+    if (typeId) q.type = typeId;
+    topic.questions.push(q);
+    stats.added++;
+  });
+  return stats;
 }
 
 // ======================== EXCEL IMPORT ========================
@@ -3710,19 +3797,18 @@ async function importFromExcel() {
 }
 
 async function importQuestionsFromWord() {
-  const catId = document.getElementById('adminQCat').value;
-  const subId = document.getElementById('adminQSub').value;
-  const topicId = document.getElementById('adminQTopic').value;
+  const fallback = {
+    catId: document.getElementById('adminQCat').value,
+    subId: document.getElementById('adminQSub').value,
+    topicId: document.getElementById('adminQTopic').value,
+    typeId: document.getElementById('adminQType').value
+  };
   const fileInput = document.getElementById('adminQImportFile');
   const btn = document.getElementById('adminQImportBtn');
   const file = fileInput && fileInput.files ? fileInput.files[0] : null;
 
-  if (!catId || !subId || !topicId) { alert('Select Category, Subcategory and Topic first.'); return; }
   if (!file) { alert('Choose a Word (.docx) file to import.'); return; }
   if (!/\.docx$/i.test(file.name)) { alert('Please choose a .docx Word document (save older .doc files as .docx first).'); return; }
-
-  const topic = data.categories[catId]?.subcategories[subId]?.topics[topicId];
-  if (!topic) return;
 
   if (btn) { btn.disabled = true; btn.textContent = 'Reading...'; }
   try {
@@ -3736,19 +3822,31 @@ async function importQuestionsFromWord() {
       return;
     }
 
+    const withPaths = parsed.questions.filter(q => q.category || q.subcategory || q.topic).length;
+    if (!withPaths && (!fallback.catId || !fallback.subId || !fallback.topicId)) {
+      alert('Select Category, Subcategory and Topic first, or add Category:, Subcategory: and Topic: lines to the Word file.');
+      return;
+    }
+
     let message = 'Found ' + parsed.questions.length + ' question' + (parsed.questions.length === 1 ? '' : 's') + ' in "' + file.name + '".';
     if (parsed.skipped) message += '\n' + parsed.skipped + ' block(s) will be skipped (missing options or answer).';
-    message += '\n\nImport into "' + topic.name + '"?';
+    message += withPaths
+      ? '\nUsing Category / Subcategory / Topic / Type lines from the document.'
+      : '\nUsing the Category, Subcategory and Topic selected in the form.';
+    message += '\n\nImport now? Missing categories, subcategories, topics and types will be created.';
     if (!confirm(message)) return;
 
-    const defaultTypeId = document.getElementById('adminQType').value;
-    const res = addParsedQuestions(parsed.questions, catId, subId, topicId, defaultTypeId);
+    const res = addWordQuestionsWithPaths(parsed.questions, fallback);
     await saveData();
     renderDashboard();
     updateStats();
     renderAdmin();
-    alert('Imported ' + res.added + ' question' + (res.added === 1 ? '' : 's') + ' into "' + topic.name + '"' +
-      (res.createdTypes ? ' and created ' + res.createdTypes + ' new type' + (res.createdTypes === 1 ? '' : 's') : '') + '.');
+    alert('Imported ' + res.added + ' question' + (res.added === 1 ? '' : 's') + '.' +
+      (res.skipped ? '\nSkipped ' + res.skipped + ' question(s) with missing Category/Subcategory/Topic.' : '') +
+      (res.categories ? '\nCategories created: ' + res.categories : '') +
+      (res.subcategories ? '\nSubcategories created: ' + res.subcategories : '') +
+      (res.topics ? '\nTopics created: ' + res.topics : '') +
+      (res.types ? '\nTypes created: ' + res.types : ''));
   } catch (e) {
     alert(/Word import library/.test(e.message || '') ? e.message : 'Could not read the Word document: ' + e.message);
   } finally {
