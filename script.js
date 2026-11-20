@@ -695,6 +695,7 @@ function toggleSubcat(catId, subId) {
 // ======================== QUESTION BANK ========================
 let _qbContext = null;
 let _qbSelected = new Set();
+let _qbRevealed = new Set();
 let _qbPickerType = null;
 // null = show the type picker, 'all' = every question, otherwise a type group id
 let _qbTypeView = null;
@@ -702,6 +703,7 @@ let _qbTypeView = null;
 function openQuestionBank(catId, subId, topicId) {
   _qbContext = { catId, subId, topicId };
   _qbSelected = new Set();
+  _qbRevealed = new Set();
   _qbPickerType = null;
   _qbTypeView = null;
   switchPage('questions');
@@ -952,16 +954,49 @@ function renderQBQuestionView(container, topic, view, groups) {
     const text = document.createElement('div'); text.className = 'q-text';
     text.textContent = q.question;
     item.appendChild(text);
+
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'qb-reveal-btn';
+    toggle.setAttribute('aria-expanded', 'false');
+    item.appendChild(toggle);
+
+    // Answers stay hidden until the question is clicked.
+    const reveal = document.createElement('div');
+    reveal.className = 'qb-answer-reveal hidden';
     const ans = document.createElement('div'); ans.className = 'q-answer';
     ans.innerHTML = '<strong>Answer:</strong> ' + esc(q.options ? q.options[q.answer] : '');
-    item.appendChild(ans);
+    reveal.appendChild(ans);
     if (q.explanation || q.expImage) {
       const exp = document.createElement('div'); exp.className = 'q-exp';
       let expHtml = '<strong>Explanation:</strong> ' + esc(q.explanation || '');
       if (q.expImage) expHtml += '<br><img src="' + imgUrl(q.expImage) + '" class="q-img" style="max-width:200px;margin-top:6px;">';
       exp.innerHTML = expHtml;
-      item.appendChild(exp);
+      reveal.appendChild(exp);
     }
+    item.appendChild(reveal);
+
+    function applyReveal() {
+      const on = _qbRevealed.has(q.id);
+      reveal.classList.toggle('hidden', !on);
+      item.classList.toggle('answer-visible', on);
+      toggle.innerHTML = on ? '<i class="fas fa-eye-slash"></i> Hide answer' : '<i class="fas fa-eye"></i> Show answer';
+      toggle.setAttribute('aria-expanded', String(on));
+    }
+    function toggleReveal() {
+      if (_qbRevealed.has(q.id)) _qbRevealed.delete(q.id);
+      else _qbRevealed.add(q.id);
+      applyReveal();
+    }
+    toggle.addEventListener('click', function (e) { e.stopPropagation(); toggleReveal(); });
+    item.addEventListener('click', function (e) {
+      // Selection controls must keep working without revealing the answer.
+      if (e.target.closest('input, select, label, a')) return;
+      const btn = e.target.closest('button');
+      if (btn && btn !== toggle) return;
+      toggleReveal();
+    });
+    applyReveal();
     return item;
   }
 
